@@ -1,0 +1,105 @@
+"""End-to-end integration test demonstrating the full audit pipeline."""
+
+import pytest
+import os
+from pathlib import Path
+from app.db import crud, connection
+from app.matrix.orchestrator import expand_matrix
+from app.worker.job_runner import JobRunner
+from app.tinyfish.mock_client import MockTinyFishClient
+from app.reports.html_report import generate_html_report
+from app.reports.complaint_draft import generate_complaint_draft
+
+
+@pytest.fixture(autouse=True)
+def setup_env(tmp_path, monkeypatch):
+    test_db = tmp_path / "e2e_test.db"
+    test_ev = tmp_path / "evidence"
+    monkeypatch.setenv("SQLITE_DB_PATH", str(test_db))
+    monkeypatch.setenv("EVIDENCE_DIR", str(test_ev))
+    monkeypatch.setenv("MOCK_TINYFISH", "true")
+    connection.init_db()
+
+
+def test_full_pipeline_adversarial_variant():
+    # 1. Submit audit for Late Disclosure variant
+    audit_id = crud.create_audit(
+        input_url="http://harness:8001/variant/late_disclosure",
+        merchant="Demo Store (Late Handling)",
+        preset="quick",
+    )
+    assert audit_id.startswith("aud_")
+
+    # 2. Expand matrix (Quick = 4 conditions)
+    conditions = expand_matrix(audit_id, preset="quick")
+    assert len(conditions) == 4
+
+    # 3. Worker drains queue
+    from app.tinyfish.mock_client import MockTinyFishClient
+    mock_adapter = MockTinyFishClient()
+    runner = JobRunner(worker_id="test_worker", adapter=mock_adapter)
+    processed_count = 0
+    while runner.run_one_cycle():
+        processed_count += 1
+
+    assert processed_count == 4, f"Expected 4 runs processed, got {processed_count}"
+
+    # 4. Check audit status
+    audit = crud.get_audit(audit_id)
+    assert audit["status"] == "complete"
+
+    # 5. Check Diffs
+    diffs = crud.get_diffs_for_audit(audit_id)
+    assert len(diffs) > 0
+    late_diffs = [d for d in diffs if d["type"] == "LATE_DISCLOSURE"]
+    assert len(late_diffs) > 0, "Expected LATE_DISCLOSURE diff"
+
+    # 6. Check Findings
+    findings = crud.get_findings_for_audit(audit_id)
+    assert len(findings) > 0
+    drip_findings = [f for f in findings if f["category"] == "drip_pricing"]
+    assert len(drip_findings) > 0, "Expected drip_pricing finding"
+    assert "₹5.00" in drip_findings[0]["explanation"]
+    assert "heuristic" in drip_findings[0]["heuristic_note"].lower()
+
+    # 7. Check Provider Calls (Search, Fetch, Agent, Screenshot)
+    calls = crud.get_provider_calls_for_audit(audit_id)
+    ops = [c["operation"] for c in calls]
+    assert "search" in ops, "Search not logged in main path"
+    assert "fetch" in ops, "Fetch not logged in main path"
+    assert "agent_submit" in ops, "Agent submit not logged"
+    assert "agent_poll" in ops, "Agent poll not logged"
+
+    # 8. Check HTML Report generation
+    html = generate_html_report(
+        audit=audit,
+        conditions=conditions,
+        diffs=diffs,
+        findings=findings,
+        provider_calls=calls,
+    )
+    assert "Checkout Radar Audit Report" in html
+    assert "Drip Pricing" in html
+
+    # 9. Check Complaint Draft generation
+    draft = generate_complaint_draft(audit=audit, findings=findings, diffs=diffs)
+    assert draft["is_draft"] is True
+    assert draft["auto_submitted"] is False
+    assert "DRIP PRICING" in draft["draft_text"]
+
+
+def test_full_pipeline_clean_variant_produces_no_findings():
+    """Negative control: Clean harness must produce 0 findings."""
+    audit_id = crud.create_audit(
+        input_url="http://harness:8001/variant/clean",
+        merchant="Demo Store (Clean)",
+        preset="quick",
+    )
+    expand_matrix(audit_id, preset="quick")
+
+    runner = JobRunner(worker_id="clean_worker", adapter=MockTinyFishClient())
+    while runner.run_one_cycle():
+        pass
+
+    findings = crud.get_findings_for_audit(audit_id)
+    assert len(findings) == 0, f"Clean store must produce 0 findings, got {len(findings)}"
