@@ -1,0 +1,2057 @@
+[
+  {
+    "bundle_id": "bundle_clean_001",
+    "merchant": "CleanMerchant_1",
+    "ground_truth_label": "clean",
+    "charges": [
+      {
+        "label": "Delivery fee",
+        "amount_minor": 4000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Delivery fee",
+        "step": "product",
+        "state": "observed",
+        "amount_minor": 4000
+      },
+      {
+        "charge_label": "Delivery fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 4000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Optional Gift Wrap",
+        "amount_minor": 2500,
+        "default_selected": false,
+        "user_modified": false,
+        "in_total": false,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_clean_002",
+    "merchant": "CleanMerchant_2",
+    "ground_truth_label": "clean",
+    "charges": [
+      {
+        "label": "Delivery fee",
+        "amount_minor": 4000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Delivery fee",
+        "step": "product",
+        "state": "observed",
+        "amount_minor": 4000
+      },
+      {
+        "charge_label": "Delivery fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 4000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Optional Gift Wrap",
+        "amount_minor": 2500,
+        "default_selected": false,
+        "user_modified": false,
+        "in_total": false,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_clean_003",
+    "merchant": "CleanMerchant_3",
+    "ground_truth_label": "clean",
+    "charges": [
+      {
+        "label": "Delivery fee",
+        "amount_minor": 4000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Delivery fee",
+        "step": "product",
+        "state": "observed",
+        "amount_minor": 4000
+      },
+      {
+        "charge_label": "Delivery fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 4000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Optional Gift Wrap",
+        "amount_minor": 2500,
+        "default_selected": false,
+        "user_modified": false,
+        "in_total": false,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_clean_004",
+    "merchant": "CleanMerchant_4",
+    "ground_truth_label": "clean",
+    "charges": [
+      {
+        "label": "Delivery fee",
+        "amount_minor": 4000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Delivery fee",
+        "step": "product",
+        "state": "observed",
+        "amount_minor": 4000
+      },
+      {
+        "charge_label": "Delivery fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 4000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Optional Gift Wrap",
+        "amount_minor": 2500,
+        "default_selected": false,
+        "user_modified": false,
+        "in_total": false,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_clean_005",
+    "merchant": "CleanMerchant_5",
+    "ground_truth_label": "clean",
+    "charges": [
+      {
+        "label": "Delivery fee",
+        "amount_minor": 4000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Delivery fee",
+        "step": "product",
+        "state": "observed",
+        "amount_minor": 4000
+      },
+      {
+        "charge_label": "Delivery fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 4000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Optional Gift Wrap",
+        "amount_minor": 2500,
+        "default_selected": false,
+        "user_modified": false,
+        "in_total": false,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_clean_006",
+    "merchant": "CleanMerchant_6",
+    "ground_truth_label": "clean",
+    "charges": [
+      {
+        "label": "Delivery fee",
+        "amount_minor": 4000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Delivery fee",
+        "step": "product",
+        "state": "observed",
+        "amount_minor": 4000
+      },
+      {
+        "charge_label": "Delivery fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 4000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Optional Gift Wrap",
+        "amount_minor": 2500,
+        "default_selected": false,
+        "user_modified": false,
+        "in_total": false,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_clean_007",
+    "merchant": "CleanMerchant_7",
+    "ground_truth_label": "clean",
+    "charges": [
+      {
+        "label": "Delivery fee",
+        "amount_minor": 4000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Delivery fee",
+        "step": "product",
+        "state": "observed",
+        "amount_minor": 4000
+      },
+      {
+        "charge_label": "Delivery fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 4000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Optional Gift Wrap",
+        "amount_minor": 2500,
+        "default_selected": false,
+        "user_modified": false,
+        "in_total": false,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_clean_008",
+    "merchant": "CleanMerchant_8",
+    "ground_truth_label": "clean",
+    "charges": [
+      {
+        "label": "Delivery fee",
+        "amount_minor": 4000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Delivery fee",
+        "step": "product",
+        "state": "observed",
+        "amount_minor": 4000
+      },
+      {
+        "charge_label": "Delivery fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 4000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Optional Gift Wrap",
+        "amount_minor": 2500,
+        "default_selected": false,
+        "user_modified": false,
+        "in_total": false,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_clean_009",
+    "merchant": "CleanMerchant_9",
+    "ground_truth_label": "clean",
+    "charges": [
+      {
+        "label": "Delivery fee",
+        "amount_minor": 4000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Delivery fee",
+        "step": "product",
+        "state": "observed",
+        "amount_minor": 4000
+      },
+      {
+        "charge_label": "Delivery fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 4000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Optional Gift Wrap",
+        "amount_minor": 2500,
+        "default_selected": false,
+        "user_modified": false,
+        "in_total": false,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_clean_010",
+    "merchant": "CleanMerchant_10",
+    "ground_truth_label": "clean",
+    "charges": [
+      {
+        "label": "Delivery fee",
+        "amount_minor": 4000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Delivery fee",
+        "step": "product",
+        "state": "observed",
+        "amount_minor": 4000
+      },
+      {
+        "charge_label": "Delivery fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 4000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Optional Gift Wrap",
+        "amount_minor": 2500,
+        "default_selected": false,
+        "user_modified": false,
+        "in_total": false,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_clean_011",
+    "merchant": "CleanMerchant_11",
+    "ground_truth_label": "clean",
+    "charges": [
+      {
+        "label": "Delivery fee",
+        "amount_minor": 4000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Delivery fee",
+        "step": "product",
+        "state": "observed",
+        "amount_minor": 4000
+      },
+      {
+        "charge_label": "Delivery fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 4000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Optional Gift Wrap",
+        "amount_minor": 2500,
+        "default_selected": false,
+        "user_modified": false,
+        "in_total": false,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_clean_012",
+    "merchant": "CleanMerchant_12",
+    "ground_truth_label": "clean",
+    "charges": [
+      {
+        "label": "Delivery fee",
+        "amount_minor": 4000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Delivery fee",
+        "step": "product",
+        "state": "observed",
+        "amount_minor": 4000
+      },
+      {
+        "charge_label": "Delivery fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 4000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Optional Gift Wrap",
+        "amount_minor": 2500,
+        "default_selected": false,
+        "user_modified": false,
+        "in_total": false,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_clean_013",
+    "merchant": "CleanMerchant_13",
+    "ground_truth_label": "clean",
+    "charges": [
+      {
+        "label": "Delivery fee",
+        "amount_minor": 4000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Delivery fee",
+        "step": "product",
+        "state": "observed",
+        "amount_minor": 4000
+      },
+      {
+        "charge_label": "Delivery fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 4000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Optional Gift Wrap",
+        "amount_minor": 2500,
+        "default_selected": false,
+        "user_modified": false,
+        "in_total": false,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_clean_014",
+    "merchant": "CleanMerchant_14",
+    "ground_truth_label": "clean",
+    "charges": [
+      {
+        "label": "Delivery fee",
+        "amount_minor": 4000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Delivery fee",
+        "step": "product",
+        "state": "observed",
+        "amount_minor": 4000
+      },
+      {
+        "charge_label": "Delivery fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 4000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Optional Gift Wrap",
+        "amount_minor": 2500,
+        "default_selected": false,
+        "user_modified": false,
+        "in_total": false,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_clean_015",
+    "merchant": "CleanMerchant_15",
+    "ground_truth_label": "clean",
+    "charges": [
+      {
+        "label": "Delivery fee",
+        "amount_minor": 4000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Delivery fee",
+        "step": "product",
+        "state": "observed",
+        "amount_minor": 4000
+      },
+      {
+        "charge_label": "Delivery fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 4000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Optional Gift Wrap",
+        "amount_minor": 2500,
+        "default_selected": false,
+        "user_modified": false,
+        "in_total": false,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_drip_001",
+    "merchant": "DripMerchant_1",
+    "ground_truth_label": "drip_pricing",
+    "charges": [
+      {
+        "label": "Handling fee",
+        "amount_minor": 600,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Handling fee",
+        "step": "product",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Handling fee",
+        "step": "cart",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Handling fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 600
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_drip_002",
+    "merchant": "DripMerchant_2",
+    "ground_truth_label": "drip_pricing",
+    "charges": [
+      {
+        "label": "Platform convenience fee",
+        "amount_minor": 700,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Platform convenience fee",
+        "step": "product",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Platform convenience fee",
+        "step": "cart",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Platform convenience fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 700
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_drip_003",
+    "merchant": "DripMerchant_3",
+    "ground_truth_label": "drip_pricing",
+    "charges": [
+      {
+        "label": "Processing surcharge",
+        "amount_minor": 800,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Processing surcharge",
+        "step": "product",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Processing surcharge",
+        "step": "cart",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Processing surcharge",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 800
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_drip_004",
+    "merchant": "DripMerchant_4",
+    "ground_truth_label": "drip_pricing",
+    "charges": [
+      {
+        "label": "Payment processing fee",
+        "amount_minor": 900,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Payment processing fee",
+        "step": "product",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Payment processing fee",
+        "step": "cart",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Payment processing fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 900
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_drip_005",
+    "merchant": "DripMerchant_5",
+    "ground_truth_label": "drip_pricing",
+    "charges": [
+      {
+        "label": "Handling fee",
+        "amount_minor": 1000,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Handling fee",
+        "step": "product",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Handling fee",
+        "step": "cart",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Handling fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 1000
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_drip_006",
+    "merchant": "DripMerchant_6",
+    "ground_truth_label": "drip_pricing",
+    "charges": [
+      {
+        "label": "Platform convenience fee",
+        "amount_minor": 1100,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Platform convenience fee",
+        "step": "product",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Platform convenience fee",
+        "step": "cart",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Platform convenience fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 1100
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_drip_007",
+    "merchant": "DripMerchant_7",
+    "ground_truth_label": "drip_pricing",
+    "charges": [
+      {
+        "label": "Processing surcharge",
+        "amount_minor": 1200,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Processing surcharge",
+        "step": "product",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Processing surcharge",
+        "step": "cart",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Processing surcharge",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 1200
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_drip_008",
+    "merchant": "DripMerchant_8",
+    "ground_truth_label": "drip_pricing",
+    "charges": [
+      {
+        "label": "Payment processing fee",
+        "amount_minor": 1300,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Payment processing fee",
+        "step": "product",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Payment processing fee",
+        "step": "cart",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Payment processing fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 1300
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_drip_009",
+    "merchant": "DripMerchant_9",
+    "ground_truth_label": "drip_pricing",
+    "charges": [
+      {
+        "label": "Handling fee",
+        "amount_minor": 1400,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Handling fee",
+        "step": "product",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Handling fee",
+        "step": "cart",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Handling fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 1400
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_drip_010",
+    "merchant": "DripMerchant_10",
+    "ground_truth_label": "drip_pricing",
+    "charges": [
+      {
+        "label": "Platform convenience fee",
+        "amount_minor": 1500,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Platform convenience fee",
+        "step": "product",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Platform convenience fee",
+        "step": "cart",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Platform convenience fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 1500
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_drip_011",
+    "merchant": "DripMerchant_11",
+    "ground_truth_label": "drip_pricing",
+    "charges": [
+      {
+        "label": "Processing surcharge",
+        "amount_minor": 1600,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Processing surcharge",
+        "step": "product",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Processing surcharge",
+        "step": "cart",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Processing surcharge",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 1600
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_drip_012",
+    "merchant": "DripMerchant_12",
+    "ground_truth_label": "drip_pricing",
+    "charges": [
+      {
+        "label": "Payment processing fee",
+        "amount_minor": 1700,
+        "step": "checkout_summary",
+        "mandatory": "yes"
+      }
+    ],
+    "disclosures": [
+      {
+        "charge_label": "Payment processing fee",
+        "step": "product",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Payment processing fee",
+        "step": "cart",
+        "state": "not_observed_verified",
+        "amount_minor": null
+      },
+      {
+        "charge_label": "Payment processing fee",
+        "step": "checkout_summary",
+        "state": "observed",
+        "amount_minor": 1700
+      }
+    ],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_basket_001",
+    "merchant": "SneakMerchant_1",
+    "ground_truth_label": "basket_sneaking",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Transit Protection Guarantee",
+        "amount_minor": 1200,
+        "default_selected": true,
+        "user_modified": false,
+        "in_total": true,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_basket_002",
+    "merchant": "SneakMerchant_2",
+    "ground_truth_label": "basket_sneaking",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Green Tree Donation",
+        "amount_minor": 1400,
+        "default_selected": true,
+        "user_modified": false,
+        "in_total": true,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_basket_003",
+    "merchant": "SneakMerchant_3",
+    "ground_truth_label": "basket_sneaking",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Carbon Offset Fee",
+        "amount_minor": 1600,
+        "default_selected": true,
+        "user_modified": false,
+        "in_total": true,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_basket_004",
+    "merchant": "SneakMerchant_4",
+    "ground_truth_label": "basket_sneaking",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Priority Packaging Insurance",
+        "amount_minor": 1800,
+        "default_selected": true,
+        "user_modified": false,
+        "in_total": true,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_basket_005",
+    "merchant": "SneakMerchant_5",
+    "ground_truth_label": "basket_sneaking",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Transit Protection Guarantee",
+        "amount_minor": 2000,
+        "default_selected": true,
+        "user_modified": false,
+        "in_total": true,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_basket_006",
+    "merchant": "SneakMerchant_6",
+    "ground_truth_label": "basket_sneaking",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Green Tree Donation",
+        "amount_minor": 2200,
+        "default_selected": true,
+        "user_modified": false,
+        "in_total": true,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_basket_007",
+    "merchant": "SneakMerchant_7",
+    "ground_truth_label": "basket_sneaking",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Carbon Offset Fee",
+        "amount_minor": 2400,
+        "default_selected": true,
+        "user_modified": false,
+        "in_total": true,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_basket_008",
+    "merchant": "SneakMerchant_8",
+    "ground_truth_label": "basket_sneaking",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Priority Packaging Insurance",
+        "amount_minor": 2600,
+        "default_selected": true,
+        "user_modified": false,
+        "in_total": true,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_basket_009",
+    "merchant": "SneakMerchant_9",
+    "ground_truth_label": "basket_sneaking",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Transit Protection Guarantee",
+        "amount_minor": 2800,
+        "default_selected": true,
+        "user_modified": false,
+        "in_total": true,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_basket_010",
+    "merchant": "SneakMerchant_10",
+    "ground_truth_label": "basket_sneaking",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "cart",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      },
+      {
+        "step_name": "checkout_summary",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [
+      {
+        "label": "Green Tree Donation",
+        "amount_minor": 3000,
+        "default_selected": true,
+        "user_modified": false,
+        "in_total": true,
+        "step": "cart"
+      }
+    ],
+    "urgency_indicators": []
+  },
+  {
+    "bundle_id": "bundle_urgency_001",
+    "merchant": "UrgencyMerchant_1",
+    "ground_truth_label": "false_urgency",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": [
+      {
+        "text": "Limited offer ends soon!",
+        "type": "countdown",
+        "observed_seconds_remaining": 600,
+        "step": "product"
+      }
+    ],
+    "urgency_t0": {
+      "observed_seconds_remaining": 300,
+      "step": "product"
+    },
+    "urgency_t1": {
+      "observed_seconds_remaining": 600,
+      "step": "product"
+    },
+    "elapsed_seconds": 30
+  },
+  {
+    "bundle_id": "bundle_urgency_002",
+    "merchant": "UrgencyMerchant_2",
+    "ground_truth_label": "false_urgency",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": [
+      {
+        "text": "Limited offer ends soon!",
+        "type": "countdown",
+        "observed_seconds_remaining": 600,
+        "step": "product"
+      }
+    ],
+    "urgency_t0": {
+      "observed_seconds_remaining": 300,
+      "step": "product"
+    },
+    "urgency_t1": {
+      "observed_seconds_remaining": 600,
+      "step": "product"
+    },
+    "elapsed_seconds": 30
+  },
+  {
+    "bundle_id": "bundle_urgency_003",
+    "merchant": "UrgencyMerchant_3",
+    "ground_truth_label": "false_urgency",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": [
+      {
+        "text": "Limited offer ends soon!",
+        "type": "countdown",
+        "observed_seconds_remaining": 600,
+        "step": "product"
+      }
+    ],
+    "urgency_t0": {
+      "observed_seconds_remaining": 300,
+      "step": "product"
+    },
+    "urgency_t1": {
+      "observed_seconds_remaining": 600,
+      "step": "product"
+    },
+    "elapsed_seconds": 30
+  },
+  {
+    "bundle_id": "bundle_urgency_004",
+    "merchant": "UrgencyMerchant_4",
+    "ground_truth_label": "false_urgency",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": [
+      {
+        "text": "Limited offer ends soon!",
+        "type": "countdown",
+        "observed_seconds_remaining": 600,
+        "step": "product"
+      }
+    ],
+    "urgency_t0": {
+      "observed_seconds_remaining": 300,
+      "step": "product"
+    },
+    "urgency_t1": {
+      "observed_seconds_remaining": 600,
+      "step": "product"
+    },
+    "elapsed_seconds": 30
+  },
+  {
+    "bundle_id": "bundle_urgency_005",
+    "merchant": "UrgencyMerchant_5",
+    "ground_truth_label": "false_urgency",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": [
+      {
+        "text": "Limited offer ends soon!",
+        "type": "countdown",
+        "observed_seconds_remaining": 600,
+        "step": "product"
+      }
+    ],
+    "urgency_t0": {
+      "observed_seconds_remaining": 300,
+      "step": "product"
+    },
+    "urgency_t1": {
+      "observed_seconds_remaining": 600,
+      "step": "product"
+    },
+    "elapsed_seconds": 30
+  },
+  {
+    "bundle_id": "bundle_urgency_006",
+    "merchant": "UrgencyMerchant_6",
+    "ground_truth_label": "false_urgency",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": [
+      {
+        "text": "Limited offer ends soon!",
+        "type": "countdown",
+        "observed_seconds_remaining": 600,
+        "step": "product"
+      }
+    ],
+    "urgency_t0": {
+      "observed_seconds_remaining": 300,
+      "step": "product"
+    },
+    "urgency_t1": {
+      "observed_seconds_remaining": 600,
+      "step": "product"
+    },
+    "elapsed_seconds": 30
+  },
+  {
+    "bundle_id": "bundle_urgency_007",
+    "merchant": "UrgencyMerchant_7",
+    "ground_truth_label": "false_urgency",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": [
+      {
+        "text": "Limited offer ends soon!",
+        "type": "countdown",
+        "observed_seconds_remaining": 600,
+        "step": "product"
+      }
+    ],
+    "urgency_t0": {
+      "observed_seconds_remaining": 300,
+      "step": "product"
+    },
+    "urgency_t1": {
+      "observed_seconds_remaining": 600,
+      "step": "product"
+    },
+    "elapsed_seconds": 30
+  },
+  {
+    "bundle_id": "bundle_urgency_008",
+    "merchant": "UrgencyMerchant_8",
+    "ground_truth_label": "false_urgency",
+    "charges": [],
+    "disclosures": [],
+    "stage_captures": [
+      {
+        "step_name": "product",
+        "capture_status": "verified",
+        "inspection_status": "inspected"
+      }
+    ],
+    "preselected_addons": [],
+    "urgency_indicators": [
+      {
+        "text": "Limited offer ends soon!",
+        "type": "countdown",
+        "observed_seconds_remaining": 600,
+        "step": "product"
+      }
+    ],
+    "urgency_t0": {
+      "observed_seconds_remaining": 300,
+      "step": "product"
+    },
+    "urgency_t1": {
+      "observed_seconds_remaining": 600,
+      "step": "product"
+    },
+    "elapsed_seconds": 30
+  }
+]

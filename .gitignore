@@ -1,0 +1,22 @@
+# Virtual environment
+.venv/
+__pycache__/
+*.pyc
+
+# Local environment & secrets
+.env
+
+# Database and SQLite temporary journals
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+
+# Evidence binaries (keep placeholder or directory)
+data/evidence/*.jpg
+!data/evidence/.gitkeep
+
+# Pytest & caches
+.pytest_cache/
+.coverage
+htmlcov/

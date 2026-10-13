@@ -1,0 +1,52 @@
+services:
+  # Demo Merchant Harness Container (5 behavioral variants)
+  harness:
+    build:
+      context: ./harness
+      dockerfile: Dockerfile
+    container_name: checkout-radar-harness
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+
+  # Backend REST API + SSE Progress Stream + Dashboard Static UI
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: checkout-radar-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./frontend:/app/frontend
+      - ./data/ccpa_definitions.json:/data/ccpa_definitions.json:ro
+    env_file:
+      - .env
+    environment:
+      - SQLITE_DB_PATH=/app/data/checkout_radar.db
+      - EVIDENCE_DIR=/app/data/evidence
+      - FRONTEND_DIR=/app/frontend
+    depends_on:
+      - harness
+    restart: unless-stopped
+
+  # Durable Job Worker Daemon with Lease Recovery
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: checkout-radar-worker
+    command: ["python3", "-m", "app.worker.daemon"]
+    volumes:
+      - ./data:/app/data
+      - ./data/ccpa_definitions.json:/data/ccpa_definitions.json:ro
+    env_file:
+      - .env
+    environment:
+      - SQLITE_DB_PATH=/app/data/checkout_radar.db
+      - EVIDENCE_DIR=/app/data/evidence
+      - WORKER_ID=compose_worker_1
+    depends_on:
+      - api
+    restart: unless-stopped
