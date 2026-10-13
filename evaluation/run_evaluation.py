@@ -24,6 +24,15 @@ from typing import Dict, Any, List, Tuple
 # Insert backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 
+# Load .env if present
+env_file = Path(__file__).resolve().parent.parent / ".env"
+if env_file.exists():
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip())
+
 from app.analysis.diff_engine import DiffEngine
 from app.analysis.detectors import (
     detect_drip_pricing_indicators,

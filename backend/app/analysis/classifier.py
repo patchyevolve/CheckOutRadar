@@ -104,6 +104,7 @@ class LLMClassifier:
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CheckoutRadar/1.0",
                 },
                 method="POST",
             )
