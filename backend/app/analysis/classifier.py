@@ -110,7 +110,14 @@ class LLMClassifier:
 
             with urllib.request.urlopen(req, timeout=15) as resp:
                 resp_json = json.loads(resp.read().decode("utf-8"))
-                choice = resp_json["choices"][0]["message"]["content"]
+                choice = resp_json["choices"][0]["message"]["content"].strip()
+                if choice.startswith("```"):
+                    lines = choice.splitlines()
+                    if lines and lines[0].startswith("```"):
+                        lines = lines[1:]
+                    if lines and lines[-1].startswith("```"):
+                        lines = lines[:-1]
+                    choice = "\n".join(lines).strip()
                 parsed = json.loads(choice)
                 validated = ClassifiedFinding(**parsed)
 
