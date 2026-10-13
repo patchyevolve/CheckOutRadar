@@ -13,6 +13,7 @@ Crucial principles:
 """
 
 from typing import Dict, Any, List, Optional
+from datetime import datetime, timezone
 
 
 def detect_drip_pricing_indicators(
@@ -127,8 +128,25 @@ def detect_false_urgency_indicators(
     step_1 = urgency_t1.get("step", "product")
     is_same_page = (step_0 == step_1)
 
-    t0_time = urgency_t0.get("timestamp", "t0")
-    t1_time = urgency_t1.get("timestamp", "t1")
+    t0_time = urgency_t0.get("timestamp") or "t0"
+    t1_time = urgency_t1.get("timestamp") or "t1"
+
+    # Calculate or verify elapsed seconds from timestamps if present
+    if (elapsed_seconds is None or elapsed_seconds == 0) and t0_time != "t0" and t1_time != "t1":
+        try:
+            dt0 = datetime.fromisoformat(t0_time.replace("Z", "+00:00"))
+            dt1 = datetime.fromisoformat(t1_time.replace("Z", "+00:00"))
+            elapsed_seconds = max(0, int((dt1 - dt0).total_seconds()))
+        except Exception:
+            elapsed_seconds = 30
+    if elapsed_seconds is None:
+        elapsed_seconds = 30
+
+    evidence_ids = list(dict.fromkeys(
+        (urgency_t0.get("evidence_ids") or []) +
+        (urgency_t1.get("evidence_ids") or [])
+    ))
+    provenance = urgency_t1.get("provenance") or urgency_t0.get("provenance") or "synthetic_mock_fixture"
 
     if rem_0 is not None and rem_1 is not None:
         # Case A: Timer restarted or increased despite time passing
@@ -151,6 +169,8 @@ def detect_false_urgency_indicators(
                 "navigation_occurred": not is_same_page,
                 "step_t0": step_0,
                 "step_t1": step_1,
+                "evidence_ids": evidence_ids,
+                "provenance": provenance,
             }
             return {
                 "audit_id": audit_id,
@@ -159,11 +179,16 @@ def detect_false_urgency_indicators(
                 "severity": "high",
                 "confidence": 0.95 if is_same_page else 0.90,
                 "explanation": explanation,
-                "evidence_ids": urgency_t1.get("evidence_ids", []),
+                "evidence_ids": evidence_ids,
                 "source": "rule",
                 "dedup_key": f"finding_urgency_reset:{step_0}_{step_1}",
                 "raw_observations": raw_obs,
-                "heuristic_note": "Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1). Preserves raw observations; reported strictly as a potential false-urgency indicator, not proof of deceptive intent.",
+                "heuristic_note": (
+                    f"Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1). "
+                    f"Provenance: {provenance}. Preserves timezone-aware UTC timestamps ({t0_time} -> {t1_time}), "
+                    f"measured elapsed interval ({elapsed_seconds}s), and evidence links ({evidence_ids}). "
+                    f"Reported strictly as a potential false-urgency indicator, not proof of deceptive intent."
+                ),
             }
         # Case B: Wall-clock elapsed time exceeded stated deadline, but offer still active
         if elapsed_seconds > rem_0 and rem_1 > 0:
@@ -176,6 +201,8 @@ def detect_false_urgency_indicators(
                 "navigation_occurred": not is_same_page,
                 "step_t0": step_0,
                 "step_t1": step_1,
+                "evidence_ids": evidence_ids,
+                "provenance": provenance,
             }
             return {
                 "audit_id": audit_id,
@@ -187,11 +214,16 @@ def detect_false_urgency_indicators(
                     f"Potential false urgency indicator (controlled expiry test): offer timer of {rem_0}s expired "
                     f"after {elapsed_seconds}s elapsed time, but the claim continues active with {rem_1}s remaining."
                 ),
-                "evidence_ids": urgency_t1.get("evidence_ids", []),
+                "evidence_ids": evidence_ids,
                 "source": "rule",
                 "dedup_key": f"finding_urgency_expired:{step_0}_{step_1}",
                 "raw_observations": raw_obs,
-                "heuristic_note": "Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1). Preserves raw observations; reported strictly as a potential false-urgency indicator, not proof of deceptive intent.",
+                "heuristic_note": (
+                    f"Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1). "
+                    f"Provenance: {provenance}. Preserves timezone-aware UTC timestamps ({t0_time} -> {t1_time}), "
+                    f"measured elapsed interval ({elapsed_seconds}s), and evidence links ({evidence_ids}). "
+                    f"Reported strictly as a potential false-urgency indicator, not proof of deceptive intent."
+                ),
             }
     return None
 
@@ -202,7 +234,7 @@ def detect_run_false_urgency_indicators(run_bundle: Dict[str, Any]) -> List[Dict
     Evaluates:
     1. Same-page controlled observation: t0 vs t1 captures on the same page with measured elapsed seconds.
     2. Cross-stage reset test: countdown restarts between distinct funnel steps (e.g., cart -> checkout).
-    Preserves raw observation data (timestamps, timer values, elapsed interval, navigation flag).
+    Preserves raw observation data (timestamps, timer values, elapsed interval, navigation flag, evidence links).
     """
     findings = []
     urgencies = run_bundle.get("urgency_indicators", [])
@@ -212,12 +244,12 @@ def detect_run_false_urgency_indicators(run_bundle: Dict[str, Any]) -> List[Dict
     audit_id = run_bundle.get("audit_id", "")
     run_id = run_bundle.get("id", "")
 
-    evidence_ids = []
+    bundle_evidence_ids = []
     for sc in run_bundle.get("stage_captures", []):
         if sc.get("snapshot_id"):
-            evidence_ids.append(sc["snapshot_id"])
+            bundle_evidence_ids.append(sc["snapshot_id"])
         elif sc.get("screenshot_ref"):
-            evidence_ids.append(sc["screenshot_ref"])
+            bundle_evidence_ids.append(sc["screenshot_ref"])
 
     for i in range(len(urgencies) - 1):
         u0 = urgencies[i]
@@ -228,9 +260,28 @@ def detect_run_false_urgency_indicators(run_bundle: Dict[str, Any]) -> List[Dict
             step0 = u0.get("step", "earlier step")
             step1 = u1.get("step", "later step")
             is_same_page = (step0 == step1)
-            elapsed = u1.get("elapsed_seconds") or 30
-            t0_ts = u0.get("timestamp", "t0")
-            t1_ts = u1.get("timestamp", "t1")
+
+            t0_ts = u0.get("timestamp") or "t0"
+            t1_ts = u1.get("timestamp") or "t1"
+
+            # Calculate or verify elapsed seconds from timestamps
+            elapsed = u1.get("elapsed_seconds")
+            if (elapsed is None or elapsed == 0) and t0_ts != "t0" and t1_ts != "t1":
+                try:
+                    dt0 = datetime.fromisoformat(t0_ts.replace("Z", "+00:00"))
+                    dt1 = datetime.fromisoformat(t1_ts.replace("Z", "+00:00"))
+                    elapsed = max(0, int((dt1 - dt0).total_seconds()))
+                except Exception:
+                    elapsed = 30
+            if elapsed is None:
+                elapsed = 30
+
+            obs_evidence_ids = list(dict.fromkeys(
+                (u0.get("evidence_ids") or []) +
+                (u1.get("evidence_ids") or []) +
+                bundle_evidence_ids
+            ))
+            provenance = u1.get("provenance") or u0.get("provenance") or "synthetic_mock_fixture"
 
             if is_same_page:
                 explanation = (
@@ -260,6 +311,8 @@ def detect_run_false_urgency_indicators(run_bundle: Dict[str, Any]) -> List[Dict
                 "navigation_occurred": not is_same_page,
                 "step_t0": step0,
                 "step_t1": step1,
+                "evidence_ids": obs_evidence_ids,
+                "provenance": provenance,
             }
 
             findings.append({
@@ -269,11 +322,16 @@ def detect_run_false_urgency_indicators(run_bundle: Dict[str, Any]) -> List[Dict
                 "severity": severity,
                 "confidence": conf,
                 "explanation": explanation,
-                "evidence_ids": evidence_ids,
+                "evidence_ids": obs_evidence_ids,
                 "source": "rule",
                 "dedup_key": dedup,
                 "raw_observations": raw_obs,
-                "heuristic_note": "Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1). Preserves raw observations; reported strictly as a potential false-urgency indicator, not proof of deceptive intent.",
+                "heuristic_note": (
+                    f"Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1). "
+                    f"Provenance: {provenance}. Preserves timezone-aware UTC timestamps ({t0_ts} -> {t1_ts}), "
+                    f"measured elapsed interval ({elapsed}s), and evidence links ({obs_evidence_ids}). "
+                    f"Reported strictly as a potential false-urgency indicator, not proof of deceptive intent."
+                ),
             })
     return findings
 

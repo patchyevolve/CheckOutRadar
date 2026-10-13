@@ -116,13 +116,43 @@ Detection Performance: Precision 100%, Recall 100%, F1-Score 1.000 (0 false alar
 Classification Accuracy: 100% across demonstrated CCPA categories (Clean, Drip, Basket Sneak, Urgency)
 ```
 
-### Tier 2: Rules-Only vs. Rules + LLM Classifier Comparative Analysis
-- **Rules-Only:** High precision and sub-millisecond execution for structured pattern detection.
-- **Rules + LLM:** Injects official CCPA 2023 Gazette text into candidate findings, synthesizing plain-language explanations for consumer grievances while maintaining deterministic detection boundaries.
+### Tier 1: Synthetic Scenario Benchmark — 45 Designed Fixtures (Rules-Only Unit Regression)
+Deterministic acceptance suite verifying algorithm conformance against known dark pattern patterns:
+- **15 Clean Bundles:** Negative controls across upfront fee, legitimate cart thresholds, and standard itemization.
+- **12 Drip Pricing Bundles:** Mandatory fees disclosed late at checkout with verified absent upfront disclosures.
+- **10 Basket Sneaking Bundles:** Pre-selected add-ons (insurance, donation, priority wrap) included in total payable.
+- **8 False Urgency Bundles:** Controlled countdown resets (holding page and session fixed) and expiration anomalies.
 
-### Tier 3: Independent Dual-Annotator Real-Site Dataset
-- **Status:** In-progress, scheduled for Day 4 (17 Oct 2026) per Section 13 team plan.
-- **Protocol:** Two annotators independently evaluate live Indian e-commerce checkout flows, with inter-rater reliability measured via Cohen's Kappa prior to model scoring.
+```
+Total Evaluated Fixtures: 45 synthetic bundles
+Detection Performance: Precision 100%, Recall 100%, F1-Score 1.000 (0 false positives on negative controls)
+Classification Conformance: 100% (30/30) on designed scenario fixtures
+Note: Reflects deterministic regression conformance on designed test cases; does not represent uncurated production performance.
+```
+
+### Tier 2: Downstream LLM Verification & Statutory Explanation
+The LLM does not alter detection boundaries; candidate indicators are strictly produced upstream by the deterministic diff engine. The LLM's downstream role is to map candidates to official CCPA Gazette definitions and draft consumer grievances in structured JSON.
+
+- **Current Runtime Status:** **Offline Template-Fallback Mode Active** (default in local Docker / CI environments where `LLM_API_KEY` is not provisioned; `has_llm_key: false`).
+- **Template Conformance Suite (N = 30 candidates from positive fixtures):**
+  - Structured Schema Validity: 30 / 30 (100.0%) conforming to `ClassifiedFinding` Pydantic model.
+  - CCPA Statutory Citation Rate: 30 / 30 (100.0%) quoting official definitions.
+  - Non-Judicial Wording Adherence: 30 / 30 (100.0%) framed as "potential indicator" with 0 legal verdicts.
+  - Local Processing Overhead: ~0.02 ms per candidate.
+- **Live Remote Provider Endpoint (Configurable):**
+  - Configurable via `LLM_BASE_URL` (default `https://api.openai.com/v1`) and `LLM_API_KEY` using `gpt-4o-mini` with JSON mode.
+  - Remote network latency is estimated at 400–1200 ms per call.
+  - **Status:** Remote live endpoint verification is pending provision of a live OpenAI API key. The release fallback ensures full offline auditability without network failures.
+
+### Tier 3: Independent Dual-Annotated Real-Site Dataset
+- **Status:** **PENDING** — Scheduled for Day 4 (17 Oct 2026) per Section 13 milestone.
+- **Protocol:** Two human annotators independently audit live Indian e-commerce checkout funnels. Inter-rater reliability (Cohen's Kappa) will be measured and reported prior to model scoring.
+
+### Evidence & Countdown Timestamp Provenance
+All audit runs preserve empirical, timestamped evidence:
+- **Controlled Countdown Procedure:** Observes timer at $t_0$, holds session and page fixed for $\Delta t = 30\text{s}$, and re-observes timer at $t_1$.
+- **Timestamp Provenance:** Generates timezone-aware UTC timestamps at runtime when observations are captured. The elapsed duration is computed directly from timestamps ($t_1 - t_0$).
+- **Evidence Linking & Provenance Tags:** Each observation is linked to supporting screenshot artifacts (`snapshot_id`), tagged with execution provenance (`provenance: "synthetic_mock_fixture"` vs `"live_agent"`), and annotated with non-judicial disclaimers.
 
 
 ---

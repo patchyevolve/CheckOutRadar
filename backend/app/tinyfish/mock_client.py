@@ -6,7 +6,7 @@ All operations log to provider_calls to maintain identical auditability.
 
 import uuid
 import base64
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 from .adapter import TinyFishAdapter
 from ..db import crud
@@ -260,6 +260,14 @@ class MockTinyFishClient(TinyFishAdapter):
 
         # Variant 3: Preselected add-on (₹15 Package Insurance) + Resetting Countdown
         if variant == "addon_countdown":
+            now_dt = datetime.now(timezone.utc)
+            t0_dt = now_dt - timedelta(seconds=30)
+            t1_dt = now_dt
+            t2_dt = now_dt + timedelta(seconds=15)
+            t0_iso = t0_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+            t1_iso = t1_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+            t2_iso = t2_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
             return {
                 "status": "ok",
                 "requested": {"pincode": requested_pincode, "session": requested_session, "cart_tier": requested_tier},
@@ -296,7 +304,9 @@ class MockTinyFishClient(TinyFishAdapter):
                         "claimed_deadline": "09:30",
                         "observed_seconds_remaining": 570,
                         "step": "product",
-                        "timestamp": "2026-10-14T01:00:00Z",
+                        "timestamp": t0_iso,
+                        "evidence_ids": ["snap_prod"],
+                        "provenance": "synthetic_mock_fixture",
                     },
                     {
                         "text": "FLASH SALE: Claim ends in 09:59 minutes! (t1 observation, 30s elapsed on same page)",
@@ -304,8 +314,10 @@ class MockTinyFishClient(TinyFishAdapter):
                         "claimed_deadline": "09:59",
                         "observed_seconds_remaining": 599,
                         "step": "product",
-                        "timestamp": "2026-10-14T01:00:30Z",
+                        "timestamp": t1_iso,
                         "elapsed_seconds": 30,
+                        "evidence_ids": ["snap_prod"],
+                        "provenance": "synthetic_mock_fixture",
                     },
                     {
                         "text": "Complete checkout within 09:59 minutes to hold your items! (cross-stage observation)",
@@ -313,7 +325,10 @@ class MockTinyFishClient(TinyFishAdapter):
                         "claimed_deadline": "09:59",
                         "observed_seconds_remaining": 599,
                         "step": "checkout_summary",
-                        "timestamp": "2026-10-14T01:00:45Z",
+                        "timestamp": t2_iso,
+                        "elapsed_seconds": 15,
+                        "evidence_ids": ["snap_chk"],
+                        "provenance": "synthetic_mock_fixture",
                     },
                 ],
                 "policy_links": {"refund": None, "cancellation": None, "shipping": None},
