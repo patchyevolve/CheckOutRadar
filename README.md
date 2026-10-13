@@ -83,7 +83,7 @@ TinyFish is central and in the main execution path:
 | **Profiles API**| `POST/DELETE https://agent.tinyfish.ai/v1/profiles` | Creates isolated Browser Context Profiles per returning condition to prevent state leakage. |
 | **Runs & Screenshots**| `GET /v1/runs/{id}`, `/runs/{id}/steps/{stepId}/screenshot` | Polls execution status and downloads step screenshot bytes. |
 
-*Day-0 Spike Status:* **PASS** (All 6 core capabilities verified on production account with $17 balance). See [docs/SPIKE_REPORT.md](docs/SPIKE_REPORT.md).
+*Day-0 Spike Status:* **PASS** (All 6 core capabilities verified on live production account). See [docs/SPIKE_REPORT.md](docs/SPIKE_REPORT.md).
 
 ---
 

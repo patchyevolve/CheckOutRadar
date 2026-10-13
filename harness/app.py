@@ -274,6 +274,14 @@ def checkout_summary(variant: str, pincode: str = "110001", qty: int = 2):
     if addon_fee_minor:
         fee_rows += f"""<tr><td>Transit Protection Insurance</td><td style='text-align: right; color: #dc2626; font-weight: bold;'>₹{addon_fee_minor / 100:.2f}</td></tr>"""
 
+    timer_box = ""
+    if variant == "addon_countdown":
+        timer_box = """
+        <div style="background: #fef2f2; border: 1px solid #fca5a5; padding: 10px; border-radius: 6px; margin-bottom: 16px; color: #991b1b; font-weight: bold;">
+            ⏳ Complete checkout within <span id="chk_timer">09:59</span> minutes to hold reserved inventory!
+        </div>
+        """
+
     return f"""
     <!DOCTYPE html>
     <html>
@@ -293,6 +301,7 @@ def checkout_summary(variant: str, pincode: str = "110001", qty: int = 2):
             <div style="background: #f1f5f9; padding: 8px 12px; border-radius: 4px; font-size: 0.9em; margin-bottom: 16px;">
                 Shipping to Delivery Pincode: <strong>{pincode}</strong>
             </div>
+            {timer_box}
 
             <table>
                 <tr>

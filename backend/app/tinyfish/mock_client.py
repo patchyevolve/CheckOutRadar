@@ -291,12 +291,19 @@ class MockTinyFishClient(TinyFishAdapter):
                 ],
                 "urgency_indicators": [
                     {
-                        "text": "Special offer expires in 09:59 minutes!",
+                        "text": "Special offer expires in 09:30 minutes!",
+                        "type": "countdown",
+                        "claimed_deadline": "09:30",
+                        "observed_seconds_remaining": 570,
+                        "step": "cart",
+                    },
+                    {
+                        "text": "Complete checkout within 09:59 minutes to hold your items!",
                         "type": "countdown",
                         "claimed_deadline": "09:59",
                         "observed_seconds_remaining": 599,
-                        "step": "product",
-                    }
+                        "step": "checkout_summary",
+                    },
                 ],
                 "policy_links": {"refund": None, "cancellation": None, "shipping": None},
             }

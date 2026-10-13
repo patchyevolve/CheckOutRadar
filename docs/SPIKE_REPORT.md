@@ -177,7 +177,7 @@ The Day-0 Spike is a strict prerequisite gate required before proceeding with th
 
 ## 3. Operational Telemetry Summary
 
-- **Wallet Balance Verified:** $17.00 available balance (`GET /v1/wallet`).
+- **API Account Authentication:** Verified active production account with valid credentials (`GET /v1/wallet` returned `200 OK`).
 - **Search API Connectivity:** `GET https://api.search.tinyfish.ai/?query=test` returned 9 ranked results (`200 OK`).
 - **Fetch API Connectivity:** `POST https://api.fetch.tinyfish.ai/` returned clean markdown with `ttl: 0` (`200 OK`).
 - **Security Check:** Zero API secrets are recorded in transcripts, committed files, or documentation.

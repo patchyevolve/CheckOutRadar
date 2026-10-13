@@ -103,3 +103,68 @@ def test_full_pipeline_clean_variant_produces_no_findings():
 
     findings = crud.get_findings_for_audit(audit_id)
     assert len(findings) == 0, f"Clean store must produce 0 findings, got {len(findings)}"
+
+
+def test_full_pipeline_addon_countdown_variant():
+    """Adversarial variant: Add-on and resetting countdown must produce both basket_sneaking and false_urgency findings."""
+    audit_id = crud.create_audit(
+        input_url="http://harness:8001/variant/addon_countdown",
+        merchant="Demo Store (Addon & Countdown)",
+        preset="quick",
+    )
+    expand_matrix(audit_id, preset="quick")
+
+    runner = JobRunner(worker_id="addon_worker", adapter=MockTinyFishClient())
+    while runner.run_one_cycle():
+        pass
+
+    findings = crud.get_findings_for_audit(audit_id)
+    categories = [f["category"] for f in findings]
+    assert "basket_sneaking" in categories, f"Expected basket_sneaking, got {categories}"
+    assert "false_urgency" in categories, f"Expected false_urgency, got {categories}"
+
+    sneak = [f for f in findings if f["category"] == "basket_sneaking"][0]
+    assert "Transit Protection Guarantee" in sneak["explanation"]
+    assert "₹15.00" in sneak["explanation"]
+
+    urgency = [f for f in findings if f["category"] == "false_urgency"][0]
+    assert "countdown timer restarted or reset" in urgency["explanation"]
+
+
+def test_full_pipeline_upfront_fee_negative_control():
+    """Negative control: Upfront fee disclosed on product page must produce 0 dark pattern findings."""
+    audit_id = crud.create_audit(
+        input_url="http://harness:8001/variant/upfront_fee",
+        merchant="Demo Store (Upfront Fee)",
+        preset="quick",
+    )
+    expand_matrix(audit_id, preset="quick")
+
+    runner = JobRunner(worker_id="upfront_worker", adapter=MockTinyFishClient())
+    while runner.run_one_cycle():
+        pass
+
+    findings = crud.get_findings_for_audit(audit_id)
+    assert len(findings) == 0, f"Upfront fee must produce 0 findings, got {len(findings)}"
+
+
+def test_full_pipeline_legitimate_threshold_negative_control():
+    """Negative control: Legitimate cart threshold rules must produce SMALL_CART_RULE diff but 0 dark pattern findings."""
+    audit_id = crud.create_audit(
+        input_url="http://harness:8001/variant/legitimate_threshold",
+        merchant="Demo Store (Threshold)",
+        preset="quick",
+    )
+    expand_matrix(audit_id, preset="quick")
+
+    runner = JobRunner(worker_id="threshold_worker", adapter=MockTinyFishClient())
+    while runner.run_one_cycle():
+        pass
+
+    diffs = crud.get_diffs_for_audit(audit_id)
+    rule_diffs = [d for d in diffs if d["type"] == "SMALL_CART_RULE"]
+    assert len(rule_diffs) > 0, "Expected SMALL_CART_RULE diff for threshold crossing"
+
+    findings = crud.get_findings_for_audit(audit_id)
+    assert len(findings) == 0, f"Legitimate threshold must produce 0 dark pattern findings, got {len(findings)}"
+

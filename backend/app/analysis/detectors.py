@@ -161,3 +161,51 @@ def detect_false_urgency_indicators(
                 "heuristic_note": "Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1).",
             }
     return None
+
+
+def detect_run_false_urgency_indicators(run_bundle: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Detect false urgency indicators within a single checkout flow bundle.
+    Checks sequential countdown observations where timer resets or increases across steps.
+    """
+    findings = []
+    urgencies = run_bundle.get("urgency_indicators", [])
+    if not urgencies or len(urgencies) < 2:
+        return findings
+
+    audit_id = run_bundle.get("audit_id", "")
+    run_id = run_bundle.get("id", "")
+
+    evidence_ids = []
+    for sc in run_bundle.get("stage_captures", []):
+        if sc.get("snapshot_id"):
+            evidence_ids.append(sc["snapshot_id"])
+        elif sc.get("screenshot_ref"):
+            evidence_ids.append(sc["screenshot_ref"])
+
+    for i in range(len(urgencies) - 1):
+        u0 = urgencies[i]
+        u1 = urgencies[i + 1]
+        rem_0 = u0.get("observed_seconds_remaining")
+        rem_1 = u1.get("observed_seconds_remaining")
+        if rem_0 is not None and rem_1 is not None and rem_1 >= rem_0:
+            step0 = u0.get("step", "earlier step")
+            step1 = u1.get("step", "later step")
+            findings.append({
+                "audit_id": audit_id,
+                "diff_id": None,
+                "category": "false_urgency",
+                "severity": "high",
+                "confidence": 0.92,
+                "explanation": (
+                    f"Potential false urgency indicator: countdown timer restarted or reset from "
+                    f"{rem_0}s at {step0} to {rem_1}s at {step1} "
+                    f"while navigating the checkout funnel."
+                ),
+                "evidence_ids": evidence_ids,
+                "source": "rule",
+                "dedup_key": f"finding_urgency_reset:{run_id}:{step0}_{step1}",
+                "heuristic_note": "Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1).",
+            })
+    return findings
+

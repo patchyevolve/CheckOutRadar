@@ -28,6 +28,7 @@ from ..analysis.detectors import (
     detect_drip_pricing_indicators,
     detect_basket_sneaking_indicators,
     detect_false_urgency_indicators,
+    detect_run_false_urgency_indicators,
 )
 from ..analysis.classifier import LLMClassifier
 from .redactor import redact_and_store_screenshot
@@ -349,6 +350,7 @@ class JobRunner:
             candidate_findings = []
             candidate_findings.extend(detect_drip_pricing_indicators(single_diffs, current_bundle))
             candidate_findings.extend(detect_basket_sneaking_indicators(current_bundle))
+            candidate_findings.extend(detect_run_false_urgency_indicators(current_bundle))
 
             # Store and classify findings
             for cand in candidate_findings:
