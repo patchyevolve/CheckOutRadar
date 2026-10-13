@@ -96,10 +96,55 @@ def test_optional_addon_not_flagged():
 
 
 def test_false_urgency_timer_reset():
-    urgency_t0 = {"observed_seconds_remaining": 300, "step": "product"}
-    urgency_t1 = {"observed_seconds_remaining": 600, "step": "product"}  # Reset back to 10m!
+    urgency_t0 = {"observed_seconds_remaining": 300, "step": "cart", "timestamp": "2026-10-14T01:00:00Z"}
+    urgency_t1 = {"observed_seconds_remaining": 600, "step": "checkout_summary", "timestamp": "2026-10-14T01:00:20Z"}
 
-    finding = detect_false_urgency_indicators(urgency_t0, urgency_t1, elapsed_seconds=30, audit_id="aud_1")
+    finding = detect_false_urgency_indicators(urgency_t0, urgency_t1, elapsed_seconds=20, audit_id="aud_1")
     assert finding is not None
     assert finding["category"] == "false_urgency"
-    assert "restarted or reset" in finding["explanation"]
+    assert "cross-stage observation" in finding["explanation"]
+
+
+def test_false_urgency_same_page_controlled_procedure():
+    """
+    v4 Specification requirement:
+    Controlled countdown procedure holding page, session, and cart state fixed.
+    Observations at t0 (570s) and t1 (599s) after 30 measured wall-clock seconds.
+    """
+    from app.analysis.detectors import detect_run_false_urgency_indicators
+
+    run_bundle = {
+        "id": "run_urgency_controlled",
+        "audit_id": "aud_1",
+        "stage_captures": [{"step_name": "product", "snapshot_id": "snap_prod_01"}],
+        "urgency_indicators": [
+            {
+                "text": "FLASH SALE: Claim ends in 09:30 minutes!",
+                "type": "countdown",
+                "claimed_deadline": "09:30",
+                "observed_seconds_remaining": 570,
+                "step": "product",
+                "timestamp": "2026-10-14T01:00:00Z",
+            },
+            {
+                "text": "FLASH SALE: Claim ends in 09:59 minutes!",
+                "type": "countdown",
+                "claimed_deadline": "09:59",
+                "observed_seconds_remaining": 599,
+                "step": "product",
+                "timestamp": "2026-10-14T01:00:30Z",
+                "elapsed_seconds": 30,
+            },
+        ],
+    }
+
+    findings = detect_run_false_urgency_indicators(run_bundle)
+    assert len(findings) == 1
+    f = findings[0]
+    assert f["category"] == "false_urgency"
+    assert f["severity"] == "high"
+    assert f["confidence"] == 0.95
+    assert "same-page controlled test" in f["explanation"]
+    assert "30s measured elapsed wall-clock time" in f["explanation"]
+    assert "holding session and page state fixed without navigation" in f["explanation"]
+

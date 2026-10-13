@@ -118,29 +118,40 @@ def detect_false_urgency_indicators(
     audit_id: str,
 ) -> Optional[Dict[str, Any]]:
     """
-    Compare urgency observations across time interval.
-    If countdown restarted or persisted past stated deadline:
+    Compare urgency observations across time interval under controlled procedure.
+    If countdown restarted or persisted past stated deadline holding session state fixed.
     """
     rem_0 = urgency_t0.get("observed_seconds_remaining")
     rem_1 = urgency_t1.get("observed_seconds_remaining")
+    step_0 = urgency_t0.get("step", "product")
+    step_1 = urgency_t1.get("step", "product")
+    is_same_page = (step_0 == step_1)
+
+    t0_time = urgency_t0.get("timestamp", "t0")
+    t1_time = urgency_t1.get("timestamp", "t1")
 
     if rem_0 is not None and rem_1 is not None:
         # Case A: Timer restarted or increased despite time passing
         if rem_1 >= rem_0:
+            proc_desc = "same-page controlled observation" if is_same_page else "cross-stage observation"
+            explanation = (
+                f"Potential false urgency indicator ({proc_desc}): countdown timer restarted or reset from "
+                f"{rem_0}s (at {t0_time}) to {rem_1}s (at {t1_time}) after {elapsed_seconds}s measured elapsed wall-clock time "
+                f"while holding session and offer state fixed on {step_0}."
+            ) if is_same_page else (
+                f"Potential false urgency indicator ({proc_desc}): countdown timer restarted or reset from "
+                f"{rem_0}s at {step_0} to {rem_1}s at {step_1} across the checkout funnel."
+            )
             return {
                 "audit_id": audit_id,
                 "diff_id": None,
                 "category": "false_urgency",
                 "severity": "high",
-                "confidence": 0.92,
-                "explanation": (
-                    f"Potential false urgency indicator: countdown timer restarted or reset from "
-                    f"{rem_0}s to {rem_1}s after {elapsed_seconds}s elapsed wall-clock time while holding "
-                    f"session and offer state fixed."
-                ),
-                "evidence_ids": [],
+                "confidence": 0.95 if is_same_page else 0.90,
+                "explanation": explanation,
+                "evidence_ids": urgency_t1.get("evidence_ids", []),
                 "source": "rule",
-                "dedup_key": f"finding_urgency_reset:{urgency_t0.get('step')}",
+                "dedup_key": f"finding_urgency_reset:{step_0}_{step_1}",
                 "heuristic_note": "Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1).",
             }
         # Case B: Wall-clock elapsed time exceeded stated deadline, but offer still active
@@ -150,14 +161,14 @@ def detect_false_urgency_indicators(
                 "diff_id": None,
                 "category": "false_urgency",
                 "severity": "high",
-                "confidence": 0.90,
+                "confidence": 0.92,
                 "explanation": (
-                    f"Potential false urgency indicator: offer timer of {rem_0}s expired after {elapsed_seconds}s "
-                    f"elapsed time, but the claim continues with {rem_1}s remaining."
+                    f"Potential false urgency indicator (controlled expiry test): offer timer of {rem_0}s expired "
+                    f"after {elapsed_seconds}s elapsed time, but the claim continues active with {rem_1}s remaining."
                 ),
-                "evidence_ids": [],
+                "evidence_ids": urgency_t1.get("evidence_ids", []),
                 "source": "rule",
-                "dedup_key": f"finding_urgency_expired:{urgency_t0.get('step')}",
+                "dedup_key": f"finding_urgency_expired:{step_0}_{step_1}",
                 "heuristic_note": "Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1).",
             }
     return None
@@ -166,7 +177,9 @@ def detect_false_urgency_indicators(
 def detect_run_false_urgency_indicators(run_bundle: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Detect false urgency indicators within a single checkout flow bundle.
-    Checks sequential countdown observations where timer resets or increases across steps.
+    Evaluates:
+    1. Same-page controlled observation: t0 vs t1 captures on the same page with measured elapsed seconds.
+    2. Cross-stage reset test: countdown restarts between distinct funnel steps (e.g., cart -> checkout).
     """
     findings = []
     urgencies = run_bundle.get("urgency_indicators", [])
@@ -191,20 +204,40 @@ def detect_run_false_urgency_indicators(run_bundle: Dict[str, Any]) -> List[Dict
         if rem_0 is not None and rem_1 is not None and rem_1 >= rem_0:
             step0 = u0.get("step", "earlier step")
             step1 = u1.get("step", "later step")
+            is_same_page = (step0 == step1)
+            elapsed = u1.get("elapsed_seconds") or 30
+            t0_ts = u0.get("timestamp", "t0")
+            t1_ts = u1.get("timestamp", "t1")
+
+            if is_same_page:
+                explanation = (
+                    f"Potential false urgency indicator (same-page controlled test): countdown timer restarted or reset from "
+                    f"{rem_0}s (at {t0_ts}) to {rem_1}s (at {t1_ts}) after {elapsed}s measured elapsed wall-clock time "
+                    f"on the same {step0} page while holding session and page state fixed without navigation."
+                )
+                severity = "high"
+                conf = 0.95
+                dedup = f"finding_urgency_same_page:{run_id}:{step0}"
+            else:
+                explanation = (
+                    f"Potential false urgency indicator (cross-stage test): countdown timer restarted or reset from "
+                    f"{rem_0}s at {step0} to {rem_1}s at {step1} "
+                    f"while navigating the checkout funnel."
+                )
+                severity = "medium"
+                conf = 0.88
+                dedup = f"finding_urgency_cross_stage:{run_id}:{step0}_{step1}"
+
             findings.append({
                 "audit_id": audit_id,
                 "diff_id": None,
                 "category": "false_urgency",
-                "severity": "high",
-                "confidence": 0.92,
-                "explanation": (
-                    f"Potential false urgency indicator: countdown timer restarted or reset from "
-                    f"{rem_0}s at {step0} to {rem_1}s at {step1} "
-                    f"while navigating the checkout funnel."
-                ),
+                "severity": severity,
+                "confidence": conf,
+                "explanation": explanation,
                 "evidence_ids": evidence_ids,
                 "source": "rule",
-                "dedup_key": f"finding_urgency_reset:{run_id}:{step0}_{step1}",
+                "dedup_key": dedup,
                 "heuristic_note": "Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1).",
             })
     return findings

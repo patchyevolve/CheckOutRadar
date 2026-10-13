@@ -129,6 +129,8 @@ def test_full_pipeline_addon_countdown_variant():
 
     urgency = [f for f in findings if f["category"] == "false_urgency"][0]
     assert "countdown timer restarted or reset" in urgency["explanation"]
+    assert "30s measured elapsed wall-clock time" in urgency["explanation"]
+    assert "holding session and page state fixed without navigation" in urgency["explanation"]
 
 
 def test_full_pipeline_upfront_fee_negative_control():
