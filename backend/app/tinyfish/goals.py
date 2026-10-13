@@ -63,6 +63,7 @@ Execution Steps:
 1. Product Stage:
    - Inspect the product details, listed price, and any visible disclosures regarding delivery, handling, or extra fees.
    - Look for any urgency indicators (countdowns, scarcity banners, limited-time claims) and record their verbatim text and timers.
+   - Controlled Countdown Procedure: If a countdown timer is visible, observe the timer and timestamp at t0; wait 30 seconds while remaining on the same page without navigating or refreshing; observe the timer and timestamp at t1. Record both observations, the claimed deadline, and the measured elapsed seconds.
    {pincode_instruction}
 
 2. Cart Stage:

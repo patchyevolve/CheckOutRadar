@@ -18,6 +18,11 @@ app = FastAPI(title="Checkout Radar Demo Merchant Harness")
 TIMER_START = time.time()
 
 
+@app.get("/health")
+def health():
+    return {"status": "healthy", "service": "checkout-radar-harness", "variants": 5}
+
+
 @app.get("/", response_class=HTMLResponse)
 def index():
     return """

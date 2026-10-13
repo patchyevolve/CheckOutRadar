@@ -30,6 +30,9 @@ def init_db():
     conn = get_connection()
     try:
         conn.executescript(schema_sql)
+        cols = [c["name"] for c in conn.execute("PRAGMA table_info(findings)").fetchall()]
+        if "raw_observations" not in cols:
+            conn.execute("ALTER TABLE findings ADD COLUMN raw_observations TEXT DEFAULT NULL;")
         conn.commit()
     finally:
         conn.close()

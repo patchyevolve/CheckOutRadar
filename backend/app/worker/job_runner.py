@@ -366,6 +366,7 @@ class JobRunner:
                     source=classified.get("source", "rule"),
                     dedup_key=classified["dedup_key"],
                     heuristic_note=classified.get("heuristic_note"),
+                    raw_observations=classified.get("raw_observations") or cand.get("raw_observations"),
                 )
                 crud.emit_event(audit_id, "finding_flagged", {
                     "finding_id": finding_id,

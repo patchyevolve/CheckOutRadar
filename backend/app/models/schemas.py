@@ -80,6 +80,8 @@ class UrgencyIndicator(BaseModel):
     claimed_deadline: Optional[str] = None
     observed_seconds_remaining: Optional[int] = None
     step: str = "product"
+    timestamp: Optional[str] = None
+    elapsed_seconds: Optional[int] = None
 
 
 class MonetaryTotals(BaseModel):

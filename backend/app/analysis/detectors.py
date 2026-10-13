@@ -142,6 +142,16 @@ def detect_false_urgency_indicators(
                 f"Potential false urgency indicator ({proc_desc}): countdown timer restarted or reset from "
                 f"{rem_0}s at {step_0} to {rem_1}s at {step_1} across the checkout funnel."
             )
+            raw_obs = {
+                "t0_remaining": rem_0,
+                "t1_remaining": rem_1,
+                "t0_timestamp": t0_time,
+                "t1_timestamp": t1_time,
+                "elapsed_seconds": elapsed_seconds,
+                "navigation_occurred": not is_same_page,
+                "step_t0": step_0,
+                "step_t1": step_1,
+            }
             return {
                 "audit_id": audit_id,
                 "diff_id": None,
@@ -152,10 +162,21 @@ def detect_false_urgency_indicators(
                 "evidence_ids": urgency_t1.get("evidence_ids", []),
                 "source": "rule",
                 "dedup_key": f"finding_urgency_reset:{step_0}_{step_1}",
-                "heuristic_note": "Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1).",
+                "raw_observations": raw_obs,
+                "heuristic_note": "Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1). Preserves raw observations; reported strictly as a potential false-urgency indicator, not proof of deceptive intent.",
             }
         # Case B: Wall-clock elapsed time exceeded stated deadline, but offer still active
         if elapsed_seconds > rem_0 and rem_1 > 0:
+            raw_obs = {
+                "t0_remaining": rem_0,
+                "t1_remaining": rem_1,
+                "t0_timestamp": t0_time,
+                "t1_timestamp": t1_time,
+                "elapsed_seconds": elapsed_seconds,
+                "navigation_occurred": not is_same_page,
+                "step_t0": step_0,
+                "step_t1": step_1,
+            }
             return {
                 "audit_id": audit_id,
                 "diff_id": None,
@@ -169,7 +190,8 @@ def detect_false_urgency_indicators(
                 "evidence_ids": urgency_t1.get("evidence_ids", []),
                 "source": "rule",
                 "dedup_key": f"finding_urgency_expired:{step_0}_{step_1}",
-                "heuristic_note": "Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1).",
+                "raw_observations": raw_obs,
+                "heuristic_note": "Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1). Preserves raw observations; reported strictly as a potential false-urgency indicator, not proof of deceptive intent.",
             }
     return None
 
@@ -180,6 +202,7 @@ def detect_run_false_urgency_indicators(run_bundle: Dict[str, Any]) -> List[Dict
     Evaluates:
     1. Same-page controlled observation: t0 vs t1 captures on the same page with measured elapsed seconds.
     2. Cross-stage reset test: countdown restarts between distinct funnel steps (e.g., cart -> checkout).
+    Preserves raw observation data (timestamps, timer values, elapsed interval, navigation flag).
     """
     findings = []
     urgencies = run_bundle.get("urgency_indicators", [])
@@ -228,6 +251,17 @@ def detect_run_false_urgency_indicators(run_bundle: Dict[str, Any]) -> List[Dict
                 conf = 0.88
                 dedup = f"finding_urgency_cross_stage:{run_id}:{step0}_{step1}"
 
+            raw_obs = {
+                "t0_remaining": rem_0,
+                "t1_remaining": rem_1,
+                "t0_timestamp": t0_ts,
+                "t1_timestamp": t1_ts,
+                "elapsed_seconds": elapsed,
+                "navigation_occurred": not is_same_page,
+                "step_t0": step0,
+                "step_t1": step1,
+            }
+
             findings.append({
                 "audit_id": audit_id,
                 "diff_id": None,
@@ -238,7 +272,8 @@ def detect_run_false_urgency_indicators(run_bundle: Dict[str, Any]) -> List[Dict
                 "evidence_ids": evidence_ids,
                 "source": "rule",
                 "dedup_key": dedup,
-                "heuristic_note": "Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1).",
+                "raw_observations": raw_obs,
+                "heuristic_note": "Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1). Preserves raw observations; reported strictly as a potential false-urgency indicator, not proof of deceptive intent.",
             })
     return findings
 

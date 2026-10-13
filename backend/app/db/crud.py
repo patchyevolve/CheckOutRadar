@@ -572,16 +572,18 @@ def insert_finding(
     dedup_key: str,
     diff_id: Optional[str] = None,
     heuristic_note: Optional[str] = None,
+    raw_observations: Optional[Dict[str, Any]] = None,
 ) -> str:
     finding_id = f"find_{uuid.uuid4().hex[:12]}"
     conn = get_connection()
     try:
+        raw_obs_json = json.dumps(raw_observations) if raw_observations else None
         conn.execute(
             """
             INSERT OR IGNORE INTO findings (
                 id, audit_id, diff_id, category, severity, confidence, explanation,
-                evidence_ids, source, dedup_key, heuristic_note
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                evidence_ids, source, dedup_key, heuristic_note, raw_observations
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 finding_id,
@@ -595,6 +597,7 @@ def insert_finding(
                 source,
                 dedup_key,
                 heuristic_note,
+                raw_obs_json,
             ),
         )
         conn.commit()
@@ -626,6 +629,11 @@ def get_findings_for_audit(audit_id: str) -> List[Dict[str, Any]]:
         for r in rows:
             d = dict(r)
             d["evidence_ids"] = json.loads(d["evidence_ids"])
+            if "raw_observations" in d and d["raw_observations"]:
+                try:
+                    d["raw_observations"] = json.loads(d["raw_observations"])
+                except Exception:
+                    pass
             res.append(d)
         return res
     finally:

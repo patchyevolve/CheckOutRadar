@@ -131,6 +131,9 @@ def test_full_pipeline_addon_countdown_variant():
     assert "countdown timer restarted or reset" in urgency["explanation"]
     assert "30s measured elapsed wall-clock time" in urgency["explanation"]
     assert "holding session and page state fixed without navigation" in urgency["explanation"]
+    assert urgency.get("heuristic_note") is not None
+    assert "potential false-urgency indicator" in urgency["heuristic_note"]
+    assert "not proof of deceptive intent" in urgency["heuristic_note"]
 
 
 def test_full_pipeline_upfront_fee_negative_control():

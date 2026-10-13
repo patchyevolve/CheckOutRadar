@@ -174,7 +174,8 @@ CREATE TABLE IF NOT EXISTS findings (
     evidence_ids TEXT NOT NULL, -- JSON array of snapshot/observation IDs
     source TEXT NOT NULL, -- rule, llm
     dedup_key TEXT NOT NULL UNIQUE,
-    heuristic_note TEXT DEFAULT NULL
+    heuristic_note TEXT DEFAULT NULL,
+    raw_observations TEXT DEFAULT NULL
 );
 
 CREATE TABLE IF NOT EXISTS events (
