@@ -1,0 +1,90 @@
+{
+  "source": "Central Consumer Protection Authority (CCPA), Ministry of Consumer Affairs, Food and Public Distribution, Government of India",
+  "guidelines": "Guidelines for Prevention and Regulation of Dark Patterns, 2023",
+  "gazette_date": "2023-11-30",
+  "version": "1.0",
+  "categories": {
+    "drip_pricing": {
+      "name": "Drip Pricing",
+      "official_id": "CCPA_2023_ANNEX_1_8",
+      "demonstrated_mvp": true,
+      "definition": "Drip pricing means a practice whereby elements of prices are not revealed upfront or in a covert manner or within the user experience during checkout, or a mandatory charge is concealed until the final checkout or after the purchase is confirmed, or where an ostensibly free service is subsequently presented as carrying charges.",
+      "detector_rule": "Mandatory fee present in checkout summary or final payable that was not disclosed upfront on the product page or initial stage, where the initial stage was verified and inspected.",
+      "heuristic_note": "Expected stage upfront (product_page) is a project heuristic for early disclosure auditing, not a statutory requirement of the CCPA text."
+    },
+    "basket_sneaking": {
+      "name": "Basket Sneaking",
+      "official_id": "CCPA_2023_ANNEX_1_2",
+      "demonstrated_mvp": true,
+      "definition": "Basket sneaking means inclusion of additional items such as products, services, payments to charity or donation at the time of checkout from a platform, without the express consent of the user, such that the total amount payable is more than the amount for the product(s) or service(s) chosen by the user.",
+      "detector_rule": "Pre-selected add-on or service checked by default at cart or checkout summary stage that contributes to the final payable amount without prior explicit opt-in by user."
+    },
+    "false_urgency": {
+      "name": "False Urgency",
+      "official_id": "CCPA_2023_ANNEX_1_1",
+      "demonstrated_mvp": true,
+      "definition": "False Urgency means falsely stating or implying the sense of urgency of an action or speed of purchase, including showing false popularity or claiming that quantities are limited or an offer expires soon, in order to manipulate user decision.",
+      "detector_rule": "Countdown timer or urgency claim observed across multiple time intervals where the countdown restarts, resets, or persists past its stated expiration window while holding the session state fixed."
+    },
+    "confirm_shaming": {
+      "name": "Confirm Shaming",
+      "official_id": "CCPA_2023_ANNEX_1_3",
+      "demonstrated_mvp": false,
+      "definition": "Confirm shaming means using a phrase, video, audio or any other means to create a sense of fear or shame or ridicule or guilt in the mind of the user, so as to nudge the user to act in a certain way or purchase a product or service."
+    },
+    "forced_action": {
+      "name": "Forced Action",
+      "official_id": "CCPA_2023_ANNEX_1_4",
+      "demonstrated_mvp": false,
+      "definition": "Forced Action means forcing a user into taking an action that would require the user of buying any additional good(s) or subscribe or evaluate an unrelated service, in order to buy or evaluate the product or service originally intended by the user."
+    },
+    "subscription_trap": {
+      "name": "Subscription Trap",
+      "official_id": "CCPA_2023_ANNEX_1_5",
+      "demonstrated_mvp": false,
+      "definition": "Subscription trap means making cancellation of a paid subscription impossible or a complex and lengthy process, or concealing the option to cancel, or forcing users to provide payment details for a free trial."
+    },
+    "interface_interference": {
+      "name": "Interface Interference",
+      "official_id": "CCPA_2023_ANNEX_1_6",
+      "demonstrated_mvp": false,
+      "definition": "Interface interference means a design that manipulates the user interface in ways that highlight certain specific information and obscures other relevant information, so as to mislead a user."
+    },
+    "bait_and_switch": {
+      "name": "Bait and Switch",
+      "official_id": "CCPA_2023_ANNEX_1_7",
+      "demonstrated_mvp": false,
+      "definition": "Bait and switch means the practice of advertising a particular outcome based on the user's action but deceptively serving a completely different outcome."
+    },
+    "disguised_advertisement": {
+      "name": "Disguised Advertisement",
+      "official_id": "CCPA_2023_ANNEX_1_9",
+      "demonstrated_mvp": false,
+      "definition": "Disguised advertisement means a practice of posing, masking advertisements as other types of content such as user-generated content or news articles or false reviews."
+    },
+    "nagging": {
+      "name": "Nagging",
+      "official_id": "CCPA_2023_ANNEX_1_10",
+      "demonstrated_mvp": false,
+      "definition": "Nagging means a dark pattern practice due to which a user is disrupted and annoyed by repeated and persistent interactions, in the form of requests, information, options to buy or permissions, solely in order to facilitate a transaction."
+    },
+    "trick_question": {
+      "name": "Trick Question",
+      "official_id": "CCPA_2023_ANNEX_1_11",
+      "demonstrated_mvp": false,
+      "definition": "Trick question means the deliberate use of confusing or vague language, double negatives or other similar tricks in questions, opt-ins, or check boxes, in order to mislead a user into taking an unintended action."
+    },
+    "saas_billing": {
+      "name": "SaaS Billing",
+      "official_id": "CCPA_2023_ANNEX_1_12",
+      "demonstrated_mvp": false,
+      "definition": "SaaS billing refers to the practice of generating and collecting recurring payments from a user in a Software as a Service business model, by exploiting silent recurring charges."
+    },
+    "rogue_malware": {
+      "name": "Rogue Malware",
+      "official_id": "CCPA_2023_ANNEX_1_13",
+      "demonstrated_mvp": false,
+      "definition": "Rogue malware means using ransomware or deceptive software to trick the user into believing their computer has a virus, so as to induce them to pay for fake antivirus tools."
+    }
+  }
+}
