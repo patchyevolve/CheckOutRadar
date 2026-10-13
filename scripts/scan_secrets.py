@@ -19,6 +19,8 @@ from pathlib import Path
 # High-confidence pattern definitions (aligned with Gitleaks & detect-secrets defaults)
 SECRET_PATTERNS = [
     ("OpenAI API Key", re.compile(r"sk-(?:proj-)?[A-Za-z0-9_-]{20,}")),
+    ("Groq API Key", re.compile(r"gsk_[A-Za-z0-9_-]{20,}")),
+    ("Google AI API Key", re.compile(r"(?:AIza[0-9A-Za-z-_]{30,}|AQ\.[A-Za-z0-9_-]{20,})")),
     ("TinyFish API Key", re.compile(r"(?:tinyfish|tf_)[A-Za-z0-9_-]{16,}")),
     ("Anthropic API Key", re.compile(r"sk-ant-[A-Za-z0-9_-]{20,}")),
     ("AWS Access Key ID", re.compile(r"(?:A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}")),
@@ -35,8 +37,13 @@ ALLOWLIST_PATTERNS = [
     re.compile(r"example"),
     re.compile(r"sk-test-[0-9a-zA-Z]+"),
     re.compile(r"tf_mock_"),
+    re.compile(r"gsk_mock_"),
+    re.compile(r"gsk_your_"),
+    re.compile(r"your_groq_"),
     re.compile(r"your_tinyfish_api_key"),
     re.compile(r"your_openai_api_key"),
+    re.compile(r"your_google_"),
+    re.compile(r"AIzaSy_your_"),
 ]
 
 def is_allowed(text: str) -> bool:
@@ -146,7 +153,7 @@ def main():
 
     print("-" * 70)
     print(f"Scan complete across {len(tracked_files)} files and full git commit log.")
-    print(f"Configured rules evaluated: {len(SECRET_PATTERNS)} patterns (OpenAI, TinyFish, Anthropic, AWS, SSH, Tokens)")
+    print(f"Configured rules evaluated: {len(SECRET_PATTERNS)} patterns (OpenAI, Groq, Google, TinyFish, Anthropic, AWS, SSH, Tokens)")
     print("-" * 70)
 
     if findings:
