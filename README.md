@@ -99,38 +99,31 @@ The separate `harness` container provides 5 reproducible merchant checkout varia
 
 ---
 
-## 6. Evaluation & Benchmark Results
+## 6. Evaluation & Benchmark Framework
 
-The pipeline was evaluated on **45 independently labelled run-level evidence bundles** scored across clean cases, each of the three demonstrated patterns, and legitimately disclosed threshold rules:
+Checkout Radar employs a three-tier evaluation methodology:
+
+### Tier 1: Synthetic Scenario Acceptance Benchmark (45 Bundles)
+A deterministic regression suite testing whether rules and stage diffs recognize known scenarios:
+- **15 Clean Bundles:** Transparent upfront pricing, opt-in add-ons, normal cart thresholds.
+- **12 Drip Pricing Bundles:** Handling, platform, and processing fees concealed until checkout summary.
+- **10 Basket Sneaking Bundles:** Pre-selected add-ons (insurance, donation, priority wrap) in total.
+- **8 False Urgency Bundles:** Countdown timers restarting or persisting past deadlines.
 
 ```
-=================================================================
-EVALUATION RESULTS: Rules-Only Deterministic Detectors
-=================================================================
-Total Evaluated Run Bundles: 45
-
-1. DETECTION PERFORMANCE (Clean vs Dark Pattern Indicator):
-   True Positives (TP):  30
-   False Positives (FP): 0
-   True Negatives (TN):  15
-   False Negatives (FN): 0
-   Detection Precision:  1.000 (100.0%)
-   Detection Recall:     1.000 (100.0%)
-   Detection F1-Score:   1.000
-
-2. CLASSIFICATION PERFORMANCE (Conditional on Detection):
-   Correctly Classified: 30 / 30
-   Classification Accuracy: 1.000 (100.0%)
-
-3. CLASS-LEVEL CONFUSION MATRIX:
-Actual \ Predicted   | clean           | drip_pricing    | basket_sneaking | false_urgency  
---------------------------------------------------------------------------------------------
-clean                | 15              | 0               | 0               | 0              
-drip_pricing         | 0               | 12              | 0               | 0              
-basket_sneaking      | 0               | 0               | 10              | 0              
-false_urgency        | 0               | 0               | 0               | 8              
-=================================================================
+Total Evaluated Bundles: 45
+Detection Performance: Precision 100%, Recall 100%, F1-Score 1.000 (0 false alarms on clean stores)
+Classification Accuracy: 100% across demonstrated CCPA categories (Clean, Drip, Basket Sneak, Urgency)
 ```
+
+### Tier 2: Rules-Only vs. Rules + LLM Classifier Comparative Analysis
+- **Rules-Only:** High precision and sub-millisecond execution for structured pattern detection.
+- **Rules + LLM:** Injects official CCPA 2023 Gazette text into candidate findings, synthesizing plain-language explanations for consumer grievances while maintaining deterministic detection boundaries.
+
+### Tier 3: Independent Dual-Annotator Real-Site Dataset
+- **Status:** In-progress, scheduled for Day 4 (17 Oct 2026) per Section 13 team plan.
+- **Protocol:** Two annotators independently evaluate live Indian e-commerce checkout flows, with inter-rater reliability measured via Cohen's Kappa prior to model scoring.
+
 
 ---
 

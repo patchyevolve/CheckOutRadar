@@ -14,13 +14,22 @@ from PIL import Image, ImageDraw
 import io
 from ..db import crud
 
-EVIDENCE_DIR = os.getenv("EVIDENCE_DIR", "/home/daksh/working/checkout-radar/data/evidence")
-
-
 def get_evidence_dir() -> Path:
-    p = Path(EVIDENCE_DIR)
+    candidates = [
+        os.getenv("EVIDENCE_DIR"),
+        "/app/data/evidence",
+        str(Path(__file__).resolve().parent.parent.parent.parent / "data" / "evidence"),
+        "/home/daksh/working/checkout-radar/data/evidence",
+    ]
+    for c in candidates:
+        if c:
+            p = Path(c)
+            p.mkdir(parents=True, exist_ok=True)
+            return p
+    p = Path("data/evidence")
     p.mkdir(parents=True, exist_ok=True)
     return p
+
 
 
 def redact_and_store_screenshot(

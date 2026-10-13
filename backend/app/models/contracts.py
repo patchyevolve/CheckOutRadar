@@ -26,7 +26,6 @@ TINYFISH_AGENT_OUTPUT_SCHEMA: Dict[str, Any] = {
                 "unsupported",
                 "failed",
             ],
-            "description": "Outcome of the checkout flow execution.",
         },
         "requested": {
             "type": "object",

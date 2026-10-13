@@ -35,10 +35,11 @@ from .redactor import redact_and_store_screenshot
 logger = logging.getLogger(__name__)
 
 
-def get_adapter() -> TinyFishAdapter:
+def get_adapter(url: Optional[str] = None) -> TinyFishAdapter:
     mock_mode = os.getenv("MOCK_TINYFISH", "false").lower() in ["true", "1", "yes"]
     api_key = os.getenv("TINYFISH_API_KEY", "")
-    if mock_mode or not api_key:
+    is_local = bool(url and any(h in url for h in ["harness", "localhost", "127.0.0.1", "testserver"]))
+    if mock_mode or not api_key or is_local:
         return MockTinyFishClient()
     return RealTinyFishClient(api_key=api_key)
 
@@ -46,9 +47,22 @@ def get_adapter() -> TinyFishAdapter:
 class JobRunner:
     def __init__(self, worker_id: str = "worker_1", adapter: Optional[TinyFishAdapter] = None):
         self.worker_id = worker_id
-        self.adapter = adapter or get_adapter()
+        self._default_adapter = adapter
         self.classifier = LLMClassifier()
         self.diff_engine = DiffEngine(expected_disclosure_stage="product")
+
+    @property
+    def adapter(self) -> TinyFishAdapter:
+        if self._default_adapter is None:
+            self._default_adapter = get_adapter()
+        return self._default_adapter
+
+    def get_adapter_for_job(self, input_url: Optional[str] = None) -> TinyFishAdapter:
+        if self._default_adapter is not None:
+            return self._default_adapter
+        return get_adapter(input_url)
+
+
 
     def run_one_cycle(self) -> bool:
         """Claim and execute one job if available. Returns True if a job was processed."""
@@ -84,18 +98,20 @@ class JobRunner:
 
         crud.emit_event(audit_id, "run_started", {"run_id": run_id, "condition_key": cond_key})
 
+        adapter = self.get_adapter_for_job(audit.get("input_url"))
+
         # 1. Step: Discovery via Search & Policy via Fetch (rule A: visibly in execution path)
         merchant_name = audit.get("merchant") or "Demo Merchant"
-        search_results = self.adapter.search(query=f"{merchant_name} checkout pricing terms", audit_id=audit_id)
+        search_results = adapter.search(query=f"{merchant_name} checkout pricing terms", audit_id=audit_id)
         if search_results:
             policy_urls = [r["url"] for r in search_results[:2]]
-            self.adapter.fetch(urls=policy_urls, audit_id=audit_id, ttl=3600)
+            adapter.fetch(urls=policy_urls, audit_id=audit_id, ttl=3600)
 
         # 2. Browser Context Profile isolation for returning session
         is_returning = (requested.get("session") == "returning")
         profile_id = None
         if is_returning:
-            profile_id = self.adapter.create_browser_profile(name=f"audit_{audit_id}_{run_id}", audit_id=audit_id)
+            profile_id = adapter.create_browser_profile(name=f"audit_{audit_id}_{run_id}", audit_id=audit_id)
 
         # 3. Lease recovery / Idempotency check:
         # If we already have a provider_run_id, do NOT resubmit! Poll existing run.
@@ -107,7 +123,7 @@ class JobRunner:
                 cart_recipe=audit.get("cart_recipe"),
                 is_returning=is_returning,
             )
-            provider_run_id = self.adapter.submit_agent_run(
+            provider_run_id = adapter.submit_agent_run(
                 url=audit["input_url"],
                 goal=goal,
                 audit_id=audit_id,
@@ -129,7 +145,7 @@ class JobRunner:
         # 4. Poll for run completion (with bounded wait)
         poll_data = None
         for _ in range(30):
-            poll_data = self.adapter.poll_agent_run(provider_run_id, audit_id=audit_id, run_id=run_id)
+            poll_data = adapter.poll_agent_run(provider_run_id, audit_id=audit_id, run_id=run_id)
             prov_status = poll_data.get("status", "PENDING")
             if prov_status in ["COMPLETED", "FAILED", "CANCELLED"]:
                 break
@@ -167,7 +183,7 @@ class JobRunner:
 
             if not raw_bytes and step_id:
                 try:
-                    raw_bytes = self.adapter.download_screenshot(provider_run_id, step_id, audit_id, run_id)
+                    raw_bytes = adapter.download_screenshot(provider_run_id, step_id, audit_id, run_id)
                 except Exception:
                     raw_bytes = None
 
@@ -358,7 +374,7 @@ class JobRunner:
         # Clean up profile
         if profile_id:
             try:
-                self.adapter.delete_browser_profile(profile_id, audit_id=audit_id)
+                adapter.delete_browser_profile(profile_id, audit_id=audit_id)
             except Exception:
                 pass
 

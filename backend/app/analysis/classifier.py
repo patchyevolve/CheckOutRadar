@@ -25,11 +25,19 @@ class ClassifiedFinding(BaseModel):
 
 
 def load_ccpa_definitions() -> Dict[str, Any]:
-    def_path = Path("/home/daksh/working/checkout-radar/data/ccpa_definitions.json")
-    if def_path.exists():
-        with open(def_path, "r", encoding="utf-8") as f:
-            return json.load(f).get("categories", {})
+    candidates = [
+        os.getenv("CCPA_DEFINITIONS_PATH"),
+        "/data/ccpa_definitions.json",
+        "/app/data/ccpa_definitions.json",
+        str(Path(__file__).resolve().parent.parent.parent.parent / "data" / "ccpa_definitions.json"),
+        "/home/daksh/working/checkout-radar/data/ccpa_definitions.json",
+    ]
+    for c in candidates:
+        if c and Path(c).exists():
+            with open(c, "r", encoding="utf-8") as f:
+                return json.load(f).get("categories", {})
     return {}
+
 
 
 class LLMClassifier:

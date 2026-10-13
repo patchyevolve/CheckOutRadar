@@ -77,13 +77,11 @@
 
 ---
 
-## Slide 8: Evaluation & Benchmark Results
-- **Independently Labelled Ground Truth:**
-  - Evaluated on **45 run-level evidence bundles** (15 Clean, 12 Drip Pricing, 10 Basket Sneaking, 8 False Urgency).
-  - Double-annotated with disagreements resolved prior to testing.
-- **Independent Two-Stage Metrics:**
-  - **Detection Performance:** Precision 100%, Recall 100%, F1 1.000 (0 false positives on clean stores).
-  - **Classification Performance:** 100% accuracy on demonstrated CCPA categories.
+## Slide 8: Evaluation & Benchmark Framework
+- **Three-Tier Evaluation Structure:**
+  1. **Tier 1 (Synthetic Acceptance Suite):** 45 deterministic bundles verifying rules identify Clean, Drip, Basket Sneak, and False Urgency without edge-case regressions.
+  2. **Tier 2 (Rules-Only vs. Rules + LLM):** Comparative latency and concordance analysis. Shows deterministic rules ensure 0 false positives while LLM synthesizes statutory legal explanations.
+  3. **Tier 3 (Dual-Annotated Real Sites):** In-progress for Day 4 (17 Oct) per Section 13 milestone. Two labelers annotating live Indian e-commerce checkout funnels.
 
 ---
 

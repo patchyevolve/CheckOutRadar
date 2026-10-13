@@ -12,8 +12,21 @@ from app.analysis.detectors import (
 )
 
 
+def get_ground_truth_path() -> Path:
+    candidates = [
+        Path(__file__).parent.parent.parent / "evaluation" / "ground_truth.json",
+        Path("/evaluation/ground_truth.json"),
+        Path("/app/evaluation/ground_truth.json"),
+        Path("/home/daksh/working/checkout-radar/evaluation/ground_truth.json"),
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+    return candidates[0]
+
+
 def test_ground_truth_bundle_count():
-    gt_path = Path(__file__).parent.parent.parent / "evaluation" / "ground_truth.json"
+    gt_path = get_ground_truth_path()
     assert gt_path.exists()
     with open(gt_path, "r", encoding="utf-8") as f:
         bundles = json.load(f)
@@ -21,9 +34,10 @@ def test_ground_truth_bundle_count():
 
 
 def test_evaluation_detection_and_classification():
-    gt_path = Path(__file__).parent.parent.parent / "evaluation" / "ground_truth.json"
+    gt_path = get_ground_truth_path()
     with open(gt_path, "r", encoding="utf-8") as f:
         bundles = json.load(f)
+
 
     diff_engine = DiffEngine()
     correct_detections = 0
