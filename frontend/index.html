@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout Radar — Outside-in E-Commerce Flow Auditor</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22><text y=%2222%22 font-size=%2222%22>📡</text></svg>">
+</head>
+<body>
+    <header class="navbar">
+        <div class="nav-brand">
+            <span class="logo-icon">📡</span>
+            <div>
+                <h1>Checkout Radar</h1>
+                <span class="tagline">Outside-in Differential Checkout Transparency & Dark Pattern Auditor</span>
+            </div>
+        </div>
+        <div class="nav-badges">
+            <span class="badge badge-accent">AZINHACK 2026</span>
+            <span class="badge badge-outline" id="backend-status">Connecting...</span>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Section 1: Submit New Audit -->
+        <section class="card launch-card">
+            <h2>🚀 Launch Checkout Audit</h2>
+            <p class="subtitle">Run automated checkout flows across controlled condition matrices (Location, Session, Cart Tier, Time) using TinyFish web agents.</p>
+
+            <form id="audit-form">
+                <div class="form-group">
+                    <label for="input-url">Target Merchant Checkout URL</label>
+                    <input type="text" id="input-url" placeholder="http://harness:8001/variant/late_disclosure" value="http://harness:8001/variant/late_disclosure" required>
+                </div>
+
+                <div class="quick-targets">
+                    <span class="quick-label">Demo Harness Presets:</span>
+                    <button type="button" class="btn-chip" onclick="setTarget('http://harness:8001/variant/clean', 'Demo Store (Clean)')">1. Clean Upfront</button>
+                    <button type="button" class="btn-chip" onclick="setTarget('http://harness:8001/variant/late_disclosure', 'Demo Store (Drip Pricing)')">2. Late Handling Fee</button>
+                    <button type="button" class="btn-chip" onclick="setTarget('http://harness:8001/variant/addon_countdown', 'Demo Store (Sneak + Timer)')">3. Add-on + Countdown</button>
+                    <button type="button" class="btn-chip" onclick="setTarget('http://harness:8001/variant/upfront_fee', 'Demo Store (Upfront Fee)')">4. Upfront Convenience</button>
+                    <button type="button" class="btn-chip" onclick="setTarget('http://harness:8001/variant/legitimate_threshold', 'Demo Store (Threshold)')">5. Cart Threshold Policy</button>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="preset-select">Matrix Preset</label>
+                        <select id="preset-select">
+                            <option value="quick" selected>Quick Preset (4 runs: Reference + Pincode B + Pincode C + Cart Below)</option>
+                            <option value="full">Full Preset (12 runs: 3 Pincodes x 2 Sessions x 2 Cart Tiers)</option>
+                        </select>
+                    </div>
+                    <div class="form-group submit-col">
+                        <button type="submit" class="btn btn-primary" id="btn-submit">
+                            <span>Start Multi-Condition Audit</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        <!-- Section 2: Active Audit Dashboard -->
+        <section id="active-audit-section" class="active-section hidden">
+            <div class="card audit-header-card">
+                <div class="audit-meta">
+                    <div>
+                        <span class="label-tiny">ACTIVE AUDIT</span>
+                        <h2 id="active-merchant">Demo Merchant</h2>
+                        <span class="mono-id" id="active-audit-id">AUD-XXXXX</span>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary" onclick="openReport()">📄 HTML Evidence Report</button>
+                        <button class="btn btn-secondary" onclick="openComplaintModal()">⚖️ CCPA Complaint Draft</button>
+                        <button class="btn btn-secondary" onclick="triggerReobserve()">⏱️ Re-Observe (Temporal Diff)</button>
+                    </div>
+                </div>
+
+                <div class="progress-container">
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" id="progress-bar" style="width: 0%;"></div>
+                    </div>
+                    <div class="progress-text">
+                        <span id="progress-label">Executing runs...</span>
+                        <span id="progress-count">0 / 4</span>
+                    </div>
+                </div>
+
+                <!-- Persisted Stream Console -->
+                <div class="console-box" id="console-box">
+                    <div class="console-line">📡 Connecting to live Server-Sent Events stream...</div>
+                </div>
+            </div>
+
+            <!-- Two-column view: Findings & Diff Matrix -->
+            <div class="two-col-grid">
+                <!-- Column 1: Findings -->
+                <div class="col">
+                    <div class="card">
+                        <div class="section-title-row">
+                            <h3>🚨 CCPA 2023 Dark Pattern Indicators</h3>
+                            <span class="pill-count" id="findings-count-pill">0 Found</span>
+                        </div>
+                        <p class="subtitle">Evidence-backed candidate indicators mapped to official CCPA 2023 rules.</p>
+                        <div id="findings-list" class="findings-list">
+                            <div class="empty-state">No findings flagged yet. Waiting for run completion...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column 2: Condition Matrix & Matched-Pair Diffs -->
+                <div class="col">
+                    <div class="card">
+                        <div class="section-title-row">
+                            <h3>🔍 Matched-Pair Differential Matrix</h3>
+                            <span class="pill-count" id="diffs-count-pill">0 Diffs</span>
+                        </div>
+                        <p class="subtitle">Controlled diffs across Location, Session, Cart Tier, and Temporal Drift.</p>
+                        <div id="diffs-list" class="diffs-list">
+                            <div class="empty-state">Diff engine waiting for run pairs...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Provider Calls Trail -->
+            <div class="card provider-calls-card">
+                <h3>🔍 TinyFish Provider Calls & Integrity Log</h3>
+                <p class="subtitle">Audited record of all Search, Fetch, Agent Submit, Agent Poll, and Screenshot operations in execution path.</p>
+                <div class="table-responsive">
+                    <table class="data-table" id="calls-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Operation</th>
+                                <th>HTTP Status</th>
+                                <th>Usable</th>
+                                <th>Provider Request ID</th>
+                            </tr>
+                        </thead>
+                        <tbody id="calls-tbody">
+                            <tr><td colspan="5" style="text-align: center; color: #94a3b8;">No calls recorded.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Past Audits List -->
+        <section class="card past-audits-card">
+            <h3>📜 Previous Audits History</h3>
+            <div id="audits-history-list" class="audits-history-list">
+                <div class="loading-state">Loading audit history...</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Complaint Draft Modal -->
+    <div id="complaint-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚖️ CCPA Dark Pattern Grievance Draft</h3>
+                <button class="btn-close" onclick="closeComplaintModal()">&times;</button>
+            </div>
+            <p class="modal-notice"><strong>Draft Only:</strong> Formatted for submission to the National Consumer Helpline (NCH) or CCPA. Never automatically submitted.</p>
+            <textarea id="complaint-text" readonly rows="16"></textarea>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="copyComplaintText()">📋 Copy Text to Clipboard</button>
+                <button class="btn btn-primary" onclick="closeComplaintModal()">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
