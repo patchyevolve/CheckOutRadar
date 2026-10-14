@@ -3,7 +3,7 @@
 > **Outside-In Checkout Flow Auditor & CCPA Dark Pattern Detector**  
 > *AZINHACK 2026 Submission* · Team of 4
 
-[![CI Tests](https://img.shields.io/badge/tests-23%20passed-brightgreen.svg)]()
+[![CI Tests](https://img.shields.io/badge/tests-38%20passed-brightgreen.svg)]()
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)]()
 [![Docker Compose](https://img.shields.io/badge/docker--compose-ready-blue.svg)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)]()
@@ -103,19 +103,6 @@ The separate `harness` container provides 5 reproducible merchant checkout varia
 
 Checkout Radar employs a three-tier evaluation methodology:
 
-### Tier 1: Synthetic Scenario Acceptance Benchmark (45 Bundles)
-A deterministic regression suite testing whether rules and stage diffs recognize known scenarios:
-- **15 Clean Bundles:** Transparent upfront pricing, opt-in add-ons, normal cart thresholds.
-- **12 Drip Pricing Bundles:** Handling, platform, and processing fees concealed until checkout summary.
-- **10 Basket Sneaking Bundles:** Pre-selected add-ons (insurance, donation, priority wrap) in total.
-- **8 False Urgency Bundles:** Countdown timers restarting or persisting past deadlines.
-
-```
-Total Evaluated Bundles: 45
-Detection Performance: Precision 100%, Recall 100%, F1-Score 1.000 (0 false alarms on clean stores)
-Classification Accuracy: 100% across demonstrated CCPA categories (Clean, Drip, Basket Sneak, Urgency)
-```
-
 ### Tier 1: Synthetic Scenario Benchmark — 45 Designed Fixtures (Rules-Only Unit Regression)
 Deterministic acceptance suite verifying algorithm conformance against known dark pattern patterns:
 - **15 Clean Bundles:** Negative controls across upfront fee, legitimate cart thresholds, and standard itemization.
@@ -130,19 +117,29 @@ Classification Conformance: 100% (30/30) on designed scenario fixtures
 Note: Reflects deterministic regression conformance on designed test cases; does not represent uncurated production performance.
 ```
 
-### Tier 2: Downstream LLM Verification & Statutory Explanation
+### Tier 2: Downstream LLM Verification, Semantic Guardrails & Statutory Explanation
 The LLM does not alter detection boundaries; candidate indicators are strictly produced upstream by the deterministic diff engine. The LLM's downstream role is to map candidates to official CCPA Gazette definitions and draft consumer grievances in structured JSON.
 
-- **Current Runtime Status:** **Offline Template-Fallback Mode Active** (default in local Docker / CI environments where `LLM_API_KEY` is not provisioned; `has_llm_key: false`).
-- **Template Conformance Suite (N = 30 candidates from positive fixtures):**
-  - Structured Schema Validity: 30 / 30 (100.0%) conforming to `ClassifiedFinding` Pydantic model.
-  - CCPA Statutory Citation Rate: 30 / 30 (100.0%) quoting official definitions.
-  - Non-Judicial Wording Adherence: 30 / 30 (100.0%) framed as "potential indicator" with 0 legal verdicts.
-  - Local Processing Overhead: ~0.02 ms per candidate.
-- **Live Remote Provider Endpoint (Configurable):**
-  - Configurable via `LLM_BASE_URL` (default `https://api.openai.com/v1`) and `LLM_API_KEY` using `gpt-4o-mini` with JSON mode.
-  - Remote network latency is estimated at 400–1200 ms per call.
-  - **Status:** Remote live endpoint verification is pending provision of a live OpenAI API key. The release fallback ensures full offline auditability without network failures.
+- **Non-Judicial Semantic Output Guard:** Intercepts and rejects raw LLM outputs containing definitive adjudicative or legalistic declarations (e.g., "merchant is guilty of fraud", "committed an illegal deceptive act", "violated consumer law", "conduct is unlawful", "found culpable"), while shielding legitimate non-judicial disclaimers (e.g., "does not constitute a legal determination that merchant violated consumer law").
+- **Evidence Grounding Validation:**
+  - Fee absence assertions strictly require a `not_observed_verified` disclosure record from upfront stages; unverified or unknown disclosures preserve uncertainty without generating false claims.
+  - Invented monetary amounts not present in candidate items or observations are rejected.
+  - Invented evidence IDs not present in the audit's observation index are rejected.
+- **Bounded Retry & Pre-Validated Deterministic Fallback:** Enforces a maximum of 1 corrective retry before reverting to a pre-validated deterministic fallback template conforming strictly to schema, statutory citations, and non-judicial wording. 100% of persisted findings are guaranteed valid.
+- **Auditable Benchmark Telemetry (11 Distinct Metrics):**
+  The benchmark runner (`evaluation/run_evaluation.py`) tracks and reports 11 metrics distinguishing raw provider first-pass performance from final accepted outputs:
+  1. *Candidates Submitted:* Total candidate items processed (N = 30).
+  2. *Initial Remote Provider Responses:* Number of raw responses returned before timeouts or rate limits.
+  3. *First-Pass Schema Validity:* Valid JSON and Pydantic model compliance on initial response.
+  4. *First-Pass Non-Judicial Wording Pass:* Responses devoid of adjudicative language on initial response.
+  5. *Initial Validation Failures:* Total first-pass responses failing schema, wording, or grounding.
+  6. *Corrective Retries Attempted:* Number of single bounded retries triggered.
+  7. *Corrective Retries Succeeded:* Number of retries that produced valid output.
+  8. *Deterministic Fallbacks Emitted:* Number of times the pre-validated fallback was used.
+  9. *Final Accepted Outputs:* Total valid findings accepted into the audit store (100%).
+  10. *Evidence Grounding Rate:* Accepted findings verified against observation data.
+  11. *Category Attribution Rate:* CCPA dark-pattern categories correctly matched.
+  - *Response Latency Distribution:* Average, median, and p95 latency tracked across live provider calls.
 
 ### Tier 3: Independent Dual-Annotated Real-Site Dataset
 - **Status:** **PENDING** — Scheduled for Day 4 (17 Oct 2026) per Section 13 milestone.
@@ -185,7 +182,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r backend/requirements.txt
 
-# Run test suite (23 tests)
+# Run test suite (38 tests)
 cd backend && pytest -v
 
 # Run evaluation benchmark

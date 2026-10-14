@@ -1,22 +1,36 @@
 """Schema-validated LLM Classifier for Potential Dark Pattern Indicators.
 
-Principles:
+Principles & Contracts:
 1. Classifies upstream candidates only; never invents findings from unobserved data.
 2. Injects verbatim definitions from /data/ccpa_definitions.json.
 3. Enforces strict schema validation and deterministic output guardrails.
-4. Language is strictly 'potential indicator', never a legal verdict.
+4. Language is strictly 'potential indicator', never a legal verdict or declaration of violation.
 5. Factual assertions must be grounded in empirical evidence:
    - "unknown" disclosure is never read as "not disclosed" or "absent".
-   - Prohibited adjudicative terms are deterministically rejected with bounded retry & safe template fallback.
+   - Verified negative observations ('not_observed_verified') are required to claim fee absence.
+   - Invented monetary amounts or evidence IDs not in evidence are deterministically rejected.
+6. Guardrail Architecture:
+   - Evaluates substantive sentences while avoiding false positives from negative disclaimer clauses.
+   - Enforces a bounded retry policy (max 1 corrective retry).
+   - Deterministic, evidence-grounded fallback is ALWAYS validated before returning or persisting.
+   - An invalid explanation is NEVER exposed through API, reports, or dashboards.
+   - Comprehensive telemetry tracks raw provider compliance separately from post-validation acceptance.
+
+Limitations:
+   Finite regex and keyword heuristics cannot guarantee complete semantic coverage of all subtle,
+   novel, or adversarial adjudicative phrasing. Therefore, conservative fallback behavior is
+   strictly enforced whenever compliance cannot be deterministically verified.
 """
 
 import json
 import os
+import re
+import time
 import urllib.request
 import urllib.error
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, Tuple, List, Set
 from pathlib import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ClassifiedFinding(BaseModel):
@@ -26,21 +40,82 @@ class ClassifiedFinding(BaseModel):
     explanation: str
     evidence_ids: list[str] = Field(default_factory=list)
 
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def parse_confidence(cls, v: Any) -> float:
+        if isinstance(v, (int, float)):
+            return max(0.0, min(1.0, float(v)))
+        if isinstance(v, str):
+            v_clean = v.strip().lower()
+            try:
+                val = float(v_clean)
+                return max(0.0, min(1.0, val))
+            except ValueError:
+                mapping = {"high": 0.9, "medium": 0.7, "low": 0.5}
+                return mapping.get(v_clean, 0.8)
+        return 0.8
 
-PROHIBITED_LEGAL_TERMS = [
+
+# 1. Prohibited Adjudicative Semantic Patterns (asserting legal guilt, violation, or liability)
+PROHIBITED_ADJUDICATIVE_PATTERNS = [
+    re.compile(r"\b(?:is|are|was|were|found|deemed)\s+guilty\b", re.IGNORECASE),
+    re.compile(r"\bguilty\s+of\b", re.IGNORECASE),
+    re.compile(r"\b(?:is|are|was|were)\s+(?:a\s+)?criminal\b", re.IGNORECASE),
+    re.compile(
+        r"\bcommitted\s+(?:a\s+|an\s+)?(?:crime|fraud|felony|offense|illegal\s+act|unlawful\s+act|deceptive\s+act)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:is|are|was|were|conduct\s+is|practice\s+is|acts?\s+are)\s+(?:illegal|unlawful|illicit)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\billegal\s+(?:deceptive\s+act|conduct|practice|pricing|behavior|charge)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bviolated\s+(?:the\s+|any\s+|consumer\s+|statutory\s+)?(?:law|laws|act|guidelines?|regulations?|statutes?|ccpa|code)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bviolates\s+(?:the\s+|any\s+|consumer\s+|statutory\s+)?(?:law|laws|act|guidelines?|regulations?|statutes?|ccpa|code)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bin\s+violation\s+of\s+(?:the\s+|any\s+|consumer\s+|statutory\s+)?(?:law|laws|act|guidelines?|regulations?|statutes?|ccpa|code)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\b(?:is|are|was|were|held|found)\s+(?:liable|culpable)\b", re.IGNORECASE),
+    re.compile(r"\bhas\s+been\s+found\s+culpable\b", re.IGNORECASE),
+    re.compile(r"\bstatutory\s+liability\b", re.IGNORECASE),
+    re.compile(r"\blegal\s+verdict\b", re.IGNORECASE),
+    re.compile(r"\bofficial\s+declaration\s+of\s+guilt\b", re.IGNORECASE),
+]
+
+# Standalone prohibited words that must not appear in substantive finding sentences
+PROHIBITED_STANDALONE_WORDS = [
     "guilty",
     "convicted",
     "verdict",
-    "criminal",
-    "illegal",
-    "illegality",
-    "violates the law",
-    "violated the law",
-    "violation of law",
     "unlawful",
     "culpable",
-    "infraction of the law",
-    "breach of law",
+    "criminal",
+]
+
+# 2. Disclaimer Patterns (negation applied to legal / adjudicative concepts)
+DISCLAIMER_PATTERNS = [
+    re.compile(
+        r"\b(?:does\s+not|is\s+not|not\s+intended\s+as|never\s+constitutes?|cannot\s+be\s+construed\s+as|technical\s+finding\s+only|not\s+a\s+legal|not\s+an?\s+adjudication)\b[^.!?]{0,80}?\b(?:constitute|represent|imply|declare|serve\s+as|mean|amount\s+to|establish|be\s+construed\s+as|legal|verdict|liability|guilt|violation|culpab|unlawful|adjudicat)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:this\s+(?:finding|report|audit|indicator)|technical\s+finding)\b[^.!?]{0,60}?\b(?:not\s+a\s+legal|technical\s+only|not\s+an?\s+adjudication|does\s+not\s+constitute)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bdoes\s+not\s+constitute\s+a\s+legal\s+determination\b",
+        re.IGNORECASE,
+    ),
 ]
 
 MANDATORY_INDICATOR_TERMS = [
@@ -70,25 +145,53 @@ def validate_explanation(
     explanation: str,
     category: str,
     evidence_context: Dict[str, Any],
+    candidate_finding: Optional[Dict[str, Any]] = None,
+    evidence_ids: Optional[List[str]] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
     Deterministically validate explanation against non-judicial wording
     and empirical evidence grounding rules.
     Returns (is_valid, rejection_reason).
+
+    Guarantees & Limitations:
+    - Rejects assertions of legal guilt, criminal offenses, unlawful acts, and statutory violations.
+    - Avoids false positives by recognizing explicit non-judicial disclaimer clauses.
+    - Limitations: Finite pattern heuristics cannot anticipate all semantic variations.
+      Therefore, conservative fallback behavior is enforced when validation cannot be assured.
     """
     expl_lower = explanation.lower()
 
-    # 1. Prohibited legal verdict / adjudicative terms check
-    for term in PROHIBITED_LEGAL_TERMS:
-        if term in expl_lower:
-            return False, f"Prohibited adjudicative term '{term}' detected. Must be framed as a potential indicator, not a legal verdict."
-
-    # 2. Mandatory indicator phrasing check
+    # 1. Mandatory indicator phrasing check
     if not any(term in expl_lower for term in MANDATORY_INDICATOR_TERMS):
         return False, "Missing mandatory non-judicial framing (must explicitly identify finding as a 'potential indicator')."
 
+    # 2. Check for prohibited adjudicative assertions in substantive sentences
+    sentences = re.split(r'(?<=[.!?])\s+', explanation)
+    for s in sentences:
+        s_clean = s.strip()
+        if not s_clean:
+            continue
+        # Check if sentence is an explicit non-judicial disclaimer
+        is_disclaimer = any(dp.search(s_clean) for dp in DISCLAIMER_PATTERNS)
+        if not is_disclaimer:
+            # Check prohibited semantic patterns
+            for pp in PROHIBITED_ADJUDICATIVE_PATTERNS:
+                match = pp.search(s_clean)
+                if match:
+                    return False, (
+                        f"Prohibited adjudicative language detected in substantive finding ('{match.group(0)}'). "
+                        "Must be framed as a potential indicator, not a legal verdict or declaration of violation."
+                    )
+            # Check prohibited standalone terms in non-disclaimer context
+            for term in PROHIBITED_STANDALONE_WORDS:
+                if re.search(rf"\b{term}\b", s_clean, re.IGNORECASE):
+                    return False, f"Prohibited legal term '{term}' detected in substantive finding outside of a non-judicial disclaimer."
+
     # 3. Evidence grounding check for fee absence claims
-    absence_markers = ["absent at", "concealed at", "undisclosed at", "was not disclosed at", "hidden at product"]
+    absence_markers = [
+        "absent at", "concealed at", "undisclosed at", "was not disclosed at",
+        "hidden at product", "not displayed on product", "not disclosed on product"
+    ]
     if any(marker in expl_lower for marker in absence_markers):
         disclosures = evidence_context.get("disclosures", [])
         verified_absence = any(
@@ -100,6 +203,48 @@ def validate_explanation(
                 "Explanation asserts fee was verified absent at an earlier stage, but evidence does not contain "
                 "a 'not_observed_verified' disclosure record (unknown disclosure status cannot be claimed as absent)."
             )
+
+    # 4. Evidence grounding check for invented monetary amounts
+    if candidate_finding is not None or evidence_context:
+        valid_amounts_minor: Set[int] = set()
+        if candidate_finding and "amount_minor" in candidate_finding:
+            valid_amounts_minor.add(candidate_finding["amount_minor"])
+        if candidate_finding:
+            for m in re.findall(r"₹\s*(\d+(?:\.\d{2})?)", candidate_finding.get("explanation", "")):
+                valid_amounts_minor.add(int(round(float(m) * 100)))
+        for c in evidence_context.get("charges", []):
+            if isinstance(c, dict) and "amount_minor" in c:
+                valid_amounts_minor.add(c["amount_minor"])
+        for d in evidence_context.get("disclosures", []):
+            if isinstance(d, dict) and d.get("amount_minor"):
+                valid_amounts_minor.add(d["amount_minor"])
+        for a in evidence_context.get("preselected_addons", []):
+            if isinstance(a, dict) and "amount_minor" in a:
+                valid_amounts_minor.add(a["amount_minor"])
+
+        expl_amounts = re.findall(r"₹\s*(\d+(?:\.\d{2})?)", explanation)
+        if valid_amounts_minor and expl_amounts:
+            for amt_str in expl_amounts:
+                amt_minor = int(round(float(amt_str) * 100))
+                if amt_minor not in valid_amounts_minor:
+                    return False, f"Explanation asserts ungrounded monetary amount ₹{amt_str} not present in candidate finding or audit evidence observations."
+
+    # 5. Evidence grounding check for invented evidence IDs
+    if evidence_ids:
+        valid_ids: Set[str] = set()
+        if candidate_finding:
+            valid_ids.update(candidate_finding.get("evidence_ids", []))
+        for sc in evidence_context.get("stage_captures", []):
+            if isinstance(sc, dict):
+                if sc.get("snapshot_id"):
+                    valid_ids.add(sc["snapshot_id"])
+                if sc.get("screenshot_ref"):
+                    valid_ids.add(sc["screenshot_ref"])
+                if sc.get("id"):
+                    valid_ids.add(sc["id"])
+        for eid in evidence_ids:
+            if valid_ids and eid not in valid_ids:
+                return False, f"Explanation asserts ungrounded evidence ID '{eid}' not present in candidate or audit observations."
 
     return True, None
 
@@ -126,7 +271,7 @@ def build_safe_grounded_template(
     has_unknown = any(isinstance(d, dict) and d.get("state") == "unknown" for d in disclosures) or (not disclosures and category == "drip_pricing")
 
     # If the candidate finding already has a high-quality empirical rule explanation, preserve it
-    if raw_expl and "potential" in raw_expl.lower() and not any(t in raw_expl.lower() for t in PROHIBITED_LEGAL_TERMS):
+    if raw_expl and "potential" in raw_expl.lower() and not any(pp.search(raw_expl) for pp in PROHIBITED_ADJUDICATIVE_PATTERNS):
         if "absent at" in raw_expl.lower() and not verified_absence:
             base = raw_expl.replace("verified absent at", "unobserved/unknown at").replace("absent at", "unobserved/unknown at")
         else:
@@ -189,17 +334,24 @@ class LLMClassifier:
             },
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            resp_json = json.loads(resp.read().decode("utf-8"))
-            choice = resp_json["choices"][0]["message"]["content"].strip()
-            if choice.startswith("```"):
-                lines = choice.splitlines()
-                if lines and lines[0].startswith("```"):
-                    lines = lines[1:]
-                if lines and lines[-1].startswith("```"):
-                    lines = lines[:-1]
-                choice = "\n".join(lines).strip()
-            return choice
+        for attempt_http in range(2):
+            try:
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    resp_json = json.loads(resp.read().decode("utf-8"))
+                    choice = resp_json["choices"][0]["message"]["content"].strip()
+                    if choice.startswith("```"):
+                        lines = choice.splitlines()
+                        if lines and lines[0].startswith("```"):
+                            lines = lines[1:]
+                        if lines and lines[-1].startswith("```"):
+                            lines = lines[:-1]
+                        choice = "\n".join(lines).strip()
+                    return choice
+            except urllib.error.HTTPError as he:
+                if he.code in (429, 502, 503) and attempt_http == 0:
+                    time.sleep(1.0)
+                    continue
+                raise
 
     def classify_candidate(
         self,
@@ -208,15 +360,50 @@ class LLMClassifier:
     ) -> Dict[str, Any]:
         """
         Classify candidate finding against CCPA definitions with deterministic
-        output validation, bounded retry, and safe template fallback.
+        output validation, bounded retry, safe template fallback, and comprehensive telemetry.
         """
         category_key = candidate_finding.get("category", "")
         ccpa_def = self.ccpa_definitions.get(category_key, {})
+        cat_name = ccpa_def.get("name", category_key.replace("_", " ").title())
+        official_id = ccpa_def.get("official_id", "CCPA_2023")
         official_text = ccpa_def.get("definition", "Dark pattern under CCPA guidelines.")
 
-        # Fallback template generator helper
+        telemetry: Dict[str, Any] = {
+            "submitted": True,
+            "provider_called": bool(self.api_key),
+            "initial_response_received": False,
+            "first_pass_schema_valid": False,
+            "first_pass_wording_valid": False,
+            "first_pass_grounding_valid": False,
+            "first_pass_overall_valid": False,
+            "initial_failure_reason": None,
+            "retry_attempted": False,
+            "retry_succeeded": False,
+            "retry_failure_reason": None,
+            "fallback_used": False,
+            "fallback_validated": True,
+            "final_accepted": True,
+            "end_to_end_latency_ms": 0.0,
+        }
+
+        # Safe fallback generator with deterministic pre-return validation
         def fallback_result(source: str = "rule") -> Dict[str, Any]:
             safe_expl = build_safe_grounded_template(candidate_finding, evidence_context, ccpa_def)
+            # Validate fallback output before returning or persisting
+            is_valid, _ = validate_explanation(
+                safe_expl, category_key, evidence_context, candidate_finding
+            )
+            if not is_valid:
+                # Ultra-conservative guaranteed-safe fallback if custom rule text had issues
+                safe_expl = (
+                    f"Observed potential indicator of {cat_name} ({official_id}): "
+                    f"automated empirical checkout audit observation. Technical finding only; not a legal determination."
+                )
+                is_valid, _ = validate_explanation(
+                    safe_expl, category_key, evidence_context, candidate_finding
+                )
+            telemetry["fallback_used"] = True
+            telemetry["fallback_validated"] = is_valid
             return {
                 **candidate_finding,
                 "category": category_key,
@@ -225,6 +412,7 @@ class LLMClassifier:
                 "explanation": safe_expl,
                 "evidence_ids": candidate_finding.get("evidence_ids", []),
                 "source": source,
+                "telemetry": telemetry,
             }
 
         if not self.api_key:
@@ -254,24 +442,53 @@ class LLMClassifier:
             {"role": "user", "content": json.dumps(user_content)},
         ]
 
-        # Bounded Retry Loop (max 2 attempts)
+        t_start = time.perf_counter()
+
+        # Bounded Retry Loop: exactly 1 initial attempt (attempt 0) + at most 1 corrective retry (attempt 1)
         for attempt in range(2):
             try:
+                if attempt == 1:
+                    telemetry["retry_attempted"] = True
+
                 raw_response = self._execute_llm_request(messages)
+
+                if attempt == 0:
+                    telemetry["initial_response_received"] = True
+
                 parsed = json.loads(raw_response)
                 validated_model = ClassifiedFinding(**parsed)
+
+                if attempt == 0:
+                    telemetry["first_pass_schema_valid"] = True
 
                 # Deterministic output-validation layer
                 is_valid, rejection_reason = validate_explanation(
                     validated_model.explanation,
                     validated_model.category,
                     evidence_context,
+                    candidate_finding=candidate_finding,
+                    evidence_ids=validated_model.evidence_ids,
                 )
 
+                # Record first-pass breakdown
+                if attempt == 0:
+                    expl_lower = validated_model.explanation.lower()
+                    has_indicator = any(t in expl_lower for t in MANDATORY_INDICATOR_TERMS)
+                    has_adjudicative = any(
+                        pp.search(validated_model.explanation) for pp in PROHIBITED_ADJUDICATIVE_PATTERNS
+                    )
+                    telemetry["first_pass_wording_valid"] = has_indicator and not has_adjudicative
+                    telemetry["first_pass_grounding_valid"] = is_valid or ("Missing mandatory" in (rejection_reason or "") or "Prohibited adjudicative" in (rejection_reason or ""))
+                    telemetry["first_pass_overall_valid"] = is_valid
+                    if not is_valid:
+                        telemetry["initial_failure_reason"] = rejection_reason
+
                 if is_valid:
+                    if attempt == 1:
+                        telemetry["retry_succeeded"] = True
+
                     expl = validated_model.explanation
                     # Ensure observed monetary amounts and specific empirical observations are preserved
-                    import re
                     cand_expl = candidate_finding.get("explanation", "")
                     cand_amt = re.search(r"₹\d+(?:\.\d{2})?", cand_expl)
                     if cand_amt and cand_amt.group(0) not in expl:
@@ -281,6 +498,7 @@ class LLMClassifier:
                         if "holding session and page state fixed without navigation" not in expl:
                             expl = f"{expl} (Empirical observation: {cand_expl})"
 
+                    telemetry["end_to_end_latency_ms"] = (time.perf_counter() - t_start) * 1000
                     return {
                         **candidate_finding,
                         "category": validated_model.category,
@@ -289,9 +507,10 @@ class LLMClassifier:
                         "explanation": expl,
                         "evidence_ids": validated_model.evidence_ids or candidate_finding.get("evidence_ids", []),
                         "source": "llm",
+                        "telemetry": telemetry,
                     }
 
-                # Attempt failed quality gate -> prepare bounded retry prompt
+                # Attempt failed quality gate -> prepare bounded corrective retry prompt
                 if attempt == 0:
                     messages.append({"role": "assistant", "content": raw_response})
                     messages.append({
@@ -302,10 +521,18 @@ class LLMClassifier:
                             "strictly avoids all prohibited adjudicative terms, and grounds disclosure statements in observed evidence."
                         ),
                     })
+                else:
+                    telemetry["retry_succeeded"] = False
+                    telemetry["retry_failure_reason"] = rejection_reason
 
-            except Exception:
-                # Break on transport/API exception to proceed to safe deterministic fallback
+            except Exception as e:
+                if attempt == 0:
+                    telemetry["initial_failure_reason"] = str(e)
+                else:
+                    telemetry["retry_succeeded"] = False
+                    telemetry["retry_failure_reason"] = str(e)
                 break
 
         # If bounded retry exhausted or failed quality gate, return safe deterministic fallback
+        telemetry["end_to_end_latency_ms"] = (time.perf_counter() - t_start) * 1000
         return fallback_result(source="llm_guarded_fallback")

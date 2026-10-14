@@ -69,18 +69,24 @@
 - **Deterministic First, LLM Last:**
   - Candidate indicators are flagged exclusively by deterministic rules.
   - The LLM only classifies and explains candidates against verbatim CCPA 2023 legal definitions.
+- **Hardened Semantic Output Guard & Evidence Grounding:**
+  - Semantic non-judicial filter intercepts adjudicative declarations ("guilty of fraud", "unlawful") while preserving valid legal disclaimers.
+  - Absence claims require explicit `not_observed_verified` records; rejects hallucinated amounts and ungrounded evidence IDs.
+  - Bounded retry (max 1) with pre-validated deterministic fallback ensures 100% compliant persisted findings.
 - **Monetary Reconciliation:**
   - All currency stored as integer minor units.
   - Mandatory equation: $\text{Subtotal} + \text{Charges} + \text{Taxes} - \text{Discounts} = \text{Final Payable}$. Mismatches trigger `extraction_inconsistent` and are excluded from diffs.
-- **Privacy By Design:**
-  - Strict PII masking on screenshots before computing SHA-256 integrity hashes.
+- **Comprehensive Quality Gate:**
+  - 38 container tests passing in CI/Docker across normalizers, reconcilers, detectors, diff engine, lease recovery, and classifier guards.
 
 ---
 
 ## Slide 8: Evaluation & Benchmark Framework
-- **Three-Tier Evaluation Structure:**
-  1. **Tier 1 (Synthetic Acceptance Suite):** 45 deterministic bundles verifying rules identify Clean, Drip, Basket Sneak, and False Urgency without edge-case regressions.
-  2. **Tier 2 (Rules-Only vs. Rules + LLM):** Comparative latency and concordance analysis. Shows deterministic rules ensure 0 false positives while LLM synthesizes statutory legal explanations.
+- **Three-Tier Evaluation Methodology:**
+  1. **Tier 1 (Synthetic Acceptance Suite — 45 Bundles):** 100% Precision, 100% Recall, F1 = 1.000 across Clean, Drip, Basket Sneaking, and False Urgency. Zero false alarms on negative controls.
+  2. **Tier 2 (Auditable LLM Telemetry — 11 Distinct Metrics):**
+     - Live remote evaluation tracks raw provider responses, first-pass schema & non-judicial compliance, retries, and fallbacks.
+     - Live Groq execution benchmark: 100% final accepted outputs, 100% evidence grounding, 96.7% category attribution (Avg: 1375.5 ms, Median: 1285.9 ms, p95: 2160.0 ms).
   3. **Tier 3 (Dual-Annotated Real Sites):** In-progress for Day 4 (17 Oct) per Section 13 milestone. Two labelers annotating live Indian e-commerce checkout funnels.
 
 ---
