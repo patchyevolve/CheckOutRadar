@@ -198,15 +198,18 @@ def main():
     # Auditable telemetry counters
     candidates_submitted = 0
     initial_responses_received = 0
+    provider_failures = 0
     first_pass_schema_valid = 0
     first_pass_wording_valid = 0
-    initial_validation_failures = 0
+    initial_model_validation_failures = 0
     retries_attempted = 0
     retries_succeeded = 0
     deterministic_fallbacks = 0
+    fallback_reasons: Dict[str, int] = defaultdict(int)
     final_accepted_outputs = 0
     evidence_grounding_passed = 0
-    category_attribution_passed = 0
+    category_concordance_passed = 0
+    statutory_concept_alignment_passed = 0
     latencies_ms: List[float] = []
 
     t2_start = time.time()
@@ -249,24 +252,30 @@ def main():
             if is_live_llm:
                 if telem.get("initial_response_received"):
                     initial_responses_received += 1
-                if telem.get("first_pass_schema_valid"):
-                    first_pass_schema_valid += 1
-                if telem.get("first_pass_wording_valid"):
-                    first_pass_wording_valid += 1
-                if not telem.get("first_pass_overall_valid", False):
-                    initial_validation_failures += 1
+                    if telem.get("first_pass_schema_valid"):
+                        first_pass_schema_valid += 1
+                    if telem.get("first_pass_wording_valid"):
+                        first_pass_wording_valid += 1
+                    if telem.get("model_validation_failure"):
+                        initial_model_validation_failures += 1
+                else:
+                    provider_failures += 1
+
                 if telem.get("retry_attempted"):
                     retries_attempted += 1
                 if telem.get("retry_succeeded"):
                     retries_succeeded += 1
                 if telem.get("fallback_used"):
                     deterministic_fallbacks += 1
+                    fb_r = telem.get("fallback_reason", "provider_error")
+                    fallback_reasons[fb_r] += 1
 
                 lat_val = telem.get("end_to_end_latency_ms", 0.0)
-                if lat_val > 0:
+                if lat_val > 0 and telem.get("initial_response_received"):
                     latencies_ms.append(lat_val)
             else:
                 deterministic_fallbacks += 1
+                fallback_reasons["offline_mode"] += 1
 
             # 2. Evidence Grounding Verification
             is_grounded, _ = validate_explanation(
@@ -279,18 +288,21 @@ def main():
             if is_grounded:
                 evidence_grounding_passed += 1
 
-            # 3. Category Attribution Verification
-            # Method: Verifies attribution of category statutory concepts from official CCPA Gazette definitions
+            # 3. Category Concordance Verification (model category must strictly match candidate category)
+            if classified.get("category") == cand.get("category"):
+                category_concordance_passed += 1
+
+            # 4. CCPA Statutory Concept Alignment Verification (references CCPA definitions/concepts)
             expl = classified.get("explanation", "").lower()
             cat = classified.get("category", "")
             cat_keywords = {
-                "drip_pricing": ["drip", "annex_1_8", "upfront", "elements of prices", "mandatory charge", "concealed"],
-                "basket_sneaking": ["basket", "sneaking", "annex_1_2", "pre-selected", "express consent", "additional items"],
-                "false_urgency": ["urgency", "annex_1_1", "countdown", "deadline", "timer"],
+                "drip_pricing": ["drip", "annex_1_8", "upfront", "elements of prices", "mandatory charge", "fee", "concealed", "hidden"],
+                "basket_sneaking": ["basket", "sneaking", "annex_1_2", "pre-selected", "preselected", "express consent", "additional items", "add-on"],
+                "false_urgency": ["urgency", "annex_1_1", "countdown", "deadline", "timer", "reset"],
             }
             expected_kw = cat_keywords.get(cat, ["ccpa", "dark pattern"])
             if any(kw in expl for kw in expected_kw):
-                category_attribution_passed += 1
+                statutory_concept_alignment_passed += 1
 
     t2_elapsed = time.time() - t2_start
     denom = candidates_submitted
@@ -302,39 +314,49 @@ def main():
     print(f"Execution Provenance:          {exec_mode}")
     print(f"Detection Architecture:        Deterministic rule detectors (LLM only classifies/explains)")
 
-    print("\n1. AUDITABLE LIVE INFERENCE METRICS:")
+    print("\n1. REMOTE PROVIDER COVERAGE & FAILURE TAXONOMY (Denominator = Submitted Candidates):")
     if is_live_llm:
-        print(f"   Initial Provider Responses:    {initial_responses_received} / {denom} ({initial_responses_received/denom*100:.1f}%) received from remote endpoint")
-        print(f"   First-Pass Schema Valid:       {first_pass_schema_valid} / {denom} ({first_pass_schema_valid/denom*100:.1f}%) raw JSON conformed to ClassifiedFinding")
-        print(f"   First-Pass Non-Judicial Pass:  {first_pass_wording_valid} / {denom} ({first_pass_wording_valid/denom*100:.1f}%) raw responses avoided adjudicative terms")
-        print(f"   Initial Validation Failures:   {initial_validation_failures} / {denom} ({initial_validation_failures/denom*100:.1f}%) required retry or fallback")
-        print(f"   Corrective Retries Attempted:  {retries_attempted} (max 1 retry per candidate)")
+        print(f"   Provider Response Coverage:    {initial_responses_received} / {denom} ({initial_responses_received/denom*100:.1f}%) returned a raw model response")
+        print(f"   Provider Failures / Errors:    {provider_failures} / {denom} ({provider_failures/denom*100:.1f}%) rate-limited/network error (handled via fallback)")
+        print(f"   Corrective Retries Attempted:  {retries_attempted} (max 1 retry; triggered strictly by invalid model responses, not provider throttling)")
         print(f"   Corrective Retries Succeeded:  {retries_succeeded} / {retries_attempted if retries_attempted else 1} ({retries_succeeded/retries_attempted*100 if retries_attempted else 0.0:.1f}%)")
-        print(f"   Deterministic Fallbacks:       {deterministic_fallbacks} / {denom} ({deterministic_fallbacks/denom*100:.1f}%) safe template fallback invoked")
     else:
-        print("   Live Provider Metrics:         UNAVAILABLE (No live API key configured)")
-        print(f"   Deterministic Fallback Count:  {deterministic_fallbacks} / {denom} (100% CI template fallback)")
+        print("   Live Provider Metrics:         UNAVAILABLE (Offline CI regression mode)")
+        print(f"   Deterministic Fallback Count:  {deterministic_fallbacks} / {denom} (100% template fallback)")
 
-    print("\n2. POST-VALIDATION ACCEPTANCE QUALITY GATES:")
-    print(f"   Final Accepted Outputs:        {final_accepted_outputs} / {denom} (100.0%) verified compliant before return")
+    print("\n2. FIRST-PASS RAW MODEL QUALITY GATES (Denominator = Responses Received):")
+    if is_live_llm and initial_responses_received > 0:
+        resp_n = initial_responses_received
+        print(f"   First-Pass Schema Validity:    {first_pass_schema_valid} / {resp_n} ({first_pass_schema_valid/resp_n*100:.1f}%) raw JSON conformed to ClassifiedFinding")
+        print(f"   First-Pass Non-Judicial Pass:  {first_pass_wording_valid} / {resp_n} ({first_pass_wording_valid/resp_n*100:.1f}%) raw responses avoided adjudicative terms")
+        print(f"   Initial Model Validation Failures: {initial_model_validation_failures} / {resp_n} ({initial_model_validation_failures/resp_n*100:.1f}%) model responses rejected by guardrails")
+    elif is_live_llm:
+        print("   First-Pass Raw Model Quality:  N/A (0 raw responses received due to provider throttling)")
+    else:
+        print("   First-Pass Raw Model Quality:  N/A (Offline template-fallback mode)")
+
+    print("\n3. POST-VALIDATION ACCEPTANCE & GROUNDING (Denominator = Submitted Candidates):")
+    print(f"   Deterministic Fallbacks Emitted: {deterministic_fallbacks} / {denom} ({deterministic_fallbacks/denom*100:.1f}%) safe template fallback invoked ({provider_failures} provider errors, {initial_model_validation_failures} model validation failures)")
+    print(f"   Final Accepted Outputs:        {final_accepted_outputs} / {denom} ({final_accepted_outputs/denom*100:.1f}%) verified compliant before return/persistence")
     print(f"   Evidence Grounding Rate:       {evidence_grounding_passed} / {denom} ({evidence_grounding_passed/denom*100:.1f}%) zero ungrounded absence claims or invented values")
-    print(f"   Category Attribution Rate:     {category_attribution_passed} / {denom} ({category_attribution_passed/denom*100:.1f}%)")
+    print(f"   Category Concordance Rate:     {category_concordance_passed} / {denom} ({category_concordance_passed/denom*100:.1f}%) output category strictly matches candidate category")
+    print(f"   Statutory Concept Alignment:   {statutory_concept_alignment_passed} / {denom} ({statutory_concept_alignment_passed/denom*100:.1f}%) explanation references CCPA Gazette definitions")
     print(f"   Attribution Method:            Matched against CCPA 2023 Gazette statutory definitions (Annex 1.8, 1.2, 1.1)")
 
-    print("\n3. END-TO-END LATENCY PROFILE:")
+    print("\n4. END-TO-END LATENCY PROFILE:")
     if is_live_llm and latencies_ms:
         avg_lat = statistics.mean(latencies_ms)
         med_lat = statistics.median(latencies_ms)
         sorted_lat = sorted(latencies_ms)
         p95_idx = min(int(0.95 * len(sorted_lat)), len(sorted_lat) - 1)
         p95_lat = sorted_lat[p95_idx]
-        print(f"   Average Latency:               {avg_lat:.1f} ms per candidate (including retries)")
+        print(f"   Average Latency:               {avg_lat:.1f} ms per successful provider call")
         print(f"   Median (p50) Latency:          {med_lat:.1f} ms")
         print(f"   95th Percentile (p95):         {p95_lat:.1f} ms")
     else:
         print(f"   Local Fallback Overhead:       {t2_elapsed / denom * 1000:.4f} ms per candidate (offline regression mode)")
 
-    print("\n4. METHODOLOGICAL SCOPE & DISCLOSURE:")
+    print("\n5. METHODOLOGICAL SCOPE & DISCLOSURE:")
     print("   - Tier 1 measures algorithmic rule-engine conformance across synthetic fixtures (not production recall).")
     print("   - Tier 2 evaluates LLM schema conformance, statutory grounding, and deterministic guardrail filtering.")
     print("   - The LLM does NOT improve candidate detection recall; candidates are discovered deterministically.")

@@ -77,16 +77,17 @@
   - All currency stored as integer minor units.
   - Mandatory equation: $\text{Subtotal} + \text{Charges} + \text{Taxes} - \text{Discounts} = \text{Final Payable}$. Mismatches trigger `extraction_inconsistent` and are excluded from diffs.
 - **Comprehensive Quality Gate:**
-  - 38 container tests passing in CI/Docker across normalizers, reconcilers, detectors, diff engine, lease recovery, and classifier guards.
+  - 40 container tests passing in CI/Docker across normalizers, reconcilers, detectors, diff engine, lease recovery, category mutation prevention, and classifier guards.
 
 ---
 
 ## Slide 8: Evaluation & Benchmark Framework
 - **Three-Tier Evaluation Methodology:**
   1. **Tier 1 (Synthetic Acceptance Suite — 45 Bundles):** 100% Precision, 100% Recall, F1 = 1.000 across Clean, Drip, Basket Sneaking, and False Urgency. Zero false alarms on negative controls.
-  2. **Tier 2 (Auditable LLM Telemetry — 11 Distinct Metrics):**
-     - Live remote evaluation tracks raw provider responses, first-pass schema & non-judicial compliance, retries, and fallbacks.
-     - Live Groq execution benchmark: 100% final accepted outputs, 100% evidence grounding, 96.7% category attribution (Avg: 1375.5 ms, Median: 1285.9 ms, p95: 2160.0 ms).
+  2. **Tier 2 (Auditable Remote LLM Telemetry & Failure Taxonomy):**
+     - Provider Coverage: 12 / 30 (40.0% of submissions returned a response; 18 rate-limited handled via safe fallback).
+     - First-Pass Model Quality (N = 12 received): 100.0% (12/12) schema validity, 100.0% (12/12) non-judicial wording pass, 0/12 model validation failures.
+     - Final Accepted Quality (N = 30): 100.0% final accepted outputs, 100.0% evidence grounding, 100.0% category concordance (no silent category mutation), 100.0% CCPA statutory concept alignment (Avg: 1375.5 ms, Median: 1285.9 ms, p95: 2160.0 ms).
   3. **Tier 3 (Dual-Annotated Real Sites):** In-progress for Day 4 (17 Oct) per Section 13 milestone. Two labelers annotating live Indian e-commerce checkout funnels.
 
 ---

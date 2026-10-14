@@ -33,12 +33,27 @@ from pathlib import Path
 from pydantic import BaseModel, Field, field_validator
 
 
+ALLOWED_CCPA_CATEGORIES = {"drip_pricing", "basket_sneaking", "false_urgency"}
+
+
 class ClassifiedFinding(BaseModel):
     category: str
     severity: str = Field(description="low, medium, or high")
     confidence: float = Field(ge=0.0, le=1.0)
     explanation: str
     evidence_ids: list[str] = Field(default_factory=list)
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def validate_category(cls, v: Any) -> str:
+        if not isinstance(v, str):
+            raise ValueError(f"Category must be a string, got {type(v)}")
+        cat = v.strip().lower()
+        if cat not in ALLOWED_CCPA_CATEGORIES:
+            raise ValueError(
+                f"Unsupported CCPA dark pattern category '{v}'. Allowed: {sorted(ALLOWED_CCPA_CATEGORIES)}"
+            )
+        return cat
 
     @field_validator("confidence", mode="before")
     @classmethod
@@ -155,11 +170,20 @@ def validate_explanation(
 
     Guarantees & Limitations:
     - Rejects assertions of legal guilt, criminal offenses, unlawful acts, and statutory violations.
-    - Avoids false positives by recognizing explicit non-judicial disclaimer clauses.
-    - Limitations: Finite pattern heuristics cannot anticipate all semantic variations.
-      Therefore, conservative fallback behavior is enforced when validation cannot be assured.
     """
     expl_lower = explanation.lower()
+
+    # 0. Category validation and alignment check (prevents silent category mutation)
+    cat_clean = category.strip().lower() if category else ""
+    if cat_clean not in ALLOWED_CCPA_CATEGORIES:
+        return False, f"Unsupported CCPA category '{category}'. Allowed categories: {sorted(ALLOWED_CCPA_CATEGORIES)}"
+    if candidate_finding and "category" in candidate_finding:
+        cand_cat = candidate_finding["category"].strip().lower()
+        if cat_clean != cand_cat:
+            return False, (
+                f"Model output category '{category}' does not match deterministic candidate category '{cand_cat}'. "
+                "The model must not replace or mutate the upstream detector category."
+            )
 
     # 1. Mandatory indicator phrasing check
     if not any(term in expl_lower for term in MANDATORY_INDICATOR_TERMS):
@@ -372,22 +396,25 @@ class LLMClassifier:
             "submitted": True,
             "provider_called": bool(self.api_key),
             "initial_response_received": False,
-            "first_pass_schema_valid": False,
-            "first_pass_wording_valid": False,
-            "first_pass_grounding_valid": False,
-            "first_pass_overall_valid": False,
+            "provider_error": None,
+            "first_pass_schema_valid": None,
+            "first_pass_wording_valid": None,
+            "first_pass_grounding_valid": None,
+            "first_pass_overall_valid": None,
+            "model_validation_failure": False,
             "initial_failure_reason": None,
             "retry_attempted": False,
             "retry_succeeded": False,
             "retry_failure_reason": None,
             "fallback_used": False,
+            "fallback_reason": None,
             "fallback_validated": True,
             "final_accepted": True,
             "end_to_end_latency_ms": 0.0,
         }
 
         # Safe fallback generator with deterministic pre-return validation
-        def fallback_result(source: str = "rule") -> Dict[str, Any]:
+        def fallback_result(source: str = "rule", reason: str = "offline_mode") -> Dict[str, Any]:
             safe_expl = build_safe_grounded_template(candidate_finding, evidence_context, ccpa_def)
             # Validate fallback output before returning or persisting
             is_valid, _ = validate_explanation(
@@ -403,6 +430,7 @@ class LLMClassifier:
                     safe_expl, category_key, evidence_context, candidate_finding
                 )
             telemetry["fallback_used"] = True
+            telemetry["fallback_reason"] = telemetry.get("fallback_reason") or reason
             telemetry["fallback_validated"] = is_valid
             return {
                 **candidate_finding,
@@ -416,7 +444,7 @@ class LLMClassifier:
             }
 
         if not self.api_key:
-            return fallback_result(source="rule")
+            return fallback_result(source="rule", reason="no_api_key")
 
         system_prompt = (
             "You are a consumer rights checkout transparency auditor for India's CCPA 2023 Guidelines. "
@@ -428,7 +456,8 @@ class LLMClassifier:
             "3. Ground all statements strictly in the provided evidence. If a fee was not observed upfront, "
             "check whether disclosure was verified absent or unknown. If unknown or unobserved, state that "
             "earlier disclosure status was unknown. Never claim verified absence without evidence. "
-            "4. Output strictly valid JSON with keys: category, severity, confidence, explanation, evidence_ids."
+            f"4. You must preserve the candidate category exactly as '{category_key}'. "
+            "5. Output strictly valid JSON with keys: category, severity, confidence, explanation, evidence_ids."
         )
 
         user_content = {
@@ -455,13 +484,36 @@ class LLMClassifier:
                 if attempt == 0:
                     telemetry["initial_response_received"] = True
 
-                parsed = json.loads(raw_response)
-                validated_model = ClassifiedFinding(**parsed)
+                # Step 1: Parse JSON and validate ClassifiedFinding model
+                try:
+                    parsed = json.loads(raw_response)
+                    validated_model = ClassifiedFinding(**parsed)
+                    if attempt == 0:
+                        telemetry["first_pass_schema_valid"] = True
+                except Exception as parse_err:
+                    if attempt == 0:
+                        telemetry["first_pass_schema_valid"] = False
+                        telemetry["first_pass_wording_valid"] = False
+                        telemetry["first_pass_grounding_valid"] = False
+                        telemetry["first_pass_overall_valid"] = False
+                        telemetry["model_validation_failure"] = True
+                        telemetry["initial_failure_reason"] = f"Schema validation error: {parse_err}"
+                    if attempt == 0:
+                        messages.append({"role": "assistant", "content": raw_response})
+                        messages.append({
+                            "role": "user",
+                            "content": (
+                                f"SCHEMA ERROR: {parse_err}. "
+                                "Output strictly valid JSON with keys: category, severity, confidence, explanation, evidence_ids."
+                            ),
+                        })
+                        continue
+                    else:
+                        telemetry["retry_succeeded"] = False
+                        telemetry["retry_failure_reason"] = f"Schema validation error on retry: {parse_err}"
+                        break
 
-                if attempt == 0:
-                    telemetry["first_pass_schema_valid"] = True
-
-                # Deterministic output-validation layer
+                # Step 2: Deterministic output-validation layer (wording, grounding, category alignment)
                 is_valid, rejection_reason = validate_explanation(
                     validated_model.explanation,
                     validated_model.category,
@@ -481,6 +533,7 @@ class LLMClassifier:
                     telemetry["first_pass_grounding_valid"] = is_valid or ("Missing mandatory" in (rejection_reason or "") or "Prohibited adjudicative" in (rejection_reason or ""))
                     telemetry["first_pass_overall_valid"] = is_valid
                     if not is_valid:
+                        telemetry["model_validation_failure"] = True
                         telemetry["initial_failure_reason"] = rejection_reason
 
                 if is_valid:
@@ -518,7 +571,8 @@ class LLMClassifier:
                         "content": (
                             f"QUALITY GATE REJECTION: {rejection_reason} "
                             "Please re-generate the JSON response. Ensure the explanation explicitly states 'potential indicator', "
-                            "strictly avoids all prohibited adjudicative terms, and grounds disclosure statements in observed evidence."
+                            "strictly avoids all prohibited adjudicative terms, grounds disclosure statements in observed evidence, "
+                            f"and preserves the candidate category '{category_key}'."
                         ),
                     })
                 else:
@@ -526,13 +580,18 @@ class LLMClassifier:
                     telemetry["retry_failure_reason"] = rejection_reason
 
             except Exception as e:
+                # Provider / network / HTTP throttling error (e.g. 429, 403, timeout)
                 if attempt == 0:
-                    telemetry["initial_failure_reason"] = str(e)
+                    telemetry["provider_error"] = str(e)
+                    telemetry["initial_failure_reason"] = f"Provider Error: {e}"
+                    telemetry["fallback_reason"] = "provider_error"
                 else:
                     telemetry["retry_succeeded"] = False
-                    telemetry["retry_failure_reason"] = str(e)
+                    telemetry["retry_failure_reason"] = f"Provider Error: {e}"
                 break
 
         # If bounded retry exhausted or failed quality gate, return safe deterministic fallback
         telemetry["end_to_end_latency_ms"] = (time.perf_counter() - t_start) * 1000
-        return fallback_result(source="llm_guarded_fallback")
+        fb_reason = telemetry.get("fallback_reason") or ("model_validation_exhausted" if telemetry.get("model_validation_failure") else "provider_error")
+        telemetry["fallback_reason"] = fb_reason
+        return fallback_result(source="llm_guarded_fallback", reason=fb_reason)

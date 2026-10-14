@@ -263,3 +263,41 @@ def test_fallback_output_validation():
         )
         assert is_val, f"Fallback failed for {cat} under verified absence: {reason}"
         assert "potential indicator" in template_absent.lower()
+
+
+def test_validator_rejects_category_mutation():
+    """Verify that model output mutating candidate category is rejected."""
+    cand = {"category": "drip_pricing", "amount_minor": 500}
+    expl = "Potential indicator of Drip Pricing: fee added late. Technical finding only; not a legal verdict."
+    # Attempt to validate with mismatched category
+    is_val, reason = validate_explanation(
+        explanation=expl,
+        category="basket_sneaking",
+        evidence_context={},
+        candidate_finding=cand,
+    )
+    assert not is_val
+    assert "does not match deterministic candidate category" in reason
+
+
+def test_validator_rejects_unsupported_category():
+    """Verify that unsupported CCPA categories fail both Pydantic model and explanation validator."""
+    expl = "Potential indicator of unknown: test finding. Not a legal determination."
+    is_val, reason = validate_explanation(
+        explanation=expl,
+        category="unsupported_dark_pattern",
+        evidence_context={},
+    )
+    assert not is_val
+    assert "unsupported ccpa category" in reason.lower()
+
+    # Verify ClassifiedFinding Pydantic model rejects unsupported category
+    with pytest.raises(Exception) as excinfo:
+        ClassifiedFinding(
+            category="fraudulent_claim",
+            severity="medium",
+            confidence=0.8,
+            explanation=expl,
+        )
+    assert "unsupported ccpa dark pattern category" in str(excinfo.value).lower()
+

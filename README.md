@@ -3,7 +3,7 @@
 > **Outside-In Checkout Flow Auditor & CCPA Dark Pattern Detector**  
 > *AZINHACK 2026 Submission* · Team of 4
 
-[![CI Tests](https://img.shields.io/badge/tests-38%20passed-brightgreen.svg)]()
+[![CI Tests](https://img.shields.io/badge/tests-40%20passed-brightgreen.svg)]()
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)]()
 [![Docker Compose](https://img.shields.io/badge/docker--compose-ready-blue.svg)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)]()
@@ -126,20 +126,24 @@ The LLM does not alter detection boundaries; candidate indicators are strictly p
   - Invented monetary amounts not present in candidate items or observations are rejected.
   - Invented evidence IDs not present in the audit's observation index are rejected.
 - **Bounded Retry & Pre-Validated Deterministic Fallback:** Enforces a maximum of 1 corrective retry before reverting to a pre-validated deterministic fallback template conforming strictly to schema, statutory citations, and non-judicial wording. 100% of persisted findings are guaranteed valid.
-- **Auditable Benchmark Telemetry (11 Distinct Metrics):**
-  The benchmark runner (`evaluation/run_evaluation.py`) tracks and reports 11 metrics distinguishing raw provider first-pass performance from final accepted outputs:
-  1. *Candidates Submitted:* Total candidate items processed (N = 30).
-  2. *Initial Remote Provider Responses:* Number of raw responses returned before timeouts or rate limits.
-  3. *First-Pass Schema Validity:* Valid JSON and Pydantic model compliance on initial response.
-  4. *First-Pass Non-Judicial Wording Pass:* Responses devoid of adjudicative language on initial response.
-  5. *Initial Validation Failures:* Total first-pass responses failing schema, wording, or grounding.
-  6. *Corrective Retries Attempted:* Number of single bounded retries triggered.
-  7. *Corrective Retries Succeeded:* Number of retries that produced valid output.
-  8. *Deterministic Fallbacks Emitted:* Number of times the pre-validated fallback was used.
-  9. *Final Accepted Outputs:* Total valid findings accepted into the audit store (100%).
-  10. *Evidence Grounding Rate:* Accepted findings verified against observation data.
-  11. *Category Attribution Rate:* CCPA dark-pattern categories correctly matched.
-  - *Response Latency Distribution:* Average, median, and p95 latency tracked across live provider calls.
+- **Auditable Benchmark Telemetry & Failure Taxonomy:**
+  The benchmark runner (`evaluation/run_evaluation.py`) reports metrics with explicit denominators, rigorously separating provider-level throttling/errors from raw model quality gates:
+  - *Remote Provider Coverage & Failure Taxonomy (Denominator = Submitted Candidates, N = 30):*
+    1. *Provider Response Coverage:* Submissions successfully returning raw model responses (e.g. 12 / 30, 40.0%).
+    2. *Provider Throttling / Errors:* Submissions rate-limited or unavailable (e.g. 18 / 30, 60.0% handled via deterministic fallback).
+    3. *Corrective Retries Attempted:* Bounded retries triggered strictly by invalid model outputs (0 retries burned on provider throttling).
+    4. *Corrective Retries Succeeded:* Retries producing valid output.
+  - *First-Pass Raw Model Quality Gates (Denominator = Responses Received, N = 12):*
+    5. *First-Pass Schema Validity:* Valid raw responses conforming to `ClassifiedFinding` (12 / 12, 100.0% of received responses).
+    6. *First-Pass Non-Judicial Compliance:* Raw responses devoid of adjudicative terms (12 / 12, 100.0% of received responses).
+    7. *Initial Model Validation Failures:* Model responses rejected by guardrails (0 / 12, 0.0% of received responses).
+  - *Final Accepted Findings & Grounding (Denominator = Submitted Candidates, N = 30):*
+    8. *Deterministic Fallbacks Emitted:* Pre-validated template fallbacks invoked (18 / 30, 60.0% due to provider rate-limiting).
+    9. *Final Accepted Outputs:* Total valid findings accepted into the audit store (30 / 30, 100.0%).
+    10. *Evidence Grounding Rate:* Zero ungrounded absence assertions or invented amounts/IDs (30 / 30, 100.0%).
+    11. *Category Concordance Rate:* Output category strictly preserves upstream detector category without silent mutation (30 / 30, 100.0%).
+    12. *CCPA Statutory Concept Alignment:* Explanation incorporates official CCPA Gazette definitions (30 / 30, 100.0%).
+  - *Response Latency Profile:* Average, median, and p95 latency tracked across successful raw provider calls.
 
 ### Tier 3: Independent Dual-Annotated Real-Site Dataset
 - **Status:** **PENDING** — Scheduled for Day 4 (17 Oct 2026) per Section 13 milestone.
@@ -182,7 +186,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r backend/requirements.txt
 
-# Run test suite (38 tests)
+# Run test suite (40 tests)
 cd backend && pytest -v
 
 # Run evaluation benchmark
