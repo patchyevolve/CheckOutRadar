@@ -372,11 +372,15 @@ class LLMClassifier:
         total_slept = 0.0
 
         for attempt_http in range(max_http_attempts):
+            t_http_start = time.perf_counter()
             try:
-                t_http_start = time.perf_counter()
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     http_lat = (time.perf_counter() - t_http_start) * 1000
-                    self._last_http_latency_ms = http_lat
+                    self._last_http_latency_ms = round(http_lat, 2)
+                    self._last_http_status = getattr(resp, "status", 200)
+                    self._last_http_response_received = True
+                    self._last_model_output_received = True
+                    self._last_transport_error = None
                     self._last_request_time = time.time()
                     resp_json = json.loads(resp.read().decode("utf-8"))
                     choice = resp_json["choices"][0]["message"]["content"].strip()
@@ -389,7 +393,14 @@ class LLMClassifier:
                         choice = "\n".join(lines).strip()
                     return choice
             except urllib.error.HTTPError as he:
+                http_lat = (time.perf_counter() - t_http_start) * 1000
+                self._last_http_latency_ms = round(http_lat, 2)
+                self._last_http_status = he.code
+                self._last_http_response_received = True
+                self._last_model_output_received = False
+                self._last_transport_error = None
                 self._last_request_time = time.time()
+
                 if attempt_http >= max_http_attempts - 1:
                     raise
                 if he.code == 429:
@@ -428,6 +439,14 @@ class LLMClassifier:
                     continue
                 else:
                     raise
+            except Exception as transport_err:
+                self._last_http_latency_ms = None
+                self._last_http_status = None
+                self._last_http_response_received = False
+                self._last_model_output_received = False
+                self._last_transport_error = str(transport_err)
+                self._last_request_time = time.time()
+                raise
 
     def classify_candidate(
         self,
@@ -507,9 +526,13 @@ class LLMClassifier:
                     "category": category_key,
                     "attempt": 0,
                     "attempt_type": "initial",
+                    "http_status": None,
+                    "http_response_received": False,
+                    "model_output_received": False,
+                    "latency_ms": None,
+                    "transport_error": None if self.api_key else "offline_mode_no_api_key",
                     "http_outcome": "offline_mode" if not self.api_key else (telemetry.get("fallback_reason") or "fallback"),
                     "response_received": False,
-                    "latency_ms": None,
                     "validator_outcome": "not_applicable",
                     "fallback_reason": reason,
                     "schema_valid": None,
@@ -568,9 +591,13 @@ class LLMClassifier:
                 "category": category_key,
                 "attempt": attempt,
                 "attempt_type": attempt_type,
+                "http_status": None,
+                "http_response_received": False,
+                "model_output_received": False,
+                "latency_ms": None,
+                "transport_error": None,
                 "http_outcome": None,
                 "response_received": False,
-                "latency_ms": None,
                 "validator_outcome": None,
                 "fallback_reason": None,
                 "schema_valid": None,
@@ -586,10 +613,15 @@ class LLMClassifier:
 
                 raw_response = self._execute_llm_request(messages)
                 http_lat = getattr(self, "_last_http_latency_ms", 0.0)
+                status = getattr(self, "_last_http_status", 200)
 
-                current_attempt_record["http_outcome"] = "200_ok"
+                current_attempt_record["http_status"] = status
+                current_attempt_record["http_response_received"] = True
+                current_attempt_record["model_output_received"] = True
                 current_attempt_record["response_received"] = True
-                current_attempt_record["latency_ms"] = round(http_lat, 2) if http_lat else 0.0
+                current_attempt_record["latency_ms"] = round(http_lat, 2) if http_lat is not None else None
+                current_attempt_record["transport_error"] = None
+                current_attempt_record["http_outcome"] = "200_ok"
 
                 if attempt == 0:
                     telemetry["initial_response_received"] = True
@@ -740,7 +772,7 @@ class LLMClassifier:
 
             except Exception as e:
                 err_str = str(e)
-                code = getattr(e, "code", None)
+                code = getattr(e, "code", None) or getattr(self, "_last_http_status", None)
                 if code == 429 or "429" in err_str:
                     http_outcome = "429_rate_limit"
                 elif code == 403 or "403" in err_str:
@@ -750,9 +782,19 @@ class LLMClassifier:
                 else:
                     http_outcome = f"error_{type(e).__name__}"
 
-                current_attempt_record["http_outcome"] = http_outcome
+                resp_recvd = getattr(self, "_last_http_response_received", False) or (code is not None)
+                http_lat = getattr(self, "_last_http_latency_ms", None) if resp_recvd else None
+                trans_err = getattr(self, "_last_transport_error", None) if not resp_recvd else None
+                if not resp_recvd and trans_err is None:
+                    trans_err = str(e)
+
+                current_attempt_record["http_status"] = code
+                current_attempt_record["http_response_received"] = bool(resp_recvd)
+                current_attempt_record["model_output_received"] = False
                 current_attempt_record["response_received"] = False
-                current_attempt_record["latency_ms"] = None
+                current_attempt_record["latency_ms"] = round(http_lat, 2) if http_lat is not None else None
+                current_attempt_record["transport_error"] = trans_err
+                current_attempt_record["http_outcome"] = http_outcome
                 current_attempt_record["validator_outcome"] = "not_applicable"
                 current_attempt_record["fallback_reason"] = "provider_error"
 
@@ -760,11 +802,15 @@ class LLMClassifier:
                     telemetry["provider_error"] = str(e)
                     telemetry["initial_failure_reason"] = f"Provider Error: {e}"
                     telemetry["fallback_reason"] = "provider_error"
+                    if resp_recvd and http_lat is not None:
+                        telemetry["provider_http_latency_ms"] = round(http_lat, 2)
                 else:
                     telemetry["retry_provider_error"] = str(e)
                     telemetry["retry_succeeded"] = False
                     telemetry["retry_validation_accepted"] = False
                     telemetry["retry_failure_reason"] = f"Provider Error: {e}"
+                    if resp_recvd and http_lat is not None:
+                        telemetry["retry_http_latency_ms"] = round(http_lat, 2)
                 break
 
         # If bounded retry exhausted or failed quality gate, return safe deterministic fallback
@@ -843,45 +889,117 @@ def calculate_metrics_from_records(
     - Attempt-level empirical provenance: counts and latencies are calculated directly
       from discrete persisted attempt records.
     - Explicit separation of provider failures (network/rate limits) from model validation failures.
+    - Explicit separation of HTTP transport failures (no HTTP response received) from
+      HTTP responses with error status codes (HTTP 429/403 with measured round-trip latencies).
+    - Dual latency profiles: usable model completion latency vs all HTTP response latency.
     - All latency statistics (mean, median, p95) are computed directly from the collection
       of received HTTP response timings.
     """
     import statistics
 
+    def _compute_stats(lats: List[float], init_cnt: int = 0, ret_cnt: int = 0) -> Dict[str, Any]:
+        if not lats:
+            return {
+                "sample_size": 0,
+                "initial_responses": init_cnt,
+                "retry_responses": ret_cnt,
+                "mean_ms": None,
+                "median_ms": None,
+                "p95_ms": None,
+                "raw_samples": [],
+            }
+        sorted_lats = sorted(lats)
+        p95_idx = min(int(0.95 * len(sorted_lats)), len(sorted_lats) - 1)
+        return {
+            "sample_size": len(lats),
+            "initial_responses": init_cnt,
+            "retry_responses": ret_cnt,
+            "mean_ms": round(statistics.mean(lats), 1),
+            "median_ms": round(statistics.median(lats), 1),
+            "p95_ms": round(sorted_lats[p95_idx], 1),
+            "raw_samples": lats,
+        }
+
     first_attempts = [r for r in attempt_records if r.get("attempt") == 0]
     retries = [r for r in attempt_records if r.get("attempt") == 1]
     total_candidates = len(first_attempts)
 
-    initial_responses = sum(1 for r in first_attempts if r.get("response_received"))
-    initial_failures = sum(1 for r in first_attempts if not r.get("response_received"))
+    def _is_model_output(r: Dict[str, Any]) -> bool:
+        if "model_output_received" in r:
+            return bool(r["model_output_received"])
+        return bool(
+            r.get("response_received")
+            and (r.get("http_outcome") == "200_ok" or r.get("http_status") == 200 or not str(r.get("http_status", 200)) in ("429", "403"))
+        )
+
+    def _is_http_response(r: Dict[str, Any]) -> bool:
+        if "http_response_received" in r:
+            return bool(r["http_response_received"])
+        return bool(
+            r.get("http_status") is not None
+            or (r.get("latency_ms") is not None and r.get("latency_ms") > 0)
+            or r.get("response_received")
+        )
+
+    initial_model_responses = sum(1 for r in first_attempts if _is_model_output(r))
+    initial_model_failures = total_candidates - initial_model_responses
+
+    initial_http_responses = sum(1 for r in first_attempts if _is_http_response(r))
+    initial_transport_errors = total_candidates - initial_http_responses
 
     retries_attempted = len(retries)
-    retry_responses = sum(1 for r in retries if r.get("response_received"))
-    retry_failures = sum(1 for r in retries if not r.get("response_received"))
+    retry_model_responses = sum(1 for r in retries if _is_model_output(r))
+    retry_model_failures = retries_attempted - retry_model_responses
+
+    retry_http_responses = sum(1 for r in retries if _is_http_response(r))
+    retry_transport_errors = retries_attempted - retry_http_responses
+
     retry_accepted = sum(1 for r in retries if r.get("validator_outcome") == "accepted")
     retry_rejected = sum(
-        1 for r in retries if r.get("response_received") and r.get("validator_outcome") != "accepted"
+        1 for r in retries if _is_model_output(r) and r.get("validator_outcome") != "accepted"
     )
 
     total_http_requests = len(attempt_records)
-    total_http_responses = sum(1 for r in attempt_records if r.get("response_received"))
+    total_http_responses = sum(1 for r in attempt_records if _is_http_response(r))
+    total_transport_errors = total_http_requests - total_http_responses
 
-    # Provider HTTP latencies (strictly over received HTTP responses with valid latencies)
-    raw_latencies = [
+    total_model_responses = sum(1 for r in attempt_records if _is_model_output(r))
+
+    # Dual Latency calculation
+    # 1. Usable Model Latencies (HTTP 200 responses with model completions)
+    model_latencies = [
         float(r["latency_ms"])
         for r in attempt_records
-        if r.get("response_received") and r.get("latency_ms") is not None and r.get("latency_ms") > 0
+        if _is_model_output(r) and r.get("latency_ms") is not None and r.get("latency_ms") > 0
     ]
-
-    mean_provider_lat = statistics.mean(raw_latencies) if raw_latencies else None
-    med_provider_lat = statistics.median(raw_latencies) if raw_latencies else None
-    sorted_lats = sorted(raw_latencies)
-    p95_provider_lat = (
-        sorted_lats[min(int(0.95 * len(sorted_lats)), len(sorted_lats) - 1)] if sorted_lats else None
+    init_model_lats = sum(
+        1 for r in first_attempts
+        if _is_model_output(r) and r.get("latency_ms") is not None and r.get("latency_ms") > 0
     )
+    ret_model_lats = sum(
+        1 for r in retries
+        if _is_model_output(r) and r.get("latency_ms") is not None and r.get("latency_ms") > 0
+    )
+    successful_model_latency = _compute_stats(model_latencies, init_model_lats, ret_model_lats)
 
-    # First-pass raw model quality gates (denominator = initial received responses)
-    first_pass_responses = [r for r in first_attempts if r.get("response_received")]
+    # 2. All HTTP Latencies (including HTTP 429 / 403 responses that completed network round-trips)
+    http_latencies = [
+        float(r["latency_ms"])
+        for r in attempt_records
+        if _is_http_response(r) and r.get("latency_ms") is not None and r.get("latency_ms") > 0
+    ]
+    init_http_lats = sum(
+        1 for r in first_attempts
+        if _is_http_response(r) and r.get("latency_ms") is not None and r.get("latency_ms") > 0
+    )
+    ret_http_lats = sum(
+        1 for r in retries
+        if _is_http_response(r) and r.get("latency_ms") is not None and r.get("latency_ms") > 0
+    )
+    all_http_latency = _compute_stats(http_latencies, init_http_lats, ret_http_lats)
+
+    # First-pass raw model quality gates (denominator = initial model responses received)
+    first_pass_responses = [r for r in first_attempts if _is_model_output(r)]
     n_first_pass = len(first_pass_responses)
     first_pass_schema = sum(1 for r in first_pass_responses if r.get("schema_valid"))
     first_pass_wording = sum(1 for r in first_pass_responses if r.get("wording_valid"))
@@ -899,34 +1017,58 @@ def calculate_metrics_from_records(
         post_guard_category = sum(1 for c in candidate_telemetry if c.get("post_guard_category_preserved", True))
         post_guard_concept_kw = sum(1 for c in candidate_telemetry if c.get("post_guard_concept_keyword_coverage", True))
     else:
-        deterministic_fallbacks = initial_failures + retry_rejected
+        deterministic_fallbacks = initial_model_failures + retry_rejected
         final_accepted = total_candidates
         evidence_grounding = total_candidates
         post_guard_category = total_candidates
         post_guard_concept_kw = total_candidates
 
     return {
+        # Core backward-compatible fields
         "candidates_submitted": total_candidates,
-        "initial_responses_received": initial_responses,
-        "initial_provider_failures": initial_failures,
-        "initial_provider_coverage_pct": (initial_responses / total_candidates * 100) if total_candidates else 0.0,
+        "initial_responses_received": initial_model_responses,
+        "initial_provider_failures": initial_model_failures,
+        "initial_provider_coverage_pct": (initial_model_responses / total_candidates * 100) if total_candidates else 0.0,
         "retries_attempted": retries_attempted,
-        "retry_responses_received": retry_responses,
-        "retry_provider_failures": retry_failures,
+        "retry_responses_received": retry_model_responses,
+        "retry_provider_failures": retry_model_failures,
         "retry_validation_acceptances": retry_accepted,
         "retry_validation_rejections": retry_rejected,
         "total_http_requests": total_http_requests,
-        "successful_http_responses": total_http_responses,
-        "successful_provider_rate_pct": (total_http_responses / total_http_requests * 100) if total_http_requests else 0.0,
-        "provider_latency": {
-            "sample_size": len(raw_latencies),
-            "initial_responses": sum(1 for r in first_attempts if r.get("response_received") and r.get("latency_ms")),
-            "retry_responses": sum(1 for r in retries if r.get("response_received") and r.get("latency_ms")),
-            "mean_ms": mean_provider_lat,
-            "median_ms": med_provider_lat,
-            "p95_ms": p95_provider_lat,
-            "raw_samples": raw_latencies,
+        "successful_http_responses": total_model_responses,
+        "successful_provider_rate_pct": (total_model_responses / total_http_requests * 100) if total_http_requests else 0.0,
+        "provider_latency": successful_model_latency,
+        "successful_model_latency": successful_model_latency,
+        "all_http_latency": all_http_latency,
+
+        # Explicit HTTP Transport Accounting
+        "http_accounting": {
+            "total_requests": total_http_requests,
+            "http_responses_received": total_http_responses,
+            "transport_errors": total_transport_errors,
+            "http_response_rate_pct": (total_http_responses / total_http_requests * 100) if total_http_requests else 0.0,
+            "initial_http_responses": initial_http_responses,
+            "initial_transport_errors": initial_transport_errors,
+            "retry_http_responses": retry_http_responses,
+            "retry_transport_errors": retry_transport_errors,
         },
+
+        # Explicit Model Output Accounting
+        "model_accounting": {
+            "candidates_submitted": total_candidates,
+            "initial_model_responses": initial_model_responses,
+            "initial_model_failures": initial_model_failures,
+            "initial_model_coverage_pct": (initial_model_responses / total_candidates * 100) if total_candidates else 0.0,
+            "retries_attempted": retries_attempted,
+            "retry_model_responses": retry_model_responses,
+            "retry_provider_failures": retry_model_failures,
+            "retry_validation_acceptances": retry_accepted,
+            "retry_validation_rejections": retry_rejected,
+            "total_model_responses": total_model_responses,
+            "successful_model_rate_pct": (total_model_responses / total_http_requests * 100) if total_http_requests else 0.0,
+        },
+
+        # First-pass quality gates
         "first_pass_quality": {
             "responses_received": n_first_pass,
             "schema_valid": first_pass_schema,
@@ -935,6 +1077,8 @@ def calculate_metrics_from_records(
             "concept_keyword_coverage": first_pass_concept_kw,
             "initial_validation_failures": initial_validation_failures,
         },
+
+        # Pipeline outputs
         "pipeline_quality": {
             "deterministic_fallbacks": deterministic_fallbacks,
             "final_accepted_outputs": final_accepted,

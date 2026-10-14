@@ -202,9 +202,13 @@ def test_attempt_records_instrumentation_in_classifier():
         "category",
         "attempt",
         "attempt_type",
+        "http_status",
+        "http_response_received",
+        "model_output_received",
+        "latency_ms",
+        "transport_error",
         "http_outcome",
         "response_received",
-        "latency_ms",
         "validator_outcome",
         "fallback_reason",
     ]
@@ -215,6 +219,143 @@ def test_attempt_records_instrumentation_in_classifier():
     assert first_record["category"] == "drip_pricing"
     assert first_record["attempt"] == 0
     assert first_record["attempt_type"] == "initial"
+
+
+def test_dual_latency_and_http_status_accounting():
+    """
+    Verifies that calculate_metrics_from_records explicitly separates HTTP transport round-trips
+    (including HTTP 429/403 with measured latencies) from usable model completions (HTTP 200),
+    and correctly reports both successful_model_latency and all_http_latency.
+    """
+    from app.analysis.classifier import calculate_metrics_from_records
+
+    # Fixture: 4 candidates
+    # c1: HTTP 200 OK with usable model completion (1200.0 ms)
+    # c2: HTTP 429 Rate Limit (measured round-trip 300.0 ms)
+    # c3: HTTP 403 Forbidden (measured round-trip 200.0 ms)
+    # c4: Transport failure (pre-HTTP failure, e.g. ConnectionResetError, None latency)
+    attempt_records = [
+        {
+            "candidate_id": "c1",
+            "category": "drip_pricing",
+            "attempt": 0,
+            "attempt_type": "initial",
+            "http_status": 200,
+            "http_response_received": True,
+            "model_output_received": True,
+            "response_received": True,
+            "latency_ms": 1200.0,
+            "transport_error": None,
+            "http_outcome": "200_ok",
+            "validator_outcome": "accepted",
+            "fallback_reason": None,
+            "schema_valid": True,
+            "wording_valid": True,
+            "category_concordance": True,
+            "concept_keyword_coverage": True,
+        },
+        {
+            "candidate_id": "c2",
+            "category": "drip_pricing",
+            "attempt": 0,
+            "attempt_type": "initial",
+            "http_status": 429,
+            "http_response_received": True,
+            "model_output_received": False,
+            "response_received": False,
+            "latency_ms": 300.0,
+            "transport_error": None,
+            "http_outcome": "429_rate_limit",
+            "validator_outcome": "not_applicable",
+            "fallback_reason": "provider_error",
+            "schema_valid": None,
+            "wording_valid": None,
+            "category_concordance": None,
+            "concept_keyword_coverage": None,
+        },
+        {
+            "candidate_id": "c3",
+            "category": "basket_sneaking",
+            "attempt": 0,
+            "attempt_type": "initial",
+            "http_status": 403,
+            "http_response_received": True,
+            "model_output_received": False,
+            "response_received": False,
+            "latency_ms": 200.0,
+            "transport_error": None,
+            "http_outcome": "403_forbidden",
+            "validator_outcome": "not_applicable",
+            "fallback_reason": "provider_error",
+            "schema_valid": None,
+            "wording_valid": None,
+            "category_concordance": None,
+            "concept_keyword_coverage": None,
+        },
+        {
+            "candidate_id": "c4",
+            "category": "false_urgency",
+            "attempt": 0,
+            "attempt_type": "initial",
+            "http_status": None,
+            "http_response_received": False,
+            "model_output_received": False,
+            "response_received": False,
+            "latency_ms": None,
+            "transport_error": "ConnectionResetError: Remote end closed connection without response",
+            "http_outcome": "error_ConnectionResetError",
+            "validator_outcome": "not_applicable",
+            "fallback_reason": "provider_error",
+            "schema_valid": None,
+            "wording_valid": None,
+            "category_concordance": None,
+            "concept_keyword_coverage": None,
+        },
+    ]
+
+    candidate_telemetry = [
+        {"candidate_id": "c1", "fallback_used": False, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+        {"candidate_id": "c2", "fallback_used": True, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+        {"candidate_id": "c3", "fallback_used": True, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+        {"candidate_id": "c4", "fallback_used": True, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+    ]
+
+    metrics = calculate_metrics_from_records(attempt_records, candidate_telemetry)
+
+    # 1. HTTP Accounting
+    http_acc = metrics["http_accounting"]
+    assert http_acc["total_requests"] == 4
+    assert http_acc["http_responses_received"] == 3  # c1 (200), c2 (429), c3 (403)
+    assert http_acc["transport_errors"] == 1          # c4 (no HTTP response received)
+    assert http_acc["http_response_rate_pct"] == 75.0
+
+    # 2. Model Accounting
+    model_acc = metrics["model_accounting"]
+    assert model_acc["candidates_submitted"] == 4
+    assert model_acc["initial_model_responses"] == 1  # only c1 received usable completion
+    assert model_acc["initial_model_failures"] == 3   # c2, c3, c4 routed to fallback
+    assert model_acc["initial_model_coverage_pct"] == 25.0
+    assert model_acc["total_model_responses"] == 1
+    assert model_acc["successful_model_rate_pct"] == 25.0
+
+    # 3. Dual Latencies
+    model_lat = metrics["successful_model_latency"]
+    assert model_lat["sample_size"] == 1
+    assert model_lat["mean_ms"] == 1200.0
+    assert model_lat["median_ms"] == 1200.0
+    assert model_lat["p95_ms"] == 1200.0
+    assert model_lat["raw_samples"] == [1200.0]
+
+    all_lat = metrics["all_http_latency"]
+    assert all_lat["sample_size"] == 3
+    assert round(all_lat["mean_ms"], 1) == 566.7
+    assert all_lat["median_ms"] == 300.0
+    assert all_lat["p95_ms"] == 1200.0
+    assert sorted(all_lat["raw_samples"]) == [200.0, 300.0, 1200.0]
+
+    # 4. Pipeline Outputs
+    assert metrics["pipeline_quality"]["deterministic_fallbacks"] == 3
+    assert metrics["pipeline_quality"]["final_accepted_outputs"] == 4
 
 
 def test_calculate_metrics_from_records_provenance():

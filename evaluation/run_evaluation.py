@@ -55,6 +55,23 @@ def get_git_commit() -> str:
         return "unknown"
 
 
+def is_git_clean() -> bool:
+    try:
+        import subprocess
+        output = subprocess.check_output(
+            ["git", "status", "--porcelain"],
+            cwd=str(Path(__file__).parent.parent),
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        lines = [line.strip() for line in output.splitlines() if line.strip()]
+        # Ignore last_run_telemetry.json because updating it during execution is expected
+        unclean = [line for line in lines if not ("last_run_telemetry.json" in line)]
+        return len(unclean) == 0
+    except Exception:
+        return False
+
+
 def run_benchmark_on_bundles(bundles: List[Dict[str, Any]], use_llm: bool = False) -> Dict[str, Any]:
     diff_engine = DiffEngine(expected_disclosure_stage="product")
     classifier = LLMClassifier() if use_llm else None
@@ -286,6 +303,8 @@ def main():
             telemetry_file=str(persisted_file),
             is_live_llm=is_live,
             candidate_latencies_ms=cand_lats,
+            working_tree_clean=persisted_data.get("working_tree_clean"),
+            git_commit=persisted_data.get("git_commit"),
         )
         return
 
@@ -348,9 +367,12 @@ def main():
     t2_elapsed = time.time() - t2_start
 
     # Persist discrete attempt-level telemetry artifact to disk
+    commit_sha = get_git_commit()
+    tree_clean = is_git_clean()
     telemetry_export = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "git_commit": get_git_commit(),
+        "git_commit": commit_sha,
+        "working_tree_clean": tree_clean,
         "execution_mode": exec_mode,
         "model": getattr(classifier, "model", "llama-3.3-70b-versatile"),
         "candidate_pacing_seconds": pacing_seconds,
@@ -378,6 +400,8 @@ def main():
         telemetry_file=str(telemetry_output_file),
         is_live_llm=is_live_llm,
         candidate_latencies_ms=candidate_latencies_ms,
+        working_tree_clean=tree_clean,
+        git_commit=commit_sha,
     )
 
 
@@ -389,6 +413,8 @@ def print_tier2_results(
     telemetry_file: str,
     is_live_llm: bool,
     candidate_latencies_ms: List[float],
+    working_tree_clean: Optional[bool] = None,
+    git_commit: Optional[str] = None,
 ):
     import statistics
 
@@ -398,31 +424,49 @@ def print_tier2_results(
     print("BENCHMARK: Tier 2: Downstream LLM Verification & Statutory Explanation")
     print("=" * 70)
     print(f"Candidates Submitted:          N = {denom} candidate findings (from positive bundles)")
-    print(f"Execution Provenance:          {exec_mode}")
+    clean_info = ""
+    if working_tree_clean is True:
+        clean_info = " [Working Tree Clean: True]"
+    elif working_tree_clean is False:
+        clean_info = " [Working Tree Clean: False - UNCOMMITTED CHANGES]"
+    commit_info = f" (Git Commit: {git_commit})" if git_commit else ""
+    print(f"Execution Provenance:          {exec_mode}{commit_info}{clean_info}")
     print(f"Persisted Telemetry Artifact:  {telemetry_file}")
     print(f"Candidate Request Pacing:      {pacing_seconds:.1f}s between submissions (bounded queue)")
     print(f"Detection Architecture:        Deterministic rule detectors (LLM only classifies/explains)")
 
     print("\n1. REMOTE PROVIDER COVERAGE & FAILURE TAXONOMY (Denominator = Submitted Candidates):")
     if is_live_llm:
-        init_resp = metrics["initial_responses_received"]
-        init_fail = metrics["initial_provider_failures"]
-        ret_att = metrics["retries_attempted"]
-        ret_resp = metrics["retry_responses_received"]
-        ret_fail = metrics["retry_provider_failures"]
-        ret_acc = metrics["retry_validation_acceptances"]
-        ret_rej = metrics["retry_validation_rejections"]
-        tot_resp = metrics["successful_http_responses"]
-        tot_req = metrics["total_http_requests"]
+        http_acc = metrics.get("http_accounting", {})
+        model_acc = metrics.get("model_accounting", {})
 
-        print(f"   Initial Provider Responses:    {init_resp} / {denom} ({init_resp/denom*100:.1f}%) returned a raw model response on first submission")
-        print(f"   Initial Provider Failures:     {init_fail} / {denom} ({init_fail/denom*100:.1f}%) rate-limited/network error (handled via fallback)")
-        print(f"   Corrective Retries Attempted:  {ret_att} (max 1 retry; triggered strictly by invalid model responses, not provider throttling)")
-        print(f"   - Retry Responses Received:    {ret_resp} / {ret_att if ret_att else 1} ({ret_resp/ret_att*100 if ret_att else 0.0:.1f}%) returned an HTTP response")
-        print(f"   - Retry Provider Failures:     {ret_fail} / {ret_att if ret_att else 1} ({ret_fail/ret_att*100 if ret_att else 0.0:.1f}%) failed at network/provider layer")
-        print(f"   - Retry Responses Accepted:    {ret_acc} / {ret_att if ret_att else 1} ({ret_acc/ret_att*100 if ret_att else 0.0:.1f}%) passed quality gates")
-        print(f"   - Retry Responses Rejected:    {ret_rej} / {ret_att if ret_att else 1} ({ret_rej/ret_att*100 if ret_att else 0.0:.1f}%) unrecovered; routed to fallback")
-        print(f"   Successful Provider Responses / Total Attempts: {tot_resp} / {tot_req} ({tot_resp/tot_req*100:.1f}%) across all initial calls and corrective retries")
+        tot_req = http_acc.get("total_requests", metrics.get("total_http_requests", 0))
+        http_resp = http_acc.get("http_responses_received", metrics.get("successful_http_responses", 0))
+        trans_errs = http_acc.get("transport_errors", 0)
+        http_pct = http_acc.get("http_response_rate_pct", (http_resp / tot_req * 100) if tot_req else 0.0)
+
+        init_resp = model_acc.get("initial_model_responses", metrics.get("initial_responses_received", 0))
+        init_fail = model_acc.get("initial_model_failures", metrics.get("initial_provider_failures", 0))
+        ret_att = model_acc.get("retries_attempted", metrics.get("retries_attempted", 0))
+        ret_resp = model_acc.get("retry_model_responses", metrics.get("retry_responses_received", 0))
+        ret_fail = model_acc.get("retry_provider_failures", metrics.get("retry_provider_failures", 0))
+        ret_acc = model_acc.get("retry_validation_acceptances", metrics.get("retry_validation_acceptances", 0))
+        ret_rej = model_acc.get("retry_validation_rejections", metrics.get("retry_validation_rejections", 0))
+        tot_model_resp = model_acc.get("total_model_responses", metrics.get("successful_http_responses", 0))
+
+        print(f"   A. HTTP Transport Round-Trips (Denominator = Total Network Calls):")
+        print(f"      - Total Outbound Requests:     {tot_req} calls (initial + corrective retries)")
+        print(f"      - HTTP Responses Received:     {http_resp} / {tot_req} ({http_pct:.1f}%) returned HTTP status code (200, 429, 403)")
+        print(f"      - Network Transport Errors:    {trans_errs} / {tot_req} failed before HTTP negotiation (connection reset, DNS, timeout)")
+        print(f"   B. Model Output Coverage (Denominator = Submitted Candidates, N = {denom}):")
+        print(f"      - Initial Model Responses:     {init_resp} / {denom} ({init_resp/denom*100:.1f}%) returned usable model response on first submission")
+        print(f"      - Initial Provider Failures:    {init_fail} / {denom} ({init_fail/denom*100:.1f}%) rate-limited/transport error (handled via fallback)")
+        print(f"      - Corrective Retries Attempted: {ret_att} (max 1 retry; triggered strictly by invalid model responses, not provider throttling)")
+        print(f"      - Retry Model Responses:       {ret_resp} / {ret_att if ret_att else 1} ({ret_resp/ret_att*100 if ret_att else 0.0:.1f}%) returned usable model completion")
+        print(f"      - Retry Provider Failures:      {ret_fail} / {ret_att if ret_att else 1} ({ret_fail/ret_att*100 if ret_att else 0.0:.1f}%) failed at network/provider layer")
+        print(f"      - Retry Responses Accepted:     {ret_acc} / {ret_att if ret_att else 1} ({ret_acc/ret_att*100 if ret_att else 0.0:.1f}%) passed quality gates")
+        print(f"      - Retry Responses Rejected:     {ret_rej} / {ret_att if ret_att else 1} ({ret_rej/ret_att*100 if ret_att else 0.0:.1f}%) unrecovered; routed to fallback")
+        print(f"      - Total Usable Model Responses: {tot_model_resp} / {tot_req} ({tot_model_resp/tot_req*100:.1f}%) across all initial calls and corrective retries")
     else:
         print("   Live Provider Metrics:         UNAVAILABLE (Offline CI regression mode)")
         print(f"   Deterministic Fallback Count:  {metrics['pipeline_quality']['deterministic_fallbacks']} / {denom} (100% template fallback)")
@@ -453,31 +497,43 @@ def print_tier2_results(
     print(f"   Verification Method:                   Regex match against CCPA 2023 Gazette statutory definition terminology sets (Annex 1.8, 1.2, 1.1). Confirms vocabulary presence, not judicial semantic correctness.")
 
     print("\n4. THREE-DIMENSIONAL LATENCY & EXECUTION PROFILE:")
-    lat_q = metrics["provider_latency"]
-    if is_live_llm and lat_q.get("sample_size", 0) > 0:
-        n_samples = lat_q["sample_size"]
-        print(f"   A. Provider HTTP Request Latency (Individual Successful Network Calls, N = {n_samples}):")
-        print(f"      Successful Provider Responses: {n_samples} calls ({lat_q['initial_responses']} initial + {lat_q['retry_responses']} retries)")
-        print(f"      Average Provider Latency:      {lat_q['mean_ms']:.1f} ms per successful HTTP round-trip")
-        print(f"      Median (p50) Latency:          {lat_q['median_ms']:.1f} ms")
-        print(f"      95th Percentile (p95):         {lat_q['p95_ms']:.1f} ms")
-        print(f"      Latency Samples (ms):          {[round(x, 1) for x in lat_q['raw_samples']]}")
+    model_lat = metrics.get("successful_model_latency") or metrics.get("provider_latency", {})
+    all_http_lat = metrics.get("all_http_latency", {})
+
+    if is_live_llm and model_lat.get("sample_size", 0) > 0:
+        n_samples = model_lat["sample_size"]
+        print(f"   A. Usable Model Response Latency (HTTP 200 OK completions, N = {n_samples}):")
+        print(f"      Usable Model Responses:        {n_samples} calls ({model_lat['initial_responses']} initial + {model_lat['retry_responses']} retries)")
+        print(f"      Average Model Latency:         {model_lat['mean_ms']:.1f} ms per successful model completion")
+        print(f"      Median (p50) Latency:          {model_lat['median_ms']:.1f} ms")
+        print(f"      95th Percentile (p95):         {model_lat['p95_ms']:.1f} ms")
+        print(f"      Latency Samples (ms):          {[round(x, 1) for x in model_lat['raw_samples']]}")
+    elif is_live_llm:
+        print("   A. Usable Model Response Latency: UNAVAILABLE (0 usable model completions received)")
     else:
-        print("   A. Provider HTTP Request Latency: UNAVAILABLE (Offline regression mode)")
+        print("   A. Usable Model Response Latency: UNAVAILABLE (Offline regression mode)")
+
+    if is_live_llm and all_http_lat.get("sample_size", 0) > 0:
+        n_http = all_http_lat["sample_size"]
+        print(f"   B. All HTTP Round-Trip Latency (Includes HTTP 429/403 Responses, N = {n_http}):")
+        print(f"      HTTP Round-Trips Completed:    {n_http} calls ({all_http_lat['initial_responses']} initial + {all_http_lat['retry_responses']} retries)")
+        print(f"      Average HTTP Round-Trip:       {all_http_lat['mean_ms']:.1f} ms")
+        print(f"      Median (p50) Round-Trip:       {all_http_lat['median_ms']:.1f} ms")
+        print(f"      95th Percentile (p95):         {all_http_lat['p95_ms']:.1f} ms")
 
     if candidate_latencies_ms:
         avg_cand = statistics.mean(candidate_latencies_ms)
         med_cand = statistics.median(candidate_latencies_ms)
         sorted_cand = sorted(candidate_latencies_ms)
         p95_cand = sorted_cand[min(int(0.95 * len(sorted_cand)), len(sorted_cand) - 1)]
-        print(f"   B. Candidate Processing Latency (End-to-End per Candidate, N = {len(candidate_latencies_ms)}):")
+        print(f"   C. Candidate Processing Latency (End-to-End per Candidate, N = {len(candidate_latencies_ms)}):")
         print(f"      Evaluated Candidates:          {len(candidate_latencies_ms)} findings (includes pacing, retries & fallback)")
         print(f"      Average Candidate Latency:     {avg_cand:.1f} ms per candidate finding")
         print(f"      Median (p50) Latency:          {med_cand:.1f} ms")
         print(f"      95th Percentile (p95):         {p95_cand:.1f} ms")
 
     if t2_elapsed > 0:
-        print("   C. Batch Evaluation Elapsed Duration:")
+        print("   D. Batch Evaluation Elapsed Duration:")
         print(f"      Total Batch Processing Time:   {t2_elapsed:.2f} s for all {denom} candidates")
 
     print("\n5. METHODOLOGICAL SCOPE & DISCLOSURE:")
@@ -492,6 +548,9 @@ def print_tier2_results(
     print("   - Shared request pacing across all outbound calls (including corrective retries) and bounded Retry-After backoff (max 5.0s budget)")
     print("     prevent provider exhaustion while maintaining safe execution limits.")
     print("   - Three-dimensional latency accounting separates individual HTTP network round-trips from per-candidate wall-clock processing and total batch elapsed time.")
+    print("   - Explicit separation of HTTP network round-trips from usable model completions: HTTP 429/403 errors are accounted for as completed network round-trips with measured latencies, distinct from pre-HTTP transport failures.")
+    print("   - Dual latency reporting: usable model completions (HTTP 200) are measured separately from all HTTP round-trips.")
+    print("   - Git Provenance: Persisted telemetry artifacts explicitly record tested Git commit SHA and working-tree clean status.")
     print("   - Persisted Telemetry: Every individual provider attempt is durably recorded with HTTP status, latency, validation outcome, and fallback reason.")
 
     print("\n" + "=" * 70)
