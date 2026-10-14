@@ -187,7 +187,7 @@ def main():
     # Tier 2: Downstream LLM Verification & Explanation Synthesis Evaluation
     import queue
     import statistics
-    from app.analysis.classifier import validate_explanation
+    from app.analysis.classifier import validate_explanation, aggregate_provider_latencies
 
     classifier = LLMClassifier()
     is_live_llm = bool(classifier.api_key)
@@ -252,6 +252,7 @@ def main():
     post_guard_concept_keyword_coverage = 0
     provider_http_latencies_ms: List[float] = []
     candidate_latencies_ms: List[float] = []
+    telemetry_records: List[Dict[str, Any]] = []
 
     t2_start = time.time()
 
@@ -265,6 +266,7 @@ def main():
         final_accepted_outputs += 1
 
         telem = classified.get("telemetry", {})
+        telemetry_records.append(telem)
 
         # 1. Auditable Provider Telemetry
         if is_live_llm:
@@ -388,17 +390,15 @@ def main():
     print(f"   Verification Method:                   Regex match against CCPA 2023 Gazette statutory definition terminology sets (Annex 1.8, 1.2, 1.1). Confirms vocabulary presence, not judicial semantic correctness.")
 
     print("\n4. THREE-DIMENSIONAL LATENCY & EXECUTION PROFILE:")
-    if is_live_llm and provider_http_latencies_ms:
-        avg_http = statistics.mean(provider_http_latencies_ms)
-        med_http = statistics.median(provider_http_latencies_ms)
-        sorted_http = sorted(provider_http_latencies_ms)
-        p95_http = sorted_http[min(int(0.95 * len(sorted_http)), len(sorted_http) - 1)]
-        print(f"   A. Provider HTTP Request Latency (Individual Successful Network Calls, N = {len(provider_http_latencies_ms)}):")
-        print(f"      Successful Provider Responses: {len(provider_http_latencies_ms)} calls ({initial_responses_received} initial + {retry_responses_received} retries)")
-        print(f"      Average Provider Latency:      {avg_http:.1f} ms per successful HTTP round-trip")
-        print(f"      Median (p50) Latency:          {med_http:.1f} ms")
-        print(f"      95th Percentile (p95):         {p95_http:.1f} ms")
-        print(f"      Latency Samples (ms):          {[round(x, 1) for x in provider_http_latencies_ms]}")
+    lat_summary = aggregate_provider_latencies(telemetry_records) if is_live_llm else {}
+    if is_live_llm and lat_summary.get("sample_size", 0) > 0:
+        n_samples = lat_summary["sample_size"]
+        print(f"   A. Provider HTTP Request Latency (Individual Successful Network Calls, N = {n_samples}):")
+        print(f"      Successful Provider Responses: {n_samples} calls ({lat_summary['initial_responses']} initial + {lat_summary['retry_responses']} retries)")
+        print(f"      Average Provider Latency:      {lat_summary['mean_ms']:.1f} ms per successful HTTP round-trip")
+        print(f"      Median (p50) Latency:          {lat_summary['median_ms']:.1f} ms")
+        print(f"      95th Percentile (p95):         {lat_summary['p95_ms']:.1f} ms")
+        print(f"      Latency Samples (ms):          {[round(x, 1) for x in lat_summary['raw_samples']]}")
     else:
         print("   A. Provider HTTP Request Latency: UNAVAILABLE (Offline regression mode)")
 

@@ -688,3 +688,58 @@ class LLMClassifier:
         fb_reason = telemetry.get("fallback_reason") or ("model_validation_exhausted" if telemetry.get("model_validation_failure") else "provider_error")
         telemetry["fallback_reason"] = fb_reason
         return fallback_result(source="llm_guarded_fallback", reason=fb_reason)
+
+
+def aggregate_provider_latencies(telemetry_records: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Aggregate provider HTTP latencies across all received responses,
+    including initial candidate submissions and corrective retries (regardless of
+    whether a retry was accepted or rejected by application-level validation).
+
+    Guarantees:
+    - Application-level validation rejection does NOT exclude an otherwise successful
+      HTTP response from the network latency sample.
+    - Pure provider/network errors (where no HTTP response was received) are excluded.
+    """
+    import statistics
+
+    latencies: List[float] = []
+    initial_count = 0
+    retry_count = 0
+
+    for telem in telemetry_records:
+        if telem.get("initial_response_received"):
+            p_lat = telem.get("provider_http_latency_ms")
+            if p_lat is not None and p_lat > 0:
+                latencies.append(p_lat)
+                initial_count += 1
+
+        if telem.get("retry_response_received"):
+            r_lat = telem.get("retry_http_latency_ms")
+            if r_lat is not None and r_lat > 0:
+                latencies.append(r_lat)
+                retry_count += 1
+
+    if not latencies:
+        return {
+            "sample_size": 0,
+            "initial_responses": 0,
+            "retry_responses": 0,
+            "mean_ms": None,
+            "median_ms": None,
+            "p95_ms": None,
+            "raw_samples": [],
+        }
+
+    sorted_lats = sorted(latencies)
+    p95_idx = min(int(0.95 * len(sorted_lats)), len(sorted_lats) - 1)
+
+    return {
+        "sample_size": len(latencies),
+        "initial_responses": initial_count,
+        "retry_responses": retry_count,
+        "mean_ms": statistics.mean(latencies),
+        "median_ms": statistics.median(latencies),
+        "p95_ms": sorted_lats[p95_idx],
+        "raw_samples": latencies,
+    }

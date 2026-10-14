@@ -81,3 +81,87 @@ def test_evaluation_detection_and_classification():
     # Verify high detection and classification rates
     assert correct_detections == 45
     assert correct_classifications == dark_patterns_count
+
+
+def test_latency_aggregation_includes_validator_rejected_retries():
+    """
+    Regression test: Verifies that latency aggregation includes all received HTTP responses,
+    specifically ensuring that retry responses rejected by the application-level validator
+    are NOT excluded from the network-latency sample.
+    """
+    from app.analysis.classifier import aggregate_provider_latencies
+
+    # Explicit set of known observations:
+    # - 5 initial submissions with HTTP responses
+    # - 1 retry that succeeded validation
+    # - 2 retries that were rejected by application-level validation
+    # - 1 submission that failed at provider layer (HTTP 429 rate limit; 0 HTTP responses)
+    # - 1 retry that failed at provider layer (network failure; 0 retry HTTP responses)
+    known_telemetry = [
+        {"initial_response_received": True, "provider_http_latency_ms": 1000.0},
+        {"initial_response_received": True, "provider_http_latency_ms": 1100.0},
+        {
+            "initial_response_received": True,
+            "provider_http_latency_ms": 1200.0,
+            "retry_attempted": True,
+            "retry_response_received": True,
+            "retry_validation_accepted": True,
+            "retry_succeeded": True,
+            "retry_http_latency_ms": 1300.0,
+        },
+        {
+            "initial_response_received": True,
+            "provider_http_latency_ms": 1400.0,
+            "retry_attempted": True,
+            "retry_response_received": True,
+            "retry_validation_accepted": False,  # REJECTED by validator
+            "retry_succeeded": False,
+            "retry_http_latency_ms": 1500.0,
+        },
+        {
+            "initial_response_received": True,
+            "provider_http_latency_ms": 1800.0,
+            "retry_attempted": True,
+            "retry_response_received": True,
+            "retry_validation_accepted": False,  # REJECTED by validator
+            "retry_succeeded": False,
+            "retry_http_latency_ms": 1600.0,
+        },
+        {
+            "initial_response_received": False,  # Provider rate limit
+            "provider_error": "429 Too Many Requests",
+            "provider_http_latency_ms": None,
+        },
+        {
+            "initial_response_received": False,  # Provider network failure
+            "provider_error": "Connection Reset",
+            "provider_http_latency_ms": None,
+            "retry_attempted": True,
+            "retry_response_received": False,
+            "retry_provider_error": "Connection Reset",
+            "retry_http_latency_ms": None,
+        },
+    ]
+
+    summary = aggregate_provider_latencies(known_telemetry)
+
+    # 5 initial + 3 retries (1 accepted + 2 rejected by validator) = 8 successful HTTP responses
+    assert summary["sample_size"] == 8
+    assert summary["initial_responses"] == 5
+    assert summary["retry_responses"] == 3
+
+    # All 8 values must be collected into raw_samples
+    assert sorted(summary["raw_samples"]) == [1000.0, 1100.0, 1200.0, 1300.0, 1400.0, 1500.0, 1600.0, 1800.0]
+
+    # Verify that the two rejected retries (1500.0 and 1600.0) are present in the sample
+    assert 1500.0 in summary["raw_samples"]
+    assert 1600.0 in summary["raw_samples"]
+
+    # Recomputed statistics over all 8 values:
+    # Sum = 10,900.0 / 8 = 1362.5
+    # Sorted = [1000.0, 1100.0, 1200.0, 1300.0, 1400.0, 1500.0, 1600.0, 1800.0]
+    # Median = (1300.0 + 1400.0) / 2 = 1350.0
+    # p95 index: int(0.95 * 8) = 7 -> sorted[7] = 1800.0
+    assert summary["mean_ms"] == 1362.5
+    assert summary["median_ms"] == 1350.0
+    assert summary["p95_ms"] == 1800.0
