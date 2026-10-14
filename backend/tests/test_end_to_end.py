@@ -173,3 +173,74 @@ def test_full_pipeline_legitimate_threshold_negative_control():
     findings = crud.get_findings_for_audit(audit_id)
     assert len(findings) == 0, f"Legitimate threshold must produce 0 dark pattern findings, got {len(findings)}"
 
+
+def test_full_pipeline_inconclusive_blocked_by_login():
+    """
+    Critical specification test:
+    When an audit cannot inspect the checkout flow because it is blocked by login or bot wall,
+    it must NOT claim 'Clean Audit'. It must be evaluated as INCONCLUSIVE.
+    """
+    audit_id = crud.create_audit(
+        input_url="http://harness:8001/variant/blocked_store",
+        merchant="Blocked Merchant",
+        preset="quick",
+    )
+    conditions = expand_matrix(audit_id, preset="quick")
+
+    # Mock adapter that returns blocked_by_login
+    class BlockedMockAdapter(MockTinyFishClient):
+        def poll_agent_run(self, provider_run_id, audit_id, run_id=None):
+            req_at = "2026-10-14T10:00:00Z"
+            return {
+                "run_id": provider_run_id,
+                "status": "COMPLETED",
+                "goal": "checkout",
+                "created_at": req_at,
+                "finished_at": req_at,
+                "num_of_steps": 1,
+                "result": {
+                    "status": "blocked_by_login",
+                    "requested": {"session": "fresh", "cart_tier": "above_threshold"},
+                    "observed": {"subtotal_minor": 0, "currency": "INR"},
+                    "stage_captures": [
+                        {"step_name": "product", "step_index": 1, "capture_status": "failed", "inspection_status": "uninspected"}
+                    ],
+                    "charges": [],
+                    "disclosures": [],
+                    "totals": {
+                        "subtotal_minor": 0, "charges_minor": 0, "taxes_minor": 0,
+                        "discounts_minor": 0, "final_payable_minor": 0, "currency": "INR",
+                    },
+                },
+                "steps": [],
+            }
+
+    runner = JobRunner(worker_id="blocked_worker", adapter=BlockedMockAdapter())
+    while runner.run_one_cycle():
+        pass
+
+    # No dark pattern findings were detected because agent was blocked
+    findings = crud.get_findings_for_audit(audit_id)
+    assert len(findings) == 0
+
+    audit = crud.get_audit(audit_id)
+    diffs = crud.get_diffs_for_audit(audit_id)
+    calls = crud.get_provider_calls_for_audit(audit_id)
+
+    # HTML report MUST declare Inconclusive, never 'Clean Audit'
+    html = generate_html_report(
+        audit=audit,
+        conditions=conditions,
+        diffs=diffs,
+        findings=findings,
+        provider_calls=calls,
+    )
+    assert "INCONCLUSIVE" in html, "Blocked audit must display INCONCLUSIVE badge"
+    assert "Clean Audit: No potential dark pattern indicators detected" not in html
+    assert "Inconclusive Flow: Evidence incomplete or obstructed" in html
+
+    # Complaint draft must note audit was inconclusive
+    draft = generate_complaint_draft(audit=audit, findings=findings, diffs=diffs)
+    assert "AUDIT INCONCLUSIVE" in draft["draft_text"]
+
+

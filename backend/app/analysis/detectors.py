@@ -256,7 +256,7 @@ def detect_run_false_urgency_indicators(run_bundle: Dict[str, Any]) -> List[Dict
         u1 = urgencies[i + 1]
         rem_0 = u0.get("observed_seconds_remaining")
         rem_1 = u1.get("observed_seconds_remaining")
-        if rem_0 is not None and rem_1 is not None and rem_1 >= rem_0:
+        if rem_0 is not None and rem_1 is not None:
             step0 = u0.get("step", "earlier step")
             step1 = u1.get("step", "later step")
             is_same_page = (step0 == step1)
@@ -283,55 +283,158 @@ def detect_run_false_urgency_indicators(run_bundle: Dict[str, Any]) -> List[Dict
             ))
             provenance = u1.get("provenance") or u0.get("provenance") or "synthetic_mock_fixture"
 
-            if is_same_page:
-                explanation = (
-                    f"Potential false urgency indicator (same-page controlled test): countdown timer restarted or reset from "
-                    f"{rem_0}s (at {t0_ts}) to {rem_1}s (at {t1_ts}) after {elapsed}s measured elapsed wall-clock time "
-                    f"on the same {step0} page while holding session and page state fixed without navigation."
-                )
-                severity = "high"
-                conf = 0.95
-                dedup = f"finding_urgency_same_page:{run_id}:{step0}"
-            else:
-                explanation = (
-                    f"Potential false urgency indicator (cross-stage test): countdown timer restarted or reset from "
-                    f"{rem_0}s at {step0} to {rem_1}s at {step1} "
-                    f"while navigating the checkout funnel."
-                )
-                severity = "medium"
-                conf = 0.88
-                dedup = f"finding_urgency_cross_stage:{run_id}:{step0}_{step1}"
+            is_timer_reset = (rem_0 is not None and rem_1 is not None and rem_1 >= rem_0)
+            is_timer_expired_active = (rem_0 is not None and rem_1 is not None and elapsed > rem_0 and rem_1 > 0)
 
-            raw_obs = {
-                "t0_remaining": rem_0,
-                "t1_remaining": rem_1,
-                "t0_timestamp": t0_ts,
-                "t1_timestamp": t1_ts,
-                "elapsed_seconds": elapsed,
-                "navigation_occurred": not is_same_page,
-                "step_t0": step0,
-                "step_t1": step1,
-                "evidence_ids": obs_evidence_ids,
-                "provenance": provenance,
-            }
+            if is_timer_reset or is_timer_expired_active:
+                if is_timer_reset:
+                    if is_same_page:
+                        explanation = (
+                            f"Potential false urgency indicator (same-page controlled test): countdown timer restarted or reset from "
+                            f"{rem_0}s (at {t0_ts}) to {rem_1}s (at {t1_ts}) after {elapsed}s measured elapsed wall-clock time "
+                            f"on the same {step0} page while holding session and page state fixed without navigation."
+                        )
+                        severity = "high"
+                        conf = 0.95
+                        dedup = f"finding_urgency_same_page:{run_id}:{step0}"
+                    else:
+                        explanation = (
+                            f"Potential false urgency indicator (cross-stage test): countdown timer restarted or reset from "
+                            f"{rem_0}s at {step0} to {rem_1}s at {step1} "
+                            f"while navigating the checkout funnel."
+                        )
+                        severity = "medium"
+                        conf = 0.88
+                        dedup = f"finding_urgency_cross_stage:{run_id}:{step0}_{step1}"
+                else:
+                    explanation = (
+                        f"Potential false urgency indicator (controlled expiry test): offer timer of {rem_0}s expired "
+                        f"after {elapsed}s measured elapsed wall-clock time, but the claim continues active with {rem_1}s remaining."
+                    )
+                    severity = "high"
+                    conf = 0.92
+                    dedup = f"finding_urgency_expired:{run_id}:{step0}_{step1}"
 
-            findings.append({
-                "audit_id": audit_id,
-                "diff_id": None,
-                "category": "false_urgency",
-                "severity": severity,
-                "confidence": conf,
-                "explanation": explanation,
-                "evidence_ids": obs_evidence_ids,
-                "source": "rule",
-                "dedup_key": dedup,
-                "raw_observations": raw_obs,
-                "heuristic_note": (
-                    f"Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1). "
-                    f"Provenance: {provenance}. Preserves timezone-aware UTC timestamps ({t0_ts} -> {t1_ts}), "
-                    f"measured elapsed interval ({elapsed}s), and evidence links ({obs_evidence_ids}). "
-                    f"Reported strictly as a potential false-urgency indicator, not proof of deceptive intent."
-                ),
-            })
+                raw_obs = {
+                    "t0_remaining": rem_0,
+                    "t1_remaining": rem_1,
+                    "t0_timestamp": t0_ts,
+                    "t1_timestamp": t1_ts,
+                    "elapsed_seconds": elapsed,
+                    "navigation_occurred": not is_same_page,
+                    "step_t0": step0,
+                    "step_t1": step1,
+                    "evidence_ids": obs_evidence_ids,
+                    "provenance": provenance,
+                }
+
+                findings.append({
+                    "audit_id": audit_id,
+                    "diff_id": None,
+                    "category": "false_urgency",
+                    "severity": severity,
+                    "confidence": conf,
+                    "explanation": explanation,
+                    "evidence_ids": obs_evidence_ids,
+                    "source": "rule",
+                    "dedup_key": dedup,
+                    "raw_observations": raw_obs,
+                    "heuristic_note": (
+                        f"Evaluated under controlled countdown observation procedure (CCPA 2023 Annex 1.1). "
+                        f"Provenance: {provenance}. Preserves timezone-aware UTC timestamps ({t0_ts} -> {t1_ts}), "
+                        f"measured elapsed interval ({elapsed}s), and evidence links ({obs_evidence_ids}). "
+                        f"Reported strictly as a potential false-urgency indicator, not proof of deceptive intent."
+                    ),
+                })
     return findings
+
+
+def assess_audit_outcome(
+    runs: List[Dict[str, Any]],
+    findings: List[Dict[str, Any]],
+    diffs: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """
+    Assess audit outcome distinguishing confirmed findings, clean checkout flows,
+    and inconclusive audits where evidence is missing, incomplete, or blocked.
+
+    Principles:
+    - Never turn missing evidence into proof of misconduct or proof that a site is clean.
+    - Findings are strictly potential indicators, confirmed by observed evidence.
+    - A site is declared 'clean' only when all stages and conditions were captured,
+      inspected, and verified transparent with zero findings.
+    - If runs were blocked, stage captures failed or uninspected, disclosures unknown,
+      or urgency observations incomplete, the outcome is 'inconclusive'.
+    """
+    if findings:
+        return {
+            "status": "potential_indicators_detected",
+            "findings_count": len(findings),
+            "summary": f"Detected {len(findings)} potential dark pattern indicator(s) confirmed by observed evidence.",
+            "inconclusive_reasons": [],
+            "is_clean": False,
+            "is_inconclusive": False,
+        }
+
+    inconclusive_reasons: List[str] = []
+
+    if not runs:
+        inconclusive_reasons.append("No run observations recorded for this audit.")
+    else:
+        for r in runs:
+            r_id = r.get("id", "unknown_run")
+            outcome = r.get("outcome", "ok")
+            if outcome != "ok":
+                inconclusive_reasons.append(
+                    f"Run {r_id} ended with non-ok outcome '{outcome}' (flow was obstructed or extraction inconsistent)."
+                )
+
+            # Check stage captures completeness
+            stage_caps = r.get("stage_captures", [])
+            for sc in stage_caps:
+                st_name = sc.get("step_name", "step")
+                cap_st = sc.get("capture_status", "verified")
+                insp_st = sc.get("inspection_status", "inspected")
+                if cap_st != "verified" or insp_st != "inspected":
+                    inconclusive_reasons.append(
+                        f"Stage '{st_name}' in run {r_id} was not fully verified (capture: {cap_st}, inspection: {insp_st})."
+                    )
+
+            # Check unknown disclosure states where charges were observed
+            charges = r.get("charges", [])
+            disclosures = r.get("disclosures", [])
+            if charges:
+                unknown_discs = [d for d in disclosures if d.get("state") == "unknown"]
+                if unknown_discs:
+                    inconclusive_reasons.append(
+                        f"Run {r_id} observed charges at checkout, but disclosure status at earlier stages was 'unknown'."
+                    )
+
+            # Check single urgency observation without temporal re-observation
+            urgencies = r.get("urgency_indicators", [])
+            if len(urgencies) == 1:
+                inconclusive_reasons.append(
+                    f"Run {r_id} observed a single urgency indicator on '{urgencies[0].get('step', 'product')}' "
+                    f"({urgencies[0].get('text', '')}), but a second observation was not performed to verify reset or persistence."
+                )
+
+    if inconclusive_reasons:
+        return {
+            "status": "inconclusive",
+            "findings_count": 0,
+            "summary": "Audit inconclusive: Missing, obstructed, or incomplete evidence cannot establish that the flow is clean.",
+            "inconclusive_reasons": inconclusive_reasons,
+            "is_clean": False,
+            "is_inconclusive": True,
+        }
+
+    return {
+        "status": "clean",
+        "findings_count": 0,
+        "summary": "Verified clean checkout flow: All required stages were captured and inspected; 0 potential dark pattern indicators detected.",
+        "inconclusive_reasons": [],
+        "is_clean": True,
+        "is_inconclusive": False,
+    }
+
 

@@ -6,13 +6,14 @@ Explicit constraint:
 - Itemizes timestamped evidence, observed fees, and diff results.
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 
 def generate_complaint_draft(
     audit: Dict[str, Any],
     findings: List[Dict[str, Any]],
     diffs: List[Dict[str, Any]],
+    runs: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     merchant = audit.get("merchant", "E-Commerce Platform")
     audit_id = audit.get("id", "AUD-UNKNOWN")
@@ -27,6 +28,40 @@ def generate_complaint_draft(
    - Technical Rule Rationale: {f.get('heuristic_note', 'Observed in checkout flow')}
    - Evidence Identifiers: {', '.join(f.get('evidence_ids', [])) or 'Captured sequence'}
 """
+
+    if not findings_text.strip():
+        summary_text = "No dark pattern indicators observed during audit across verified completed stages."
+        if runs is None:
+            try:
+                from ..db import connection
+                conn = connection.get_connection()
+                try:
+                    rows = conn.execute(
+                        "SELECT r.* FROM runs r JOIN conditions c ON r.condition_id = c.id WHERE c.audit_id = ?",
+                        (audit_id,),
+                    ).fetchall()
+                    runs = []
+                    for r in rows:
+                        rd = dict(r)
+                        run_id = rd["id"]
+                        rd["stage_captures"] = [dict(sc) for sc in conn.execute("SELECT * FROM stage_captures WHERE run_id = ?", (run_id,)).fetchall()]
+                        rd["charges"] = [dict(c) for c in conn.execute("SELECT * FROM charge_observations WHERE run_id = ?", (run_id,)).fetchall()]
+                        rd["disclosures"] = [dict(d) for d in conn.execute("SELECT * FROM disclosure_observations WHERE run_id = ?", (run_id,)).fetchall()]
+                        rd["urgency_indicators"] = [dict(u) for u in conn.execute("SELECT * FROM urgency_observations WHERE run_id = ?", (run_id,)).fetchall()]
+                        runs.append(rd)
+                finally:
+                    conn.close()
+            except Exception:
+                runs = []
+
+        if runs:
+            from ..analysis.detectors import assess_audit_outcome
+            assessment = assess_audit_outcome(runs=runs, findings=findings, diffs=diffs)
+            if assessment.get("is_inconclusive"):
+                reasons = "; ".join(assessment.get("inconclusive_reasons", []))
+                summary_text = f"AUDIT INCONCLUSIVE: Evidence incomplete or obstructed ({reasons}). Cannot verify flow as clean."
+        findings_text = summary_text
+
 
     draft_text = f"""[DRAFT GRIEVANCE / INFORMATIONAL FILING - NOT AUTOMATICALLY SUBMITTED]
 

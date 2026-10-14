@@ -29,6 +29,7 @@ from .matrix.orchestrator import expand_matrix
 from .worker.job_runner import JobRunner
 from .reports.html_report import generate_html_report
 from .reports.complaint_draft import generate_complaint_draft
+from .analysis.detectors import assess_audit_outcome
 
 app = FastAPI(
     title="Checkout Radar API",
@@ -161,12 +162,18 @@ def get_audit_details(audit_id: str):
         runs = []
         for r in runs_rows:
             rd = dict(r)
+            run_id = rd["id"]
             rd["requested"] = json.loads(rd["requested"]) if rd.get("requested") else {}
             rd["observed"] = json.loads(rd["observed"]) if rd.get("observed") else {}
+            rd["stage_captures"] = [dict(sc) for sc in conn.execute("SELECT * FROM stage_captures WHERE run_id = ?", (run_id,)).fetchall()]
+            rd["charges"] = [dict(c) for c in conn.execute("SELECT * FROM charge_observations WHERE run_id = ?", (run_id,)).fetchall()]
+            rd["disclosures"] = [dict(d) for d in conn.execute("SELECT * FROM disclosure_observations WHERE run_id = ?", (run_id,)).fetchall()]
+            rd["urgency_indicators"] = [dict(u) for u in conn.execute("SELECT * FROM urgency_observations WHERE run_id = ?", (run_id,)).fetchall()]
             runs.append(rd)
 
         findings = crud.get_findings_for_audit(audit_id)
         diffs = crud.get_diffs_for_audit(audit_id)
+        assessment = assess_audit_outcome(runs=runs, findings=findings, diffs=diffs)
 
         return {
             "audit": audit,
@@ -174,6 +181,7 @@ def get_audit_details(audit_id: str):
             "runs": runs,
             "diffs_count": len(diffs),
             "findings_count": len(findings),
+            "assessment": assessment,
         }
     finally:
         conn.close()
@@ -258,7 +266,17 @@ def get_complaint_draft_endpoint(audit_id: str):
     diffs = crud.get_diffs_for_audit(audit_id)
     findings = crud.get_findings_for_audit(audit_id)
 
-    draft = generate_complaint_draft(audit=audit, findings=findings, diffs=diffs)
+    conn = connection.get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT r.* FROM runs r JOIN conditions c ON r.condition_id = c.id WHERE c.audit_id = ?",
+            (audit_id,),
+        ).fetchall()
+        runs = [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+    draft = generate_complaint_draft(audit=audit, findings=findings, diffs=diffs, runs=runs)
     return draft
 
 

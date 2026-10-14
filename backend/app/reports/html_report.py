@@ -7,8 +7,9 @@ Includes:
 - Append-only evidence list with SHA-256 hashes and capture timestamps
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import json
+from ..analysis.detectors import assess_audit_outcome
 
 
 def generate_html_report(
@@ -17,12 +18,39 @@ def generate_html_report(
     diffs: List[Dict[str, Any]],
     findings: List[Dict[str, Any]],
     provider_calls: List[Dict[str, Any]],
+    runs: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     merchant = audit.get("merchant", "E-Commerce Merchant")
     audit_id = audit.get("id", "AUD-UNKNOWN")
     created_at = audit.get("created_at", "")
     preset = audit.get("preset", "quick")
     status = audit.get("status", "complete")
+
+    if runs is None:
+        try:
+            from ..db import connection
+            conn = connection.get_connection()
+            try:
+                rows = conn.execute(
+                    "SELECT r.* FROM runs r JOIN conditions c ON r.condition_id = c.id WHERE c.audit_id = ?",
+                    (audit_id,),
+                ).fetchall()
+                runs = []
+                for r in rows:
+                    rd = dict(r)
+                    run_id = rd["id"]
+                    rd["stage_captures"] = [dict(sc) for sc in conn.execute("SELECT * FROM stage_captures WHERE run_id = ?", (run_id,)).fetchall()]
+                    rd["charges"] = [dict(c) for c in conn.execute("SELECT * FROM charge_observations WHERE run_id = ?", (run_id,)).fetchall()]
+                    rd["disclosures"] = [dict(d) for d in conn.execute("SELECT * FROM disclosure_observations WHERE run_id = ?", (run_id,)).fetchall()]
+                    rd["urgency_indicators"] = [dict(u) for u in conn.execute("SELECT * FROM urgency_observations WHERE run_id = ?", (run_id,)).fetchall()]
+                    runs.append(rd)
+            finally:
+                conn.close()
+        except Exception:
+            runs = []
+
+    assessment = assess_audit_outcome(runs=runs or [], findings=findings, diffs=diffs)
+
 
     findings_rows = ""
     for f in findings:
@@ -47,6 +75,28 @@ def generate_html_report(
             <td style="padding: 12px;">{evidence_badges or 'Verified Flow'}</td>
         </tr>
         """
+
+    if findings:
+        badge_html = '<span class="badge" style="background: #dc2626;">INDICATORS DETECTED</span>'
+    elif assessment.get("is_clean"):
+        badge_html = '<span class="badge" style="background: #166534;">VERIFIED CLEAN</span>'
+    else:
+        badge_html = '<span class="badge" style="background: #d97706;">INCONCLUSIVE AUDIT</span>'
+
+    if findings_rows:
+        tbody_content = findings_rows
+    elif assessment.get("is_clean"):
+        tbody_content = '<tr><td colspan="5" style="padding: 16px; text-align: center; color: #166534; font-weight: bold;">✅ Verified Clean Flow: All checkout stages captured and inspected; 0 potential dark pattern indicators detected.</td></tr>'
+    else:
+        reasons_list = "".join([f"<li>{r}</li>" for r in assessment.get("inconclusive_reasons", [])])
+        tbody_content = (
+            f'<tr><td colspan="5" style="padding: 16px; text-align: left; background: #fffbeb; border: 1px solid #fef3c7; color: #92400e;">'
+            f'<strong>⚠️ Inconclusive Flow: Evidence incomplete or obstructed.</strong><br>'
+            f'<span style="font-size: 0.9em;">Missing, uninspected, or obstructed observations cannot establish that the checkout flow is clean. Specific reasons:</span>'
+            f'<ul style="margin: 6px 0 0 16px; font-size: 0.85em;">{reasons_list}</ul>'
+            f'</td></tr>'
+        )
+
 
     diffs_rows = ""
     for d in diffs:
@@ -99,7 +149,7 @@ def generate_html_report(
             <div style="color: #64748b; font-size: 0.9em; margin-top: 4px;">Evidence-First Checkout Flow Transparency & Dark Pattern Auditor</div>
         </div>
         <div>
-            <span class="badge">{status}</span>
+            {badge_html}
         </div>
     </div>
 
@@ -135,7 +185,7 @@ def generate_html_report(
             </tr>
         </thead>
         <tbody>
-            {findings_rows or '<tr><td colspan="5" style="padding: 16px; text-align: center; color: #16a34a; font-weight: bold;">✅ Clean Audit: No potential dark pattern indicators detected.</td></tr>'}
+            {tbody_content}
         </tbody>
     </table>
 
