@@ -358,7 +358,11 @@ class LLMClassifier:
             },
             method="POST",
         )
-        for attempt_http in range(2):
+        max_http_attempts = 3
+        max_budget_seconds = 5.0
+        total_slept = 0.0
+
+        for attempt_http in range(max_http_attempts):
             try:
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     resp_json = json.loads(resp.read().decode("utf-8"))
@@ -372,10 +376,42 @@ class LLMClassifier:
                         choice = "\n".join(lines).strip()
                     return choice
             except urllib.error.HTTPError as he:
-                if he.code in (429, 502, 503) and attempt_http == 0:
-                    time.sleep(1.0)
+                if attempt_http >= max_http_attempts - 1:
+                    raise
+                if he.code == 429:
+                    wait_sec = None
+                    if he.headers:
+                        hdr = he.headers.get("Retry-After")
+                        if hdr:
+                            try:
+                                wait_sec = float(hdr)
+                            except ValueError:
+                                pass
+                    if wait_sec is None:
+                        try:
+                            err_body = he.read().decode("utf-8", errors="replace")
+                            m = re.search(r"try again in (\d+(?:\.\d+)?)s", err_body)
+                            if m:
+                                wait_sec = float(m.group(1))
+                        except Exception:
+                            pass
+                    if wait_sec is None:
+                        wait_sec = 1.5 * (attempt_http + 1)
+
+                    if wait_sec > max_budget_seconds or (total_slept + wait_sec) > max_budget_seconds:
+                        raise
+                    time.sleep(wait_sec)
+                    total_slept += wait_sec
                     continue
-                raise
+                elif he.code in (502, 503):
+                    wait_sec = 1.0
+                    if (total_slept + wait_sec) > max_budget_seconds:
+                        raise
+                    time.sleep(wait_sec)
+                    total_slept += wait_sec
+                    continue
+                else:
+                    raise
 
     def classify_candidate(
         self,
@@ -403,6 +439,7 @@ class LLMClassifier:
             "first_pass_overall_valid": None,
             "raw_model_category": None,
             "raw_category_concordance": None,
+            "raw_concept_keyword_coverage": None,
             "raw_statutory_concept_alignment": None,
             "model_validation_failure": False,
             "initial_failure_reason": None,
@@ -546,7 +583,9 @@ class LLMClassifier:
                         "false_urgency": ["urgency", "annex_1_1", "countdown", "deadline", "timer", "reset"],
                     }
                     expected_kw = cat_kws.get(category_key, ["ccpa", "dark pattern"])
-                    telemetry["raw_statutory_concept_alignment"] = any(kw in expl_lower for kw in expected_kw)
+                    has_concept_kw = any(kw in expl_lower for kw in expected_kw)
+                    telemetry["raw_concept_keyword_coverage"] = has_concept_kw
+                    telemetry["raw_statutory_concept_alignment"] = has_concept_kw
 
                     if not is_valid:
                         telemetry["model_validation_failure"] = True

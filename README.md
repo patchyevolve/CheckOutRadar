@@ -127,26 +127,31 @@ The LLM does not alter detection boundaries; candidate indicators are strictly p
   - Invented evidence IDs not present in the audit's observation index are rejected.
 - **Bounded Retry & Pre-Validated Deterministic Fallback:** Enforces a maximum of 1 corrective retry before reverting to a pre-validated deterministic fallback template conforming strictly to schema, statutory citations, and non-judicial wording. 100% of persisted findings are guaranteed valid.
 - **Auditable Benchmark Telemetry & Failure Taxonomy:**
-  The benchmark runner (`evaluation/run_evaluation.py`) reports metrics with explicit denominators, rigorously separating provider-level throttling/errors from raw model quality gates:
+  The benchmark runner (`evaluation/run_evaluation.py`) reports metrics with explicit denominators, request pacing, and bounded retry backoff, rigorously separating provider-level throttling/errors from raw model quality gates:
+  - *Candidate Request Pacing & Queue Discipline:* 2.0s bounded queue spacing between submissions plus `Retry-After` header parsing with max 5.0s budget to prevent provider exhaustion.
   - *Remote Provider Coverage & Failure Taxonomy (Denominator = Submitted Candidates, N = 30):*
-    1. *Provider Response Coverage:* Submissions successfully returning raw model responses (e.g. 12 / 30, 40.0%).
-    2. *Provider Throttling / Errors:* Submissions rate-limited or unavailable (e.g. 18 / 30, 60.0% handled via deterministic fallback).
-    3. *Corrective Retries Attempted:* Bounded retries triggered strictly by invalid model outputs (0 retries burned on provider throttling).
-    4. *Corrective Retries Succeeded:* Retries producing valid output.
-  - *First-Pass Raw Model Quality Gates (Denominator = Responses Received, N = 12):*
-    5. *First-Pass Schema Validity:* Valid raw responses conforming to `ClassifiedFinding` (12 / 12, 100.0% of received responses).
-    6. *First-Pass Non-Judicial Wording:* Raw responses devoid of adjudicative terms (12 / 12, 100.0% of received responses).
-    7. *Raw Model Category Concordance:* Model independently agreed with candidate category before guards (12 / 12, 100.0% of received responses).
-    8. *Raw Model Statutory Concept Alignment:* Raw response cited CCPA Gazette definitions before guards (12 / 12, 100.0% of received responses).
-    9. *Initial Model Validation Failures:* Model responses rejected by guardrails (0 / 12, 0.0% of received responses).
+    1. *Provider Response Coverage:* Submissions successfully returning raw model responses: **25 / 30 (83.3%)** (improved from 40.0% without pacing).
+    2. *Provider Throttling / Errors:* Submissions rate-limited or unavailable: **5 / 30 (16.7%)** (handled via safe deterministic fallback).
+    3. *Corrective Retries Attempted:* Bounded retries triggered strictly by invalid model outputs: **6** (0 retries burned on provider throttling).
+    4. *Corrective Retries Succeeded:* Retries producing valid output: **2 / 6 (33.3%)**.
+  - *First-Pass Raw Model Quality Gates (Denominator = Responses Received, N = 25):*
+    5. *First-Pass Schema Validity:* Valid raw responses conforming to `ClassifiedFinding`: **25 / 25 (100.0%)**.
+    6. *First-Pass Non-Judicial Wording:* Raw responses devoid of adjudicative terms: **19 / 25 (76.0%)** (6 flagged for adjudicative terms or missing indicator framing).
+    7. *Raw Model Category Concordance:* Model independently agreed with candidate category before guards: **25 / 25 (100.0%)**.
+    8. *Raw Model Concept-Keyword Coverage:* Raw response cited CCPA statutory vocabulary before guards: **25 / 25 (100.0%)**.
+    9. *Initial Model Validation Failures:* Model responses rejected by guardrails on first pass: **6 / 25 (24.0%)** (intercepted by runtime guardrails).
   - *Post-Validation Acceptance & Grounding (Denominator = Submitted Candidates, N = 30):*
-    10. *Deterministic Fallbacks Emitted:* Pre-validated template fallbacks invoked (18 / 30, 60.0% due to provider rate-limiting).
-    11. *Final Accepted Outputs:* Total valid findings accepted into the audit store (30 / 30, 100.0%).
-    12. *Evidence Grounding Rate:* Zero ungrounded absence assertions or invented amounts/IDs (30 / 30, 100.0%).
-    13. *Post-Guard Category Preservation:* Accepted category strictly preserves candidate category as an enforced architectural invariant (30 / 30, 100.0%).
-    14. *Post-Guard CCPA Concept Alignment:* Full pipeline accepted outputs (including validated fallbacks) quote official CCPA Gazette definitions (30 / 30, 100.0%).
-  - *Response Latency Profile:* Average, median, and p95 latency tracked across successful raw provider calls.
-  - *Empirical Availability Limitation:* The observed 40.0% provider response coverage (12/30) reflects rate-limiting on the tested endpoint during evaluation. This is an empirical constraint of the tested environment, not a theoretical projection.
+    10. *Deterministic Fallbacks Emitted:* Pre-validated template fallbacks invoked: **9 / 30 (30.0%)** (5 provider errors, 4 unrecovered validation failures).
+    11. *Final Accepted Outputs:* Total valid findings accepted into the audit store: **30 / 30 (100.0%)**.
+    12. *Evidence Grounding Rate:* Zero ungrounded absence assertions or invented amounts/IDs: **30 / 30 (100.0%)**.
+    13. *Post-Guard Category Preservation:* Accepted category strictly preserves candidate category as an enforced architectural invariant: **30 / 30 (100.0%)**.
+    14. *Post-Guard Pipeline Concept-Keyword Coverage:* Full pipeline accepted outputs (including validated fallbacks) include statutory Gazette keywords: **30 / 30 (100.0%)**.
+    15. *Verification Method:* Regex search against CCPA 2023 Gazette statutory definition terminology sets (Annex 1.8, 1.2, 1.1). Confirms lexical presence of statutory vocabulary, not judicial semantic correctness.
+  - *Response Latency Profile:* Avg: 4314.9 ms, Median: 4564.0 ms, p95: 6837.9 ms per successful provider call.
+  - *Methodological Scope & Sample Size Disclosure:*
+    - The 83.3% provider response coverage (25/30) reflects rate-limiting on the tested endpoint during evaluation. This is an empirical constraint of the tested environment, not a theoretical projection.
+    - Raw model quality metrics are calculated strictly over received responses ($N = 25$), representing an empirical sample under provider limits rather than a universal guarantee. Concordance on received responses does not prove universal 100% model accuracy across all possible prompts.
+    - Post-guard category preservation (30/30) and pipeline concept-keyword coverage (30/30) are architectural invariants enforced by deterministic validators and safe template fallbacks.
 
 ### Tier 3: Independent Dual-Annotated Real-Site Dataset
 - **Status:** **PENDING** — Scheduled for Day 4 (17 Oct 2026) per Section 13 milestone.

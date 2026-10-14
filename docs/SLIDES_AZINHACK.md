@@ -83,12 +83,14 @@
 
 ## Slide 8: Evaluation & Benchmark Framework
 - **Three-Tier Evaluation Methodology:**
-  1. **Tier 1 (Synthetic Acceptance Suite — 45 Bundles):** 100% Precision, 100% Recall, F1 = 1.000 across Clean, Drip, Basket Sneaking, and False Urgency. Zero false alarms on negative controls.
-  2. **Tier 2 (Auditable Remote LLM Telemetry & Failure Taxonomy):**
-     - Provider Coverage: 12 / 30 (40.0% empirical coverage; 18 rate-limited handled via safe fallback).
-     - First-Pass Model Quality (N = 12 received): 100.0% (12/12) schema validity, 100.0% (12/12) non-judicial wording, 100.0% (12/12) raw category concordance, 100.0% (12/12) raw CCPA concept alignment, 0/12 validation failures.
-     - Post-Guard Accepted Quality (N = 30): 100.0% accepted outputs, 100.0% evidence grounding, 100.0% post-guard category preservation (enforced invariant), 100.0% post-guard CCPA concept alignment (full pipeline including validated fallbacks; Avg: 1375.5 ms, Median: 1285.9 ms, p95: 2160.0 ms).
-  3. **Tier 3 (Dual-Annotated Real Sites):** In-progress for Day 4 (17 Oct) per Section 13 milestone. Two labelers annotating live Indian e-commerce checkout funnels.
+  1. **Tier 1 (Synthetic Acceptance Suite — 45 Bundles):** 100% Precision, 100% Recall, F1 = 1.000 across Clean, Drip, Basket Sneaking, and False Urgency. Zero false alarms on negative controls (unit regression on designed fixtures).
+  2. **Tier 2 (Auditable Remote LLM Telemetry & Bounded Pacing):**
+     - Candidate Pacing: 2.0s bounded queue spacing + `Retry-After` bounded backoff (max 5.0s budget).
+     - Provider Coverage: **25 / 30 (83.3%)** empirical coverage (improved from 40.0% without pacing; 5 rate-limited handled via safe fallback).
+     - First-Pass Model Quality ($N = 25$ received responses; empirical sample under provider limits): 100.0% (25/25) schema validity, 76.0% (19/25) non-judicial wording, 24.0% (6/25) caught by guardrails, 100.0% (25/25) raw category concordance, 100.0% (25/25) raw concept-keyword coverage (regex search on CCPA Gazette keywords).
+     - Corrective Retries: 6 triggered by guardrails, 2/6 (33.3%) succeeded.
+     - Post-Guard Accepted Quality ($N = 30$): 100.0% (30/30) accepted outputs, 100.0% evidence grounding, 100.0% post-guard category preservation (enforced invariant), 100.0% post-guard pipeline concept-keyword coverage (including validated fallbacks; Avg: 4314.9 ms, Median: 4564.0 ms, p95: 6837.9 ms).
+  3. **Tier 3 (Dual-Annotated Real Sites):** In-progress for Day 4 (17 Oct) per Section 13 milestone. Two labelers annotating live Indian e-commerce checkout funnels. Cohen's Kappa will be established before model evaluation.
 
 ---
 
