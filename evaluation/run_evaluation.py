@@ -247,7 +247,8 @@ def main():
     evidence_grounding_passed = 0
     post_guard_category_preserved = 0
     post_guard_concept_keyword_coverage = 0
-    latencies_ms: List[float] = []
+    provider_http_latencies_ms: List[float] = []
+    candidate_latencies_ms: List[float] = []
 
     t2_start = time.time()
 
@@ -266,6 +267,9 @@ def main():
         if is_live_llm:
             if telem.get("initial_response_received"):
                 initial_responses_received += 1
+                p_lat = telem.get("provider_http_latency_ms")
+                if p_lat is not None and p_lat > 0:
+                    provider_http_latencies_ms.append(p_lat)
                 if telem.get("first_pass_schema_valid"):
                     first_pass_schema_valid += 1
                 if telem.get("first_pass_wording_valid"):
@@ -283,17 +287,20 @@ def main():
                 retries_attempted += 1
             if telem.get("retry_succeeded"):
                 retries_succeeded += 1
+                r_lat = telem.get("retry_http_latency_ms")
+                if r_lat is not None and r_lat > 0:
+                    provider_http_latencies_ms.append(r_lat)
             if telem.get("fallback_used"):
                 deterministic_fallbacks += 1
                 fb_r = telem.get("fallback_reason", "provider_error")
                 fallback_reasons[fb_r] += 1
-
-            lat_val = telem.get("end_to_end_latency_ms", 0.0)
-            if lat_val > 0 and telem.get("initial_response_received"):
-                latencies_ms.append(lat_val)
         else:
             deterministic_fallbacks += 1
             fallback_reasons["offline_mode"] += 1
+
+        cand_lat = telem.get("candidate_latency_ms", 0.0)
+        if cand_lat > 0:
+            candidate_latencies_ms.append(cand_lat)
 
         # 2. Evidence Grounding Verification
         is_grounded, _ = validate_explanation(
@@ -321,10 +328,6 @@ def main():
         expected_kw = cat_keywords.get(cat, ["ccpa", "dark pattern"])
         if any(kw in expl for kw in expected_kw):
             post_guard_concept_keyword_coverage += 1
-
-        # Pacing between remote provider requests to respect rate limits
-        if is_live_llm and pacing_seconds > 0 and not candidate_queue.empty():
-            time.sleep(pacing_seconds)
 
     t2_elapsed = time.time() - t2_start
     denom = candidates_submitted
@@ -368,18 +371,33 @@ def main():
     print(f"   Post-Guard Pipeline Concept-Keyword:   {post_guard_concept_keyword_coverage} / {denom} ({post_guard_concept_keyword_coverage/denom*100:.1f}%) full-pipeline outputs (including validated fallbacks) include statutory Gazette keywords")
     print(f"   Verification Method:                   Regex match against CCPA 2023 Gazette statutory definition terminology sets (Annex 1.8, 1.2, 1.1). Confirms vocabulary presence, not judicial semantic correctness.")
 
-    print("\n4. END-TO-END LATENCY PROFILE:")
-    if is_live_llm and latencies_ms:
-        avg_lat = statistics.mean(latencies_ms)
-        med_lat = statistics.median(latencies_ms)
-        sorted_lat = sorted(latencies_ms)
-        p95_idx = min(int(0.95 * len(sorted_lat)), len(sorted_lat) - 1)
-        p95_lat = sorted_lat[p95_idx]
-        print(f"   Average Latency:               {avg_lat:.1f} ms per successful provider call")
-        print(f"   Median (p50) Latency:          {med_lat:.1f} ms")
-        print(f"   95th Percentile (p95):         {p95_lat:.1f} ms")
+    print("\n4. THREE-DIMENSIONAL LATENCY & EXECUTION PROFILE:")
+    if is_live_llm and provider_http_latencies_ms:
+        avg_http = statistics.mean(provider_http_latencies_ms)
+        med_http = statistics.median(provider_http_latencies_ms)
+        sorted_http = sorted(provider_http_latencies_ms)
+        p95_http = sorted_http[min(int(0.95 * len(sorted_http)), len(sorted_http) - 1)]
+        print("   A. Provider HTTP Request Latency (Individual Successful Network Calls):")
+        print(f"      Recorded HTTP Requests:        {len(provider_http_latencies_ms)} calls")
+        print(f"      Average Provider Latency:      {avg_http:.1f} ms per successful HTTP round-trip")
+        print(f"      Median (p50) Latency:          {med_http:.1f} ms")
+        print(f"      95th Percentile (p95):         {p95_http:.1f} ms")
     else:
-        print(f"   Local Fallback Overhead:       {t2_elapsed / denom * 1000:.4f} ms per candidate (offline regression mode)")
+        print("   A. Provider HTTP Request Latency: UNAVAILABLE (Offline regression mode)")
+
+    if candidate_latencies_ms:
+        avg_cand = statistics.mean(candidate_latencies_ms)
+        med_cand = statistics.median(candidate_latencies_ms)
+        sorted_cand = sorted(candidate_latencies_ms)
+        p95_cand = sorted_cand[min(int(0.95 * len(sorted_cand)), len(sorted_cand) - 1)]
+        print("   B. Candidate Processing Latency (End-to-End per Candidate, including Pacing, Retries & Fallback):")
+        print(f"      Evaluated Candidates:          {len(candidate_latencies_ms)} findings")
+        print(f"      Average Candidate Latency:     {avg_cand:.1f} ms per candidate finding")
+        print(f"      Median (p50) Latency:          {med_cand:.1f} ms")
+        print(f"      95th Percentile (p95):         {p95_cand:.1f} ms")
+
+    print("   C. Batch Evaluation Elapsed Duration:")
+    print(f"      Total Batch Processing Time:   {t2_elapsed:.2f} s for all {denom} candidates")
 
     print("\n5. METHODOLOGICAL SCOPE & DISCLOSURE:")
     print("   - Tier 1 measures algorithmic rule-engine conformance across 45 synthetic fixtures (not production recall).")
@@ -390,7 +408,9 @@ def main():
     print("   - Raw model quality metrics are calculated strictly over received responses (denominator N = responses received), representing an")
     print("     empirical sample under provider rate limits rather than a universal guarantee. Concordance on received responses does not prove universal 100% accuracy.")
     print("   - Post-guard category preservation (30/30) and pipeline concept-keyword coverage (30/30) are architectural invariants enforced by deterministic validators and safe template fallbacks.")
-    print("   - Candidate request pacing (2.0s bounded queue) and bounded Retry-After backoff (max 5.0s budget) prevent provider exhaustion while maintaining safe execution limits.")
+    print("   - Shared request pacing across all outbound calls (including corrective retries) and bounded Retry-After backoff (max 5.0s budget)")
+    print("     prevent provider exhaustion while maintaining safe execution limits.")
+    print("   - Three-dimensional latency accounting separates individual HTTP network round-trips from per-candidate wall-clock processing and total batch elapsed time.")
 
     print("\n" + "=" * 70)
     print("TIER 3: INDEPENDENT DUAL-ANNOTATED BENCHMARK STATUS: PENDING")

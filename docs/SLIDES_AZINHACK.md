@@ -84,12 +84,13 @@
 ## Slide 8: Evaluation & Benchmark Framework
 - **Three-Tier Evaluation Methodology:**
   1. **Tier 1 (Synthetic Acceptance Suite — 45 Bundles):** 100% Precision, 100% Recall, F1 = 1.000 across Clean, Drip, Basket Sneaking, and False Urgency. Zero false alarms on negative controls (unit regression on designed fixtures).
-  2. **Tier 2 (Auditable Remote LLM Telemetry & Bounded Pacing):**
-     - Candidate Pacing: 2.0s bounded queue spacing + `Retry-After` bounded backoff (max 5.0s budget).
-     - Provider Coverage: **25 / 30 (83.3%)** empirical coverage (improved from 40.0% without pacing; 5 rate-limited handled via safe fallback).
-     - First-Pass Model Quality ($N = 25$ received responses; empirical sample under provider limits): 100.0% (25/25) schema validity, 76.0% (19/25) non-judicial wording, 24.0% (6/25) caught by guardrails, 100.0% (25/25) raw category concordance, 100.0% (25/25) raw concept-keyword coverage (regex search on CCPA Gazette keywords).
-     - Corrective Retries: 6 triggered by guardrails, 2/6 (33.3%) succeeded.
-     - Post-Guard Accepted Quality ($N = 30$): 100.0% (30/30) accepted outputs, 100.0% evidence grounding, 100.0% post-guard category preservation (enforced invariant), 100.0% post-guard pipeline concept-keyword coverage (including validated fallbacks; Avg: 4314.9 ms, Median: 4564.0 ms, p95: 6837.9 ms).
+  2. **Tier 2 (Auditable Remote LLM Telemetry & Retry-Aware Rate Limiting):**
+     - Centralized Request Pacing: Minimum 2.0s spacing across all outbound provider calls (submissions and corrective retries) + `Retry-After` bounded backoff ($\le 5.0\text{s}$ budget).
+     - Provider Coverage: **21 / 30 (70.0%)** empirical coverage (improved from 40.0% without pacing; 9 rate-limited handled via safe fallback).
+     - First-Pass Model Quality ($N = 21$ received responses; empirical sample under provider limits): 100.0% (21/21) schema validity, 85.7% (18/21) non-judicial wording, 14.3% (3/21) caught by guardrails, 100.0% (21/21) raw category concordance, 100.0% (21/21) raw concept-keyword coverage (regex search on CCPA Gazette keywords).
+     - Corrective Retries: 3 triggered by guardrails, 1/3 (33.3%) succeeded.
+     - Post-Guard Accepted Quality ($N = 30$): 100.0% (30/30) accepted outputs, 100.0% evidence grounding, 100.0% post-guard category preservation (enforced invariant), 100.0% post-guard pipeline concept-keyword coverage (including validated fallbacks).
+     - Three-Dimensional Latency: Provider HTTP round-trip: Avg **1,255.1 ms** (Median 1,125.3 ms, p95 1,963.9 ms); Candidate end-to-end: Avg **5,914.8 ms** (Median 6,425.8 ms, p95 9,533.1 ms); Total batch duration: **177.45 s**.
   3. **Tier 3 (Dual-Annotated Real Sites):** In-progress for Day 4 (17 Oct) per Section 13 milestone. Two labelers annotating live Indian e-commerce checkout funnels. Cohen's Kappa will be established before model evaluation.
 
 ---

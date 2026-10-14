@@ -340,8 +340,17 @@ class LLMClassifier:
         self.base_url = (base_url or os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")).rstrip("/")
         self.model = os.getenv("LLM_MODEL", model)
         self.ccpa_definitions = load_ccpa_definitions()
+        self.pacing_seconds = float(os.getenv("LLM_PACING_SECONDS", "2.0"))
+        self._last_request_time: float = 0.0
+        self._last_http_latency_ms: float = 0.0
 
     def _execute_llm_request(self, messages: List[Dict[str, str]]) -> str:
+        # Enforce rate-limit pacing across EVERY outbound provider request (initial & corrective retries)
+        if self.pacing_seconds > 0.0 and self._last_request_time > 0.0:
+            elapsed = time.time() - self._last_request_time
+            if elapsed < self.pacing_seconds:
+                time.sleep(self.pacing_seconds - elapsed)
+
         req_data = {
             "model": self.model,
             "messages": messages,
@@ -364,7 +373,11 @@ class LLMClassifier:
 
         for attempt_http in range(max_http_attempts):
             try:
+                t_http_start = time.perf_counter()
                 with urllib.request.urlopen(req, timeout=15) as resp:
+                    http_lat = (time.perf_counter() - t_http_start) * 1000
+                    self._last_http_latency_ms = http_lat
+                    self._last_request_time = time.time()
                     resp_json = json.loads(resp.read().decode("utf-8"))
                     choice = resp_json["choices"][0]["message"]["content"].strip()
                     if choice.startswith("```"):
@@ -376,6 +389,7 @@ class LLMClassifier:
                         choice = "\n".join(lines).strip()
                     return choice
             except urllib.error.HTTPError as he:
+                self._last_request_time = time.time()
                 if attempt_http >= max_http_attempts - 1:
                     raise
                 if he.code == 429:
@@ -402,6 +416,7 @@ class LLMClassifier:
                         raise
                     time.sleep(wait_sec)
                     total_slept += wait_sec
+                    self._last_request_time = time.time()
                     continue
                 elif he.code in (502, 503):
                     wait_sec = 1.0
@@ -409,6 +424,7 @@ class LLMClassifier:
                         raise
                     time.sleep(wait_sec)
                     total_slept += wait_sec
+                    self._last_request_time = time.time()
                     continue
                 else:
                     raise
@@ -451,6 +467,9 @@ class LLMClassifier:
             "fallback_validated": True,
             "post_guard_category_preserved": True,
             "final_accepted": True,
+            "provider_http_latency_ms": None,
+            "retry_http_latency_ms": None,
+            "candidate_latency_ms": 0.0,
             "end_to_end_latency_ms": 0.0,
         }
 
@@ -470,9 +489,12 @@ class LLMClassifier:
                 is_valid, _ = validate_explanation(
                     safe_expl, category_key, evidence_context, candidate_finding
                 )
+            cand_lat = (time.perf_counter() - t_start) * 1000 if 't_start' in locals() else 0.0
             telemetry["fallback_used"] = True
             telemetry["fallback_reason"] = telemetry.get("fallback_reason") or reason
             telemetry["fallback_validated"] = is_valid
+            telemetry["candidate_latency_ms"] = cand_lat
+            telemetry["end_to_end_latency_ms"] = cand_lat
             return {
                 **candidate_finding,
                 "category": category_key,
@@ -521,9 +543,13 @@ class LLMClassifier:
                     telemetry["retry_attempted"] = True
 
                 raw_response = self._execute_llm_request(messages)
+                http_lat = getattr(self, "_last_http_latency_ms", 0.0)
 
                 if attempt == 0:
                     telemetry["initial_response_received"] = True
+                    telemetry["provider_http_latency_ms"] = http_lat
+                else:
+                    telemetry["retry_http_latency_ms"] = http_lat
 
                 # Step 1: Parse JSON and validate ClassifiedFinding model
                 try:
@@ -606,7 +632,9 @@ class LLMClassifier:
                         if "holding session and page state fixed without navigation" not in expl:
                             expl = f"{expl} (Empirical observation: {cand_expl})"
 
-                    telemetry["end_to_end_latency_ms"] = (time.perf_counter() - t_start) * 1000
+                    cand_lat = (time.perf_counter() - t_start) * 1000
+                    telemetry["candidate_latency_ms"] = cand_lat
+                    telemetry["end_to_end_latency_ms"] = cand_lat
                     return {
                         **candidate_finding,
                         "category": validated_model.category,
@@ -646,7 +674,9 @@ class LLMClassifier:
                 break
 
         # If bounded retry exhausted or failed quality gate, return safe deterministic fallback
-        telemetry["end_to_end_latency_ms"] = (time.perf_counter() - t_start) * 1000
+        cand_lat = (time.perf_counter() - t_start) * 1000
+        telemetry["candidate_latency_ms"] = cand_lat
+        telemetry["end_to_end_latency_ms"] = cand_lat
         fb_reason = telemetry.get("fallback_reason") or ("model_validation_exhausted" if telemetry.get("model_validation_failure") else "provider_error")
         telemetry["fallback_reason"] = fb_reason
         return fallback_result(source="llm_guarded_fallback", reason=fb_reason)

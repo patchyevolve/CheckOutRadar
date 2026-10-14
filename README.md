@@ -127,30 +127,34 @@ The LLM does not alter detection boundaries; candidate indicators are strictly p
   - Invented evidence IDs not present in the audit's observation index are rejected.
 - **Bounded Retry & Pre-Validated Deterministic Fallback:** Enforces a maximum of 1 corrective retry before reverting to a pre-validated deterministic fallback template conforming strictly to schema, statutory citations, and non-judicial wording. 100% of persisted findings are guaranteed valid.
 - **Auditable Benchmark Telemetry & Failure Taxonomy:**
-  The benchmark runner (`evaluation/run_evaluation.py`) reports metrics with explicit denominators, request pacing, and bounded retry backoff, rigorously separating provider-level throttling/errors from raw model quality gates:
-  - *Candidate Request Pacing & Queue Discipline:* 2.0s bounded queue spacing between submissions plus `Retry-After` header parsing with max 5.0s budget to prevent provider exhaustion.
+  The benchmark runner (`evaluation/run_evaluation.py`) reports metrics with explicit denominators, retry-aware rate limiting, and 3-tier latency tracking, rigorously separating provider-level throttling/errors from raw model quality gates:
+  - *Retry-Aware Request Pacing & Queue Discipline:* Centralized rate-limiter in `LLMClassifier` enforces a minimum 2.0s spacing across **all** outbound provider requests (both initial candidate submissions and corrective retries), preventing retry bursts from exhausting rate limits. `Retry-After` response headers are parsed with a strict cumulative backoff budget capped at $\le 5.0\text{s}$.
   - *Remote Provider Coverage & Failure Taxonomy (Denominator = Submitted Candidates, N = 30):*
-    1. *Provider Response Coverage:* Submissions successfully returning raw model responses: **25 / 30 (83.3%)** (improved from 40.0% without pacing).
-    2. *Provider Throttling / Errors:* Submissions rate-limited or unavailable: **5 / 30 (16.7%)** (handled via safe deterministic fallback).
-    3. *Corrective Retries Attempted:* Bounded retries triggered strictly by invalid model outputs: **6** (0 retries burned on provider throttling).
-    4. *Corrective Retries Succeeded:* Retries producing valid output: **2 / 6 (33.3%)**.
-  - *First-Pass Raw Model Quality Gates (Denominator = Responses Received, N = 25):*
-    5. *First-Pass Schema Validity:* Valid raw responses conforming to `ClassifiedFinding`: **25 / 25 (100.0%)**.
-    6. *First-Pass Non-Judicial Wording:* Raw responses devoid of adjudicative terms: **19 / 25 (76.0%)** (6 flagged for adjudicative terms or missing indicator framing).
-    7. *Raw Model Category Concordance:* Model independently agreed with candidate category before guards: **25 / 25 (100.0%)**.
-    8. *Raw Model Concept-Keyword Coverage:* Raw response cited CCPA statutory vocabulary before guards: **25 / 25 (100.0%)**.
-    9. *Initial Model Validation Failures:* Model responses rejected by guardrails on first pass: **6 / 25 (24.0%)** (intercepted by runtime guardrails).
+    1. *Provider Response Coverage:* Submissions successfully returning raw model responses: **21 / 30 (70.0%)** (improved from 40.0% without pacing).
+    2. *Provider Throttling / Errors:* Submissions rate-limited or unavailable: **9 / 30 (30.0%)** (handled via safe deterministic fallback).
+    3. *Corrective Retries Attempted:* Bounded retries triggered strictly by invalid model outputs: **3** (0 retries burned on provider throttling).
+    4. *Corrective Retries Succeeded:* Retries producing valid output: **1 / 3 (33.3%)**.
+  - *First-Pass Raw Model Quality Gates (Denominator = Responses Received, N = 21):*
+    5. *First-Pass Schema Validity:* Valid raw responses conforming to `ClassifiedFinding`: **21 / 21 (100.0%)**.
+    6. *First-Pass Non-Judicial Wording:* Raw responses devoid of adjudicative terms: **18 / 21 (85.7%)** (3 caught and flagged for adjudicative wording or missing indicator framing).
+    7. *Raw Model Category Concordance:* Model independently agreed with candidate category before guards: **21 / 21 (100.0%)**.
+    8. *Raw Model Concept-Keyword Coverage:* Raw response cited CCPA statutory vocabulary before guards: **21 / 21 (100.0%)**.
+    9. *Initial Model Validation Failures:* Model responses rejected by guardrails on first pass: **3 / 21 (14.3%)** (intercepted by runtime guardrails).
   - *Post-Validation Acceptance & Grounding (Denominator = Submitted Candidates, N = 30):*
-    10. *Deterministic Fallbacks Emitted:* Pre-validated template fallbacks invoked: **9 / 30 (30.0%)** (5 provider errors, 4 unrecovered validation failures).
+    10. *Deterministic Fallbacks Emitted:* Pre-validated template fallbacks invoked: **11 / 30 (36.7%)** (9 provider rate limits, 2 unrecovered validation failures).
     11. *Final Accepted Outputs:* Total valid findings accepted into the audit store: **30 / 30 (100.0%)**.
     12. *Evidence Grounding Rate:* Zero ungrounded absence assertions or invented amounts/IDs: **30 / 30 (100.0%)**.
     13. *Post-Guard Category Preservation:* Accepted category strictly preserves candidate category as an enforced architectural invariant: **30 / 30 (100.0%)**.
     14. *Post-Guard Pipeline Concept-Keyword Coverage:* Full pipeline accepted outputs (including validated fallbacks) include statutory Gazette keywords: **30 / 30 (100.0%)**.
     15. *Verification Method:* Regex search against CCPA 2023 Gazette statutory definition terminology sets (Annex 1.8, 1.2, 1.1). Confirms lexical presence of statutory vocabulary, not judicial semantic correctness.
-  - *Response Latency Profile:* Avg: 4314.9 ms, Median: 4564.0 ms, p95: 6837.9 ms per successful provider call.
+  - *Three-Dimensional Latency & Execution Profile:*
+    - **Provider HTTP Latency (Individual Successful Network Calls):** Avg: **1,255.1 ms**, Median: **1,125.3 ms**, p95: **1,963.9 ms** across 22 recorded HTTP calls (measures model inference and network transfer round-trip).
+    - **Candidate Processing Latency (End-to-End per Candidate):** Avg: **5,914.8 ms**, Median: **6,425.8 ms**, p95: **9,533.1 ms** (includes pacing delays, retry loops, validation, and fallback overhead).
+    - **Batch Evaluation Elapsed Duration:** **177.45 s** (~2.95 min) to process all 30 candidate findings sequentially.
   - *Methodological Scope & Sample Size Disclosure:*
-    - The 83.3% provider response coverage (25/30) reflects rate-limiting on the tested endpoint during evaluation. This is an empirical constraint of the tested environment, not a theoretical projection.
-    - Raw model quality metrics are calculated strictly over received responses ($N = 25$), representing an empirical sample under provider limits rather than a universal guarantee. Concordance on received responses does not prove universal 100% model accuracy across all possible prompts.
+    - Provider response coverage (21/30) reflects rate-limiting on the tested endpoint during evaluation. This is an empirical constraint of the tested environment, not a theoretical projection.
+    - Raw model quality metrics are calculated strictly over received responses ($N = 21$), representing an empirical sample under provider limits rather than a universal guarantee. Concordance on received responses does not prove universal 100% model accuracy across all possible prompts.
+    - Concept-keyword coverage measures regex inclusion of Gazette statutory terms, not independent human or judicial assessment of legal correctness.
     - Post-guard category preservation (30/30) and pipeline concept-keyword coverage (30/30) are architectural invariants enforced by deterministic validators and safe template fallbacks.
 
 ### Tier 3: Independent Dual-Annotated Real-Site Dataset
