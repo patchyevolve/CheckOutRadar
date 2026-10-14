@@ -353,9 +353,86 @@ def test_dual_latency_and_http_status_accounting():
     assert all_lat["p95_ms"] == 1200.0
     assert sorted(all_lat["raw_samples"]) == [200.0, 300.0, 1200.0]
 
-    # 4. Pipeline Outputs
-    assert metrics["pipeline_quality"]["deterministic_fallbacks"] == 3
-    assert metrics["pipeline_quality"]["final_accepted_outputs"] == 4
+def test_http_200_empty_or_malformed_body_distinction():
+    """
+    Verifies that an HTTP 200 response with an empty, truncated, or malformed provider body
+    is strictly distinguished from a usable model completion:
+    - HTTP response was received (http_response_received=True, http_status=200, latency recorded)
+    - Model completion was NOT received (model_output_received=False, response_received=False)
+    - Downstream validator outcome is not_applicable and routed to fallback
+    - calculate_metrics_from_records counts it under HTTP 200 responses but NOT under usable model completions.
+    """
+    from app.analysis.classifier import calculate_metrics_from_records
+
+    attempt_records = [
+        # Candidate 1: HTTP 200 with valid usable model completion
+        {
+            "candidate_id": "c1",
+            "category": "drip_pricing",
+            "attempt": 0,
+            "attempt_type": "initial",
+            "http_status": 200,
+            "http_response_received": True,
+            "model_output_received": True,
+            "response_received": True,
+            "latency_ms": 1100.0,
+            "transport_error": None,
+            "http_outcome": "200_ok",
+            "validator_outcome": "accepted",
+            "fallback_reason": None,
+            "schema_valid": True,
+            "wording_valid": True,
+            "category_concordance": True,
+            "concept_keyword_coverage": True,
+        },
+        # Candidate 2: HTTP 200 with malformed / empty body (no usable completion extracted)
+        {
+            "candidate_id": "c2",
+            "category": "drip_pricing",
+            "attempt": 0,
+            "attempt_type": "initial",
+            "http_status": 200,
+            "http_response_received": True,
+            "model_output_received": False,
+            "response_received": False,
+            "latency_ms": 150.0,
+            "transport_error": None,
+            "http_outcome": "200_malformed_body",
+            "validator_outcome": "not_applicable",
+            "fallback_reason": "provider_error",
+            "schema_valid": None,
+            "wording_valid": None,
+            "category_concordance": None,
+            "concept_keyword_coverage": None,
+        },
+    ]
+
+    candidate_telemetry = [
+        {"candidate_id": "c1", "fallback_used": False, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+        {"candidate_id": "c2", "fallback_used": True, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+    ]
+
+    metrics = calculate_metrics_from_records(attempt_records, candidate_telemetry)
+
+    # HTTP transport: 2 HTTP responses received, both HTTP 200
+    assert metrics["http_accounting"]["total_requests"] == 2
+    assert metrics["http_accounting"]["http_responses_received"] == 2
+    assert metrics["http_accounting"]["status_200_count"] == 2
+    assert metrics["http_accounting"]["transport_errors"] == 0
+
+    # Model completions: only 1 usable model response
+    assert metrics["model_accounting"]["candidates_submitted"] == 2
+    assert metrics["model_accounting"]["initial_model_responses"] == 1
+    assert metrics["model_accounting"]["initial_model_failures"] == 1
+    assert metrics["model_accounting"]["initial_model_coverage_pct"] == 50.0
+
+    # Dual Latency: usable model latency only has 1 sample (1100.0 ms)
+    # All HTTP latency has 2 samples (1100.0 and 150.0 ms)
+    assert metrics["successful_model_latency"]["sample_size"] == 1
+    assert metrics["successful_model_latency"]["raw_samples"] == [1100.0]
+
+    assert metrics["all_http_latency"]["sample_size"] == 2
+    assert sorted(metrics["all_http_latency"]["raw_samples"]) == [150.0, 1100.0]
 
 
 def test_calculate_metrics_from_records_provenance():

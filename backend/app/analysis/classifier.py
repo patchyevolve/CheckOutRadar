@@ -379,19 +379,29 @@ class LLMClassifier:
                     self._last_http_latency_ms = round(http_lat, 2)
                     self._last_http_status = getattr(resp, "status", 200)
                     self._last_http_response_received = True
-                    self._last_model_output_received = True
                     self._last_transport_error = None
                     self._last_request_time = time.time()
-                    resp_json = json.loads(resp.read().decode("utf-8"))
-                    choice = resp_json["choices"][0]["message"]["content"].strip()
-                    if choice.startswith("```"):
-                        lines = choice.splitlines()
-                        if lines and lines[0].startswith("```"):
-                            lines = lines[1:]
-                        if lines and lines[-1].startswith("```"):
-                            lines = lines[:-1]
-                        choice = "\n".join(lines).strip()
-                    return choice
+                    try:
+                        raw_body = resp.read().decode("utf-8")
+                        resp_json = json.loads(raw_body)
+                        choices = resp_json.get("choices", [])
+                        if not choices:
+                            raise ValueError("Provider HTTP 200 response contains empty 'choices' list")
+                        choice = choices[0].get("message", {}).get("content", "").strip()
+                        if not choice:
+                            raise ValueError("Provider HTTP 200 response contains empty message content")
+                        if choice.startswith("```"):
+                            lines = choice.splitlines()
+                            if lines and lines[0].startswith("```"):
+                                lines = lines[1:]
+                            if lines and lines[-1].startswith("```"):
+                                lines = lines[:-1]
+                            choice = "\n".join(lines).strip()
+                        self._last_model_output_received = True
+                        return choice
+                    except Exception as body_err:
+                        self._last_model_output_received = False
+                        raise ValueError(f"Malformed provider response body on HTTP 200: {body_err}") from body_err
             except urllib.error.HTTPError as he:
                 http_lat = (time.perf_counter() - t_http_start) * 1000
                 self._last_http_latency_ms = round(http_lat, 2)
@@ -777,6 +787,8 @@ class LLMClassifier:
                     http_outcome = "429_rate_limit"
                 elif code == 403 or "403" in err_str:
                     http_outcome = "403_forbidden"
+                elif code == 200 or "HTTP 200" in err_str:
+                    http_outcome = "200_malformed_body"
                 elif code:
                     http_outcome = f"HTTP_{code}"
                 else:
@@ -1023,6 +1035,24 @@ def calculate_metrics_from_records(
         post_guard_category = total_candidates
         post_guard_concept_kw = total_candidates
 
+    from collections import Counter
+    status_counts = Counter(r.get("http_status") for r in attempt_records if r.get("http_status") is not None)
+    status_200_count = status_counts.get(200, 0)
+    status_429_count = status_counts.get(429, 0)
+    status_403_count = status_counts.get(403, 0)
+    status_other_count = sum(v for k, v in status_counts.items() if k not in (200, 429, 403))
+
+    first_status_counts = Counter(r.get("http_status") for r in first_attempts if r.get("http_status") is not None)
+    first_status_200 = first_status_counts.get(200, 0)
+    first_status_429 = first_status_counts.get(429, 0)
+    first_status_403 = first_status_counts.get(403, 0)
+    first_status_other = sum(v for k, v in first_status_counts.items() if k not in (200, 429, 403))
+
+    initial_http_failures = sum(
+        1 for r in first_attempts
+        if _is_http_response(r) and not _is_model_output(r)
+    )
+
     return {
         # Core backward-compatible fields
         "candidates_submitted": total_candidates,
@@ -1047,7 +1077,17 @@ def calculate_metrics_from_records(
             "http_responses_received": total_http_responses,
             "transport_errors": total_transport_errors,
             "http_response_rate_pct": (total_http_responses / total_http_requests * 100) if total_http_requests else 0.0,
+            "status_code_counts": dict(status_counts),
+            "status_200_count": status_200_count,
+            "status_429_count": status_429_count,
+            "status_403_count": status_403_count,
+            "status_other_count": status_other_count,
             "initial_http_responses": initial_http_responses,
+            "initial_http_failures": initial_http_failures,
+            "initial_status_200": first_status_200,
+            "initial_status_429": first_status_429,
+            "initial_status_403": first_status_403,
+            "initial_status_other": first_status_other,
             "initial_transport_errors": initial_transport_errors,
             "retry_http_responses": retry_http_responses,
             "retry_transport_errors": retry_transport_errors,
@@ -1058,6 +1098,8 @@ def calculate_metrics_from_records(
             "candidates_submitted": total_candidates,
             "initial_model_responses": initial_model_responses,
             "initial_model_failures": initial_model_failures,
+            "initial_http_provider_failures": initial_http_failures,
+            "initial_transport_errors": initial_transport_errors,
             "initial_model_coverage_pct": (initial_model_responses / total_candidates * 100) if total_candidates else 0.0,
             "retries_attempted": retries_attempted,
             "retry_model_responses": retry_model_responses,
