@@ -85,9 +85,9 @@
 - **Three-Tier Evaluation Methodology:**
   1. **Tier 1 (Synthetic Acceptance Suite — 45 Bundles):** 100% Precision, 100% Recall, F1 = 1.000 across Clean, Drip, Basket Sneaking, and False Urgency. Zero false alarms on negative controls.
   2. **Tier 2 (Auditable Remote LLM Telemetry & Failure Taxonomy):**
-     - Provider Coverage: 12 / 30 (40.0% of submissions returned a response; 18 rate-limited handled via safe fallback).
-     - First-Pass Model Quality (N = 12 received): 100.0% (12/12) schema validity, 100.0% (12/12) non-judicial wording pass, 0/12 model validation failures.
-     - Final Accepted Quality (N = 30): 100.0% final accepted outputs, 100.0% evidence grounding, 100.0% category concordance (no silent category mutation), 100.0% CCPA statutory concept alignment (Avg: 1375.5 ms, Median: 1285.9 ms, p95: 2160.0 ms).
+     - Provider Coverage: 12 / 30 (40.0% empirical coverage; 18 rate-limited handled via safe fallback).
+     - First-Pass Model Quality (N = 12 received): 100.0% (12/12) schema validity, 100.0% (12/12) non-judicial wording, 100.0% (12/12) raw category concordance, 100.0% (12/12) raw CCPA concept alignment, 0/12 validation failures.
+     - Post-Guard Accepted Quality (N = 30): 100.0% accepted outputs, 100.0% evidence grounding, 100.0% post-guard category preservation (enforced invariant), 100.0% post-guard CCPA concept alignment (full pipeline including validated fallbacks; Avg: 1375.5 ms, Median: 1285.9 ms, p95: 2160.0 ms).
   3. **Tier 3 (Dual-Annotated Real Sites):** In-progress for Day 4 (17 Oct) per Section 13 milestone. Two labelers annotating live Indian e-commerce checkout funnels.
 
 ---

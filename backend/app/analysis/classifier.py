@@ -401,6 +401,9 @@ class LLMClassifier:
             "first_pass_wording_valid": None,
             "first_pass_grounding_valid": None,
             "first_pass_overall_valid": None,
+            "raw_model_category": None,
+            "raw_category_concordance": None,
+            "raw_statutory_concept_alignment": None,
             "model_validation_failure": False,
             "initial_failure_reason": None,
             "retry_attempted": False,
@@ -409,6 +412,7 @@ class LLMClassifier:
             "fallback_used": False,
             "fallback_reason": None,
             "fallback_validated": True,
+            "post_guard_category_preserved": True,
             "final_accepted": True,
             "end_to_end_latency_ms": 0.0,
         }
@@ -532,6 +536,18 @@ class LLMClassifier:
                     telemetry["first_pass_wording_valid"] = has_indicator and not has_adjudicative
                     telemetry["first_pass_grounding_valid"] = is_valid or ("Missing mandatory" in (rejection_reason or "") or "Prohibited adjudicative" in (rejection_reason or ""))
                     telemetry["first_pass_overall_valid"] = is_valid
+                    telemetry["raw_model_category"] = validated_model.category
+                    telemetry["raw_category_concordance"] = (
+                        validated_model.category.strip().lower() == category_key.strip().lower()
+                    )
+                    cat_kws = {
+                        "drip_pricing": ["drip", "annex_1_8", "upfront", "elements of prices", "mandatory charge", "fee", "concealed", "hidden"],
+                        "basket_sneaking": ["basket", "sneaking", "annex_1_2", "pre-selected", "preselected", "express consent", "additional items", "add-on"],
+                        "false_urgency": ["urgency", "annex_1_1", "countdown", "deadline", "timer", "reset"],
+                    }
+                    expected_kw = cat_kws.get(category_key, ["ccpa", "dark pattern"])
+                    telemetry["raw_statutory_concept_alignment"] = any(kw in expl_lower for kw in expected_kw)
+
                     if not is_valid:
                         telemetry["model_validation_failure"] = True
                         telemetry["initial_failure_reason"] = rejection_reason

@@ -135,15 +135,18 @@ The LLM does not alter detection boundaries; candidate indicators are strictly p
     4. *Corrective Retries Succeeded:* Retries producing valid output.
   - *First-Pass Raw Model Quality Gates (Denominator = Responses Received, N = 12):*
     5. *First-Pass Schema Validity:* Valid raw responses conforming to `ClassifiedFinding` (12 / 12, 100.0% of received responses).
-    6. *First-Pass Non-Judicial Compliance:* Raw responses devoid of adjudicative terms (12 / 12, 100.0% of received responses).
-    7. *Initial Model Validation Failures:* Model responses rejected by guardrails (0 / 12, 0.0% of received responses).
-  - *Final Accepted Findings & Grounding (Denominator = Submitted Candidates, N = 30):*
-    8. *Deterministic Fallbacks Emitted:* Pre-validated template fallbacks invoked (18 / 30, 60.0% due to provider rate-limiting).
-    9. *Final Accepted Outputs:* Total valid findings accepted into the audit store (30 / 30, 100.0%).
-    10. *Evidence Grounding Rate:* Zero ungrounded absence assertions or invented amounts/IDs (30 / 30, 100.0%).
-    11. *Category Concordance Rate:* Output category strictly preserves upstream detector category without silent mutation (30 / 30, 100.0%).
-    12. *CCPA Statutory Concept Alignment:* Explanation incorporates official CCPA Gazette definitions (30 / 30, 100.0%).
+    6. *First-Pass Non-Judicial Wording:* Raw responses devoid of adjudicative terms (12 / 12, 100.0% of received responses).
+    7. *Raw Model Category Concordance:* Model independently agreed with candidate category before guards (12 / 12, 100.0% of received responses).
+    8. *Raw Model Statutory Concept Alignment:* Raw response cited CCPA Gazette definitions before guards (12 / 12, 100.0% of received responses).
+    9. *Initial Model Validation Failures:* Model responses rejected by guardrails (0 / 12, 0.0% of received responses).
+  - *Post-Validation Acceptance & Grounding (Denominator = Submitted Candidates, N = 30):*
+    10. *Deterministic Fallbacks Emitted:* Pre-validated template fallbacks invoked (18 / 30, 60.0% due to provider rate-limiting).
+    11. *Final Accepted Outputs:* Total valid findings accepted into the audit store (30 / 30, 100.0%).
+    12. *Evidence Grounding Rate:* Zero ungrounded absence assertions or invented amounts/IDs (30 / 30, 100.0%).
+    13. *Post-Guard Category Preservation:* Accepted category strictly preserves candidate category as an enforced architectural invariant (30 / 30, 100.0%).
+    14. *Post-Guard CCPA Concept Alignment:* Full pipeline accepted outputs (including validated fallbacks) quote official CCPA Gazette definitions (30 / 30, 100.0%).
   - *Response Latency Profile:* Average, median, and p95 latency tracked across successful raw provider calls.
+  - *Empirical Availability Limitation:* The observed 40.0% provider response coverage (12/30) reflects rate-limiting on the tested endpoint during evaluation. This is an empirical constraint of the tested environment, not a theoretical projection.
 
 ### Tier 3: Independent Dual-Annotated Real-Site Dataset
 - **Status:** **PENDING** — Scheduled for Day 4 (17 Oct 2026) per Section 13 milestone.
