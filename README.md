@@ -136,7 +136,7 @@ The LLM does not alter detection boundaries; candidate indicators are strictly p
     4. *Retry HTTP Responses Received:* HTTP responses returned from provider on retry: **3 / 3 (100.0%)** (0 provider network/rate-limit failures on retry).
     5. *Retry Responses Accepted by Guard:* Retries passing validation gates: **1 / 3 (33.3%)**.
     6. *Retry Responses Rejected by Guard:* Unrecovered validation failures routed to fallback: **2 / 3 (66.7%)**.
-    7. *Total Outbound HTTP Responses Received:* **24 / 33 (72.7%)** across all initial calls and retries.
+    7. *Successful Provider Responses / Total Attempts:* **24 / 33 (72.7%)** across all initial calls and corrective retries (9 requests rate-limited on initial submission; 0 requests rate-limited on retry).
   - *First-Pass Raw Model Quality Gates (Denominator = Responses Received, N = 21):*
     8. *First-Pass Schema Validity:* Valid raw responses conforming to `ClassifiedFinding`: **21 / 21 (100.0%)**.
     9. *First-Pass Non-Judicial Wording:* Raw responses devoid of adjudicative terms: **18 / 21 (85.7%)** (3 caught and flagged for adjudicative wording or missing indicator framing).
@@ -151,7 +151,7 @@ The LLM does not alter detection boundaries; candidate indicators are strictly p
     17. *Post-Guard Pipeline Concept-Keyword Coverage:* Full pipeline accepted outputs (including validated fallbacks) include statutory Gazette keywords: **30 / 30 (100.0%)**.
     18. *Verification Method:* Regex search against CCPA 2023 Gazette statutory definition terminology sets (Annex 1.8, 1.2, 1.1). Confirms lexical presence of statutory vocabulary, not judicial semantic correctness.
   - *Three-Dimensional Latency & Execution Profile:*
-    - **Provider HTTP Latency (Individual Successful Network Calls, N = 24):** Avg: **1,255.1 ms**, Median: **1,125.3 ms**, p95: **1,963.9 ms** across 24 recorded HTTP responses (21 initial + 3 retries; measures model inference and network transfer round-trip).
+    - **Provider HTTP Latency (Individual Successful Network Calls, N = 24):** Avg: **1,264.8 ms**, Median: **1,150.9 ms**, p95: **1,963.9 ms** across 24 recorded successful provider responses (21 initial + 3 retries, including both retry responses rejected by application-level validation; measures model inference and network transfer round-trip).
     - **Candidate Processing Latency (End-to-End per Candidate, N = 30):** Avg: **5,914.8 ms**, Median: **6,425.8 ms**, p95: **9,533.1 ms** (includes pacing delays, retry loops, validation, and fallback overhead).
     - **Batch Evaluation Elapsed Duration:** **177.45 s** (~2.95 min) to process all 30 candidate findings sequentially.
   - *Methodological Scope & Sample Size Disclosure:*

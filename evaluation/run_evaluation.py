@@ -361,7 +361,7 @@ def main():
         print(f"   - Retry Provider Failures:     {retry_provider_failures} / {retries_attempted if retries_attempted else 1} ({retry_provider_failures/retries_attempted*100 if retries_attempted else 0.0:.1f}%) failed at network/provider layer")
         print(f"   - Retry Responses Accepted:    {retry_validation_acceptances} / {retries_attempted if retries_attempted else 1} ({retry_validation_acceptances/retries_attempted*100 if retries_attempted else 0.0:.1f}%) passed quality gates")
         print(f"   - Retry Responses Rejected:    {retry_validation_rejections} / {retries_attempted if retries_attempted else 1} ({retry_validation_rejections/retries_attempted*100 if retries_attempted else 0.0:.1f}%) unrecovered; routed to fallback")
-        print(f"   Total HTTP Responses Received: {total_http_responses} / {total_http_requests} ({total_http_responses/total_http_requests*100:.1f}%) across all initial calls and corrective retries")
+        print(f"   Successful Provider Responses / Total Attempts: {total_http_responses} / {total_http_requests} ({total_http_responses/total_http_requests*100:.1f}%) across all initial calls and corrective retries")
     else:
         print("   Live Provider Metrics:         UNAVAILABLE (Offline CI regression mode)")
         print(f"   Deterministic Fallback Count:  {deterministic_fallbacks} / {denom} (100% template fallback)")
@@ -394,10 +394,11 @@ def main():
         sorted_http = sorted(provider_http_latencies_ms)
         p95_http = sorted_http[min(int(0.95 * len(sorted_http)), len(sorted_http) - 1)]
         print(f"   A. Provider HTTP Request Latency (Individual Successful Network Calls, N = {len(provider_http_latencies_ms)}):")
-        print(f"      Recorded HTTP Responses:       {len(provider_http_latencies_ms)} calls ({initial_responses_received} initial + {retry_responses_received} retries)")
+        print(f"      Successful Provider Responses: {len(provider_http_latencies_ms)} calls ({initial_responses_received} initial + {retry_responses_received} retries)")
         print(f"      Average Provider Latency:      {avg_http:.1f} ms per successful HTTP round-trip")
         print(f"      Median (p50) Latency:          {med_http:.1f} ms")
         print(f"      95th Percentile (p95):         {p95_http:.1f} ms")
+        print(f"      Latency Samples (ms):          {[round(x, 1) for x in provider_http_latencies_ms]}")
     else:
         print("   A. Provider HTTP Request Latency: UNAVAILABLE (Offline regression mode)")
 
