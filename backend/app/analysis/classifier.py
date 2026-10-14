@@ -460,7 +460,10 @@ class LLMClassifier:
             "model_validation_failure": False,
             "initial_failure_reason": None,
             "retry_attempted": False,
+            "retry_response_received": False,
             "retry_succeeded": False,
+            "retry_validation_accepted": False,
+            "retry_provider_error": None,
             "retry_failure_reason": None,
             "fallback_used": False,
             "fallback_reason": None,
@@ -549,6 +552,7 @@ class LLMClassifier:
                     telemetry["initial_response_received"] = True
                     telemetry["provider_http_latency_ms"] = http_lat
                 else:
+                    telemetry["retry_response_received"] = True
                     telemetry["retry_http_latency_ms"] = http_lat
 
                 # Step 1: Parse JSON and validate ClassifiedFinding model
@@ -620,6 +624,7 @@ class LLMClassifier:
                 if is_valid:
                     if attempt == 1:
                         telemetry["retry_succeeded"] = True
+                        telemetry["retry_validation_accepted"] = True
 
                     expl = validated_model.explanation
                     # Ensure observed monetary amounts and specific empirical observations are preserved
@@ -660,6 +665,7 @@ class LLMClassifier:
                     })
                 else:
                     telemetry["retry_succeeded"] = False
+                    telemetry["retry_validation_accepted"] = False
                     telemetry["retry_failure_reason"] = rejection_reason
 
             except Exception as e:
@@ -669,7 +675,9 @@ class LLMClassifier:
                     telemetry["initial_failure_reason"] = f"Provider Error: {e}"
                     telemetry["fallback_reason"] = "provider_error"
                 else:
+                    telemetry["retry_provider_error"] = str(e)
                     telemetry["retry_succeeded"] = False
+                    telemetry["retry_validation_accepted"] = False
                     telemetry["retry_failure_reason"] = f"Provider Error: {e}"
                 break
 

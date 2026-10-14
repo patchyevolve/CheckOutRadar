@@ -240,7 +240,10 @@ def main():
     raw_concept_keyword_coverage_passed = 0
     initial_model_validation_failures = 0
     retries_attempted = 0
-    retries_succeeded = 0
+    retry_responses_received = 0
+    retry_provider_failures = 0
+    retry_validation_acceptances = 0
+    retry_validation_rejections = 0
     deterministic_fallbacks = 0
     fallback_reasons: Dict[str, int] = defaultdict(int)
     final_accepted_outputs = 0
@@ -285,11 +288,18 @@ def main():
 
             if telem.get("retry_attempted"):
                 retries_attempted += 1
-            if telem.get("retry_succeeded"):
-                retries_succeeded += 1
-                r_lat = telem.get("retry_http_latency_ms")
-                if r_lat is not None and r_lat > 0:
-                    provider_http_latencies_ms.append(r_lat)
+                if telem.get("retry_response_received"):
+                    retry_responses_received += 1
+                    r_lat = telem.get("retry_http_latency_ms")
+                    if r_lat is not None and r_lat > 0:
+                        provider_http_latencies_ms.append(r_lat)
+                    if telem.get("retry_validation_accepted") or telem.get("retry_succeeded"):
+                        retry_validation_acceptances += 1
+                    else:
+                        retry_validation_rejections += 1
+                else:
+                    retry_provider_failures += 1
+
             if telem.get("fallback_used"):
                 deterministic_fallbacks += 1
                 fb_r = telem.get("fallback_reason", "provider_error")
@@ -342,10 +352,16 @@ def main():
 
     print("\n1. REMOTE PROVIDER COVERAGE & FAILURE TAXONOMY (Denominator = Submitted Candidates):")
     if is_live_llm:
-        print(f"   Provider Response Coverage:    {initial_responses_received} / {denom} ({initial_responses_received/denom*100:.1f}%) returned a raw model response")
-        print(f"   Provider Failures / Errors:    {provider_failures} / {denom} ({provider_failures/denom*100:.1f}%) rate-limited/network error (handled via fallback)")
+        total_http_responses = initial_responses_received + retry_responses_received
+        total_http_requests = denom + retries_attempted
+        print(f"   Initial Provider Responses:    {initial_responses_received} / {denom} ({initial_responses_received/denom*100:.1f}%) returned a raw model response on first submission")
+        print(f"   Initial Provider Failures:     {provider_failures} / {denom} ({provider_failures/denom*100:.1f}%) rate-limited/network error (handled via fallback)")
         print(f"   Corrective Retries Attempted:  {retries_attempted} (max 1 retry; triggered strictly by invalid model responses, not provider throttling)")
-        print(f"   Corrective Retries Succeeded:  {retries_succeeded} / {retries_attempted if retries_attempted else 1} ({retries_succeeded/retries_attempted*100 if retries_attempted else 0.0:.1f}%)")
+        print(f"   - Retry Responses Received:    {retry_responses_received} / {retries_attempted if retries_attempted else 1} ({retry_responses_received/retries_attempted*100 if retries_attempted else 0.0:.1f}%) returned an HTTP response")
+        print(f"   - Retry Provider Failures:     {retry_provider_failures} / {retries_attempted if retries_attempted else 1} ({retry_provider_failures/retries_attempted*100 if retries_attempted else 0.0:.1f}%) failed at network/provider layer")
+        print(f"   - Retry Responses Accepted:    {retry_validation_acceptances} / {retries_attempted if retries_attempted else 1} ({retry_validation_acceptances/retries_attempted*100 if retries_attempted else 0.0:.1f}%) passed quality gates")
+        print(f"   - Retry Responses Rejected:    {retry_validation_rejections} / {retries_attempted if retries_attempted else 1} ({retry_validation_rejections/retries_attempted*100 if retries_attempted else 0.0:.1f}%) unrecovered; routed to fallback")
+        print(f"   Total HTTP Responses Received: {total_http_responses} / {total_http_requests} ({total_http_responses/total_http_requests*100:.1f}%) across all initial calls and corrective retries")
     else:
         print("   Live Provider Metrics:         UNAVAILABLE (Offline CI regression mode)")
         print(f"   Deterministic Fallback Count:  {deterministic_fallbacks} / {denom} (100% template fallback)")
@@ -364,7 +380,7 @@ def main():
         print("   First-Pass Raw Model Quality:          N/A (Offline template-fallback mode)")
 
     print("\n3. POST-VALIDATION ACCEPTANCE & PIPELINE QUALITY (Denominator = Submitted Candidates):")
-    print(f"   Deterministic Fallbacks Emitted:       {deterministic_fallbacks} / {denom} ({deterministic_fallbacks/denom*100:.1f}%) safe template fallback invoked ({provider_failures} provider errors, {initial_model_validation_failures} model validation failures)")
+    print(f"   Deterministic Fallbacks Emitted:       {deterministic_fallbacks} / {denom} ({deterministic_fallbacks/denom*100:.1f}%) safe template fallback invoked ({provider_failures} provider errors, {initial_model_validation_failures - retry_validation_acceptances} unrecovered validation failures)")
     print(f"   Final Accepted Outputs:                {final_accepted_outputs} / {denom} ({final_accepted_outputs/denom*100:.1f}%) verified compliant before return/persistence")
     print(f"   Evidence Grounding Rate:               {evidence_grounding_passed} / {denom} ({evidence_grounding_passed/denom*100:.1f}%) zero ungrounded absence claims or invented values")
     print(f"   Post-Guard Category Preservation:      {post_guard_category_preserved} / {denom} ({post_guard_category_preserved/denom*100:.1f}%) architectural invariant: accepted category strictly preserves candidate category")
@@ -377,8 +393,8 @@ def main():
         med_http = statistics.median(provider_http_latencies_ms)
         sorted_http = sorted(provider_http_latencies_ms)
         p95_http = sorted_http[min(int(0.95 * len(sorted_http)), len(sorted_http) - 1)]
-        print("   A. Provider HTTP Request Latency (Individual Successful Network Calls):")
-        print(f"      Recorded HTTP Requests:        {len(provider_http_latencies_ms)} calls")
+        print(f"   A. Provider HTTP Request Latency (Individual Successful Network Calls, N = {len(provider_http_latencies_ms)}):")
+        print(f"      Recorded HTTP Responses:       {len(provider_http_latencies_ms)} calls ({initial_responses_received} initial + {retry_responses_received} retries)")
         print(f"      Average Provider Latency:      {avg_http:.1f} ms per successful HTTP round-trip")
         print(f"      Median (p50) Latency:          {med_http:.1f} ms")
         print(f"      95th Percentile (p95):         {p95_http:.1f} ms")
@@ -390,8 +406,8 @@ def main():
         med_cand = statistics.median(candidate_latencies_ms)
         sorted_cand = sorted(candidate_latencies_ms)
         p95_cand = sorted_cand[min(int(0.95 * len(sorted_cand)), len(sorted_cand) - 1)]
-        print("   B. Candidate Processing Latency (End-to-End per Candidate, including Pacing, Retries & Fallback):")
-        print(f"      Evaluated Candidates:          {len(candidate_latencies_ms)} findings")
+        print(f"   B. Candidate Processing Latency (End-to-End per Candidate, N = {len(candidate_latencies_ms)}):")
+        print(f"      Evaluated Candidates:          {len(candidate_latencies_ms)} findings (includes pacing, retries & fallback)")
         print(f"      Average Candidate Latency:     {avg_cand:.1f} ms per candidate finding")
         print(f"      Median (p50) Latency:          {med_cand:.1f} ms")
         print(f"      95th Percentile (p95):         {p95_cand:.1f} ms")

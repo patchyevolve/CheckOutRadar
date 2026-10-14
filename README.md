@@ -130,26 +130,29 @@ The LLM does not alter detection boundaries; candidate indicators are strictly p
   The benchmark runner (`evaluation/run_evaluation.py`) reports metrics with explicit denominators, retry-aware rate limiting, and 3-tier latency tracking, rigorously separating provider-level throttling/errors from raw model quality gates:
   - *Retry-Aware Request Pacing & Queue Discipline:* Centralized rate-limiter in `LLMClassifier` enforces a minimum 2.0s spacing across **all** outbound provider requests (both initial candidate submissions and corrective retries), preventing retry bursts from exhausting rate limits. `Retry-After` response headers are parsed with a strict cumulative backoff budget capped at $\le 5.0\text{s}$.
   - *Remote Provider Coverage & Failure Taxonomy (Denominator = Submitted Candidates, N = 30):*
-    1. *Provider Response Coverage:* Submissions successfully returning raw model responses: **21 / 30 (70.0%)** (improved from 40.0% without pacing).
-    2. *Provider Throttling / Errors:* Submissions rate-limited or unavailable: **9 / 30 (30.0%)** (handled via safe deterministic fallback).
+    1. *Initial Provider Responses:* Submissions successfully returning raw model responses on first attempt: **21 / 30 (70.0%)** (improved from 40.0% without pacing).
+    2. *Initial Provider Failures / Throttling:* Submissions rate-limited or unavailable: **9 / 30 (30.0%)** (handled via safe deterministic fallback).
     3. *Corrective Retries Attempted:* Bounded retries triggered strictly by invalid model outputs: **3** (0 retries burned on provider throttling).
-    4. *Corrective Retries Succeeded:* Retries producing valid output: **1 / 3 (33.3%)**.
+    4. *Retry HTTP Responses Received:* HTTP responses returned from provider on retry: **3 / 3 (100.0%)** (0 provider network/rate-limit failures on retry).
+    5. *Retry Responses Accepted by Guard:* Retries passing validation gates: **1 / 3 (33.3%)**.
+    6. *Retry Responses Rejected by Guard:* Unrecovered validation failures routed to fallback: **2 / 3 (66.7%)**.
+    7. *Total Outbound HTTP Responses Received:* **24 / 33 (72.7%)** across all initial calls and retries.
   - *First-Pass Raw Model Quality Gates (Denominator = Responses Received, N = 21):*
-    5. *First-Pass Schema Validity:* Valid raw responses conforming to `ClassifiedFinding`: **21 / 21 (100.0%)**.
-    6. *First-Pass Non-Judicial Wording:* Raw responses devoid of adjudicative terms: **18 / 21 (85.7%)** (3 caught and flagged for adjudicative wording or missing indicator framing).
-    7. *Raw Model Category Concordance:* Model independently agreed with candidate category before guards: **21 / 21 (100.0%)**.
-    8. *Raw Model Concept-Keyword Coverage:* Raw response cited CCPA statutory vocabulary before guards: **21 / 21 (100.0%)**.
-    9. *Initial Model Validation Failures:* Model responses rejected by guardrails on first pass: **3 / 21 (14.3%)** (intercepted by runtime guardrails).
+    8. *First-Pass Schema Validity:* Valid raw responses conforming to `ClassifiedFinding`: **21 / 21 (100.0%)**.
+    9. *First-Pass Non-Judicial Wording:* Raw responses devoid of adjudicative terms: **18 / 21 (85.7%)** (3 caught and flagged for adjudicative wording or missing indicator framing).
+    10. *Raw Model Category Concordance:* Model independently agreed with candidate category before guards: **21 / 21 (100.0%)**.
+    11. *Raw Model Concept-Keyword Coverage:* Raw response cited CCPA statutory vocabulary before guards: **21 / 21 (100.0%)**.
+    12. *Initial Model Validation Failures:* Model responses rejected by guardrails on first pass: **3 / 21 (14.3%)** (intercepted by runtime guardrails).
   - *Post-Validation Acceptance & Grounding (Denominator = Submitted Candidates, N = 30):*
-    10. *Deterministic Fallbacks Emitted:* Pre-validated template fallbacks invoked: **11 / 30 (36.7%)** (9 provider rate limits, 2 unrecovered validation failures).
-    11. *Final Accepted Outputs:* Total valid findings accepted into the audit store: **30 / 30 (100.0%)**.
-    12. *Evidence Grounding Rate:* Zero ungrounded absence assertions or invented amounts/IDs: **30 / 30 (100.0%)**.
-    13. *Post-Guard Category Preservation:* Accepted category strictly preserves candidate category as an enforced architectural invariant: **30 / 30 (100.0%)**.
-    14. *Post-Guard Pipeline Concept-Keyword Coverage:* Full pipeline accepted outputs (including validated fallbacks) include statutory Gazette keywords: **30 / 30 (100.0%)**.
-    15. *Verification Method:* Regex search against CCPA 2023 Gazette statutory definition terminology sets (Annex 1.8, 1.2, 1.1). Confirms lexical presence of statutory vocabulary, not judicial semantic correctness.
+    13. *Deterministic Fallbacks Emitted:* Pre-validated template fallbacks invoked: **11 / 30 (36.7%)** (9 provider rate limits, 2 unrecovered validation failures).
+    14. *Final Accepted Outputs:* Total valid findings accepted into the audit store: **30 / 30 (100.0%)**.
+    15. *Evidence Grounding Rate:* Zero ungrounded absence assertions or invented amounts/IDs: **30 / 30 (100.0%)**.
+    16. *Post-Guard Category Preservation:* Accepted category strictly preserves candidate category as an enforced architectural invariant: **30 / 30 (100.0%)**.
+    17. *Post-Guard Pipeline Concept-Keyword Coverage:* Full pipeline accepted outputs (including validated fallbacks) include statutory Gazette keywords: **30 / 30 (100.0%)**.
+    18. *Verification Method:* Regex search against CCPA 2023 Gazette statutory definition terminology sets (Annex 1.8, 1.2, 1.1). Confirms lexical presence of statutory vocabulary, not judicial semantic correctness.
   - *Three-Dimensional Latency & Execution Profile:*
-    - **Provider HTTP Latency (Individual Successful Network Calls):** Avg: **1,255.1 ms**, Median: **1,125.3 ms**, p95: **1,963.9 ms** across 22 recorded HTTP calls (measures model inference and network transfer round-trip).
-    - **Candidate Processing Latency (End-to-End per Candidate):** Avg: **5,914.8 ms**, Median: **6,425.8 ms**, p95: **9,533.1 ms** (includes pacing delays, retry loops, validation, and fallback overhead).
+    - **Provider HTTP Latency (Individual Successful Network Calls, N = 24):** Avg: **1,255.1 ms**, Median: **1,125.3 ms**, p95: **1,963.9 ms** across 24 recorded HTTP responses (21 initial + 3 retries; measures model inference and network transfer round-trip).
+    - **Candidate Processing Latency (End-to-End per Candidate, N = 30):** Avg: **5,914.8 ms**, Median: **6,425.8 ms**, p95: **9,533.1 ms** (includes pacing delays, retry loops, validation, and fallback overhead).
     - **Batch Evaluation Elapsed Duration:** **177.45 s** (~2.95 min) to process all 30 candidate findings sequentially.
   - *Methodological Scope & Sample Size Disclosure:*
     - Provider response coverage (21/30) reflects rate-limiting on the tested endpoint during evaluation. This is an empirical constraint of the tested environment, not a theoretical projection.
