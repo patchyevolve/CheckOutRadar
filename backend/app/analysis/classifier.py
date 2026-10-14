@@ -474,6 +474,7 @@ class LLMClassifier:
             "retry_http_latency_ms": None,
             "candidate_latency_ms": 0.0,
             "end_to_end_latency_ms": 0.0,
+            "attempt_records": [],
         }
 
         # Safe fallback generator with deterministic pre-return validation
@@ -498,6 +499,25 @@ class LLMClassifier:
             telemetry["fallback_validated"] = is_valid
             telemetry["candidate_latency_ms"] = cand_lat
             telemetry["end_to_end_latency_ms"] = cand_lat
+
+            cand_id = candidate_finding.get("id") or candidate_finding.get("dedup_key") or candidate_finding.get("diff_id") or f"cand_{category_key}"
+            if not telemetry.get("attempt_records"):
+                telemetry["attempt_records"].append({
+                    "candidate_id": cand_id,
+                    "category": category_key,
+                    "attempt": 0,
+                    "attempt_type": "initial",
+                    "http_outcome": "offline_mode" if not self.api_key else (telemetry.get("fallback_reason") or "fallback"),
+                    "response_received": False,
+                    "latency_ms": None,
+                    "validator_outcome": "not_applicable",
+                    "fallback_reason": reason,
+                    "schema_valid": None,
+                    "wording_valid": None,
+                    "category_concordance": None,
+                    "concept_keyword_coverage": None,
+                })
+
             return {
                 **candidate_finding,
                 "category": category_key,
@@ -538,15 +558,38 @@ class LLMClassifier:
         ]
 
         t_start = time.perf_counter()
+        cand_id = candidate_finding.get("id") or candidate_finding.get("dedup_key") or candidate_finding.get("diff_id") or f"cand_{category_key}"
 
         # Bounded Retry Loop: exactly 1 initial attempt (attempt 0) + at most 1 corrective retry (attempt 1)
         for attempt in range(2):
+            attempt_type = "initial" if attempt == 0 else "retry"
+            current_attempt_record: Dict[str, Any] = {
+                "candidate_id": cand_id,
+                "category": category_key,
+                "attempt": attempt,
+                "attempt_type": attempt_type,
+                "http_outcome": None,
+                "response_received": False,
+                "latency_ms": None,
+                "validator_outcome": None,
+                "fallback_reason": None,
+                "schema_valid": None,
+                "wording_valid": None,
+                "category_concordance": None,
+                "concept_keyword_coverage": None,
+            }
+            telemetry["attempt_records"].append(current_attempt_record)
+
             try:
                 if attempt == 1:
                     telemetry["retry_attempted"] = True
 
                 raw_response = self._execute_llm_request(messages)
                 http_lat = getattr(self, "_last_http_latency_ms", 0.0)
+
+                current_attempt_record["http_outcome"] = "200_ok"
+                current_attempt_record["response_received"] = True
+                current_attempt_record["latency_ms"] = round(http_lat, 2) if http_lat else 0.0
 
                 if attempt == 0:
                     telemetry["initial_response_received"] = True
@@ -559,9 +602,15 @@ class LLMClassifier:
                 try:
                     parsed = json.loads(raw_response)
                     validated_model = ClassifiedFinding(**parsed)
+                    current_attempt_record["schema_valid"] = True
                     if attempt == 0:
                         telemetry["first_pass_schema_valid"] = True
                 except Exception as parse_err:
+                    current_attempt_record["schema_valid"] = False
+                    current_attempt_record["wording_valid"] = False
+                    current_attempt_record["category_concordance"] = False
+                    current_attempt_record["concept_keyword_coverage"] = False
+                    current_attempt_record["validator_outcome"] = "rejected_schema"
                     if attempt == 0:
                         telemetry["first_pass_schema_valid"] = False
                         telemetry["first_pass_wording_valid"] = False
@@ -569,7 +618,7 @@ class LLMClassifier:
                         telemetry["first_pass_overall_valid"] = False
                         telemetry["model_validation_failure"] = True
                         telemetry["initial_failure_reason"] = f"Schema validation error: {parse_err}"
-                    if attempt == 0:
+                        current_attempt_record["fallback_reason"] = None
                         messages.append({"role": "assistant", "content": raw_response})
                         messages.append({
                             "role": "user",
@@ -580,6 +629,7 @@ class LLMClassifier:
                         })
                         continue
                     else:
+                        current_attempt_record["fallback_reason"] = "model_validation_exhausted"
                         telemetry["retry_succeeded"] = False
                         telemetry["retry_failure_reason"] = f"Schema validation error on retry: {parse_err}"
                         break
@@ -593,27 +643,32 @@ class LLMClassifier:
                     evidence_ids=validated_model.evidence_ids,
                 )
 
+                expl_lower = validated_model.explanation.lower()
+                has_indicator = any(t in expl_lower for t in MANDATORY_INDICATOR_TERMS)
+                has_adjudicative = any(
+                    pp.search(validated_model.explanation) for pp in PROHIBITED_ADJUDICATIVE_PATTERNS
+                )
+                is_wording_valid = has_indicator and not has_adjudicative
+                is_concordant = (validated_model.category.strip().lower() == category_key.strip().lower())
+                cat_kws = {
+                    "drip_pricing": ["drip", "annex_1_8", "upfront", "elements of prices", "mandatory charge", "fee", "concealed", "hidden"],
+                    "basket_sneaking": ["basket", "sneaking", "annex_1_2", "pre-selected", "preselected", "express consent", "additional items", "add-on"],
+                    "false_urgency": ["urgency", "annex_1_1", "countdown", "deadline", "timer", "reset"],
+                }
+                expected_kw = cat_kws.get(category_key, ["ccpa", "dark pattern"])
+                has_concept_kw = any(kw in expl_lower for kw in expected_kw)
+
+                current_attempt_record["wording_valid"] = is_wording_valid
+                current_attempt_record["category_concordance"] = is_concordant
+                current_attempt_record["concept_keyword_coverage"] = has_concept_kw
+
                 # Record first-pass breakdown
                 if attempt == 0:
-                    expl_lower = validated_model.explanation.lower()
-                    has_indicator = any(t in expl_lower for t in MANDATORY_INDICATOR_TERMS)
-                    has_adjudicative = any(
-                        pp.search(validated_model.explanation) for pp in PROHIBITED_ADJUDICATIVE_PATTERNS
-                    )
-                    telemetry["first_pass_wording_valid"] = has_indicator and not has_adjudicative
+                    telemetry["first_pass_wording_valid"] = is_wording_valid
                     telemetry["first_pass_grounding_valid"] = is_valid or ("Missing mandatory" in (rejection_reason or "") or "Prohibited adjudicative" in (rejection_reason or ""))
                     telemetry["first_pass_overall_valid"] = is_valid
                     telemetry["raw_model_category"] = validated_model.category
-                    telemetry["raw_category_concordance"] = (
-                        validated_model.category.strip().lower() == category_key.strip().lower()
-                    )
-                    cat_kws = {
-                        "drip_pricing": ["drip", "annex_1_8", "upfront", "elements of prices", "mandatory charge", "fee", "concealed", "hidden"],
-                        "basket_sneaking": ["basket", "sneaking", "annex_1_2", "pre-selected", "preselected", "express consent", "additional items", "add-on"],
-                        "false_urgency": ["urgency", "annex_1_1", "countdown", "deadline", "timer", "reset"],
-                    }
-                    expected_kw = cat_kws.get(category_key, ["ccpa", "dark pattern"])
-                    has_concept_kw = any(kw in expl_lower for kw in expected_kw)
+                    telemetry["raw_category_concordance"] = is_concordant
                     telemetry["raw_concept_keyword_coverage"] = has_concept_kw
                     telemetry["raw_statutory_concept_alignment"] = has_concept_kw
 
@@ -622,6 +677,8 @@ class LLMClassifier:
                         telemetry["initial_failure_reason"] = rejection_reason
 
                 if is_valid:
+                    current_attempt_record["validator_outcome"] = "accepted"
+                    current_attempt_record["fallback_reason"] = None
                     if attempt == 1:
                         telemetry["retry_succeeded"] = True
                         telemetry["retry_validation_accepted"] = True
@@ -652,7 +709,19 @@ class LLMClassifier:
                     }
 
                 # Attempt failed quality gate -> prepare bounded corrective retry prompt
+                rej = rejection_reason or ""
+                if not is_wording_valid:
+                    val_outcome = "rejected_wording"
+                elif not is_concordant:
+                    val_outcome = "rejected_category"
+                elif any(k in rej for k in ["Ungrounded", "Invented", "Evidence"]):
+                    val_outcome = "rejected_grounding"
+                else:
+                    val_outcome = "rejected_validation"
+                current_attempt_record["validator_outcome"] = val_outcome
+
                 if attempt == 0:
+                    current_attempt_record["fallback_reason"] = None
                     messages.append({"role": "assistant", "content": raw_response})
                     messages.append({
                         "role": "user",
@@ -664,12 +733,29 @@ class LLMClassifier:
                         ),
                     })
                 else:
+                    current_attempt_record["fallback_reason"] = "model_validation_exhausted"
                     telemetry["retry_succeeded"] = False
                     telemetry["retry_validation_accepted"] = False
                     telemetry["retry_failure_reason"] = rejection_reason
 
             except Exception as e:
-                # Provider / network / HTTP throttling error (e.g. 429, 403, timeout)
+                err_str = str(e)
+                code = getattr(e, "code", None)
+                if code == 429 or "429" in err_str:
+                    http_outcome = "429_rate_limit"
+                elif code == 403 or "403" in err_str:
+                    http_outcome = "403_forbidden"
+                elif code:
+                    http_outcome = f"HTTP_{code}"
+                else:
+                    http_outcome = f"error_{type(e).__name__}"
+
+                current_attempt_record["http_outcome"] = http_outcome
+                current_attempt_record["response_received"] = False
+                current_attempt_record["latency_ms"] = None
+                current_attempt_record["validator_outcome"] = "not_applicable"
+                current_attempt_record["fallback_reason"] = "provider_error"
+
                 if attempt == 0:
                     telemetry["provider_error"] = str(e)
                     telemetry["initial_failure_reason"] = f"Provider Error: {e}"
@@ -742,4 +828,118 @@ def aggregate_provider_latencies(telemetry_records: List[Dict[str, Any]]) -> Dic
         "median_ms": statistics.median(latencies),
         "p95_ms": sorted_lats[p95_idx],
         "raw_samples": latencies,
+    }
+
+
+def calculate_metrics_from_records(
+    attempt_records: List[Dict[str, Any]],
+    candidate_telemetry: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """
+    Calculate auditable evaluation metrics strictly from persisted attempt-level records
+    and candidate-level telemetry.
+
+    Guarantees:
+    - Attempt-level empirical provenance: counts and latencies are calculated directly
+      from discrete persisted attempt records.
+    - Explicit separation of provider failures (network/rate limits) from model validation failures.
+    - All latency statistics (mean, median, p95) are computed directly from the collection
+      of received HTTP response timings.
+    """
+    import statistics
+
+    first_attempts = [r for r in attempt_records if r.get("attempt") == 0]
+    retries = [r for r in attempt_records if r.get("attempt") == 1]
+    total_candidates = len(first_attempts)
+
+    initial_responses = sum(1 for r in first_attempts if r.get("response_received"))
+    initial_failures = sum(1 for r in first_attempts if not r.get("response_received"))
+
+    retries_attempted = len(retries)
+    retry_responses = sum(1 for r in retries if r.get("response_received"))
+    retry_failures = sum(1 for r in retries if not r.get("response_received"))
+    retry_accepted = sum(1 for r in retries if r.get("validator_outcome") == "accepted")
+    retry_rejected = sum(
+        1 for r in retries if r.get("response_received") and r.get("validator_outcome") != "accepted"
+    )
+
+    total_http_requests = len(attempt_records)
+    total_http_responses = sum(1 for r in attempt_records if r.get("response_received"))
+
+    # Provider HTTP latencies (strictly over received HTTP responses with valid latencies)
+    raw_latencies = [
+        float(r["latency_ms"])
+        for r in attempt_records
+        if r.get("response_received") and r.get("latency_ms") is not None and r.get("latency_ms") > 0
+    ]
+
+    mean_provider_lat = statistics.mean(raw_latencies) if raw_latencies else None
+    med_provider_lat = statistics.median(raw_latencies) if raw_latencies else None
+    sorted_lats = sorted(raw_latencies)
+    p95_provider_lat = (
+        sorted_lats[min(int(0.95 * len(sorted_lats)), len(sorted_lats) - 1)] if sorted_lats else None
+    )
+
+    # First-pass raw model quality gates (denominator = initial received responses)
+    first_pass_responses = [r for r in first_attempts if r.get("response_received")]
+    n_first_pass = len(first_pass_responses)
+    first_pass_schema = sum(1 for r in first_pass_responses if r.get("schema_valid"))
+    first_pass_wording = sum(1 for r in first_pass_responses if r.get("wording_valid"))
+    first_pass_concordance = sum(1 for r in first_pass_responses if r.get("category_concordance"))
+    first_pass_concept_kw = sum(1 for r in first_pass_responses if r.get("concept_keyword_coverage"))
+    initial_validation_failures = sum(
+        1 for r in first_pass_responses if r.get("validator_outcome") != "accepted"
+    )
+
+    # Fallback and pipeline outputs
+    if candidate_telemetry:
+        deterministic_fallbacks = sum(1 for c in candidate_telemetry if c.get("fallback_used"))
+        final_accepted = len(candidate_telemetry)
+        evidence_grounding = sum(1 for c in candidate_telemetry if c.get("evidence_grounding_valid", True))
+        post_guard_category = sum(1 for c in candidate_telemetry if c.get("post_guard_category_preserved", True))
+        post_guard_concept_kw = sum(1 for c in candidate_telemetry if c.get("post_guard_concept_keyword_coverage", True))
+    else:
+        deterministic_fallbacks = initial_failures + retry_rejected
+        final_accepted = total_candidates
+        evidence_grounding = total_candidates
+        post_guard_category = total_candidates
+        post_guard_concept_kw = total_candidates
+
+    return {
+        "candidates_submitted": total_candidates,
+        "initial_responses_received": initial_responses,
+        "initial_provider_failures": initial_failures,
+        "initial_provider_coverage_pct": (initial_responses / total_candidates * 100) if total_candidates else 0.0,
+        "retries_attempted": retries_attempted,
+        "retry_responses_received": retry_responses,
+        "retry_provider_failures": retry_failures,
+        "retry_validation_acceptances": retry_accepted,
+        "retry_validation_rejections": retry_rejected,
+        "total_http_requests": total_http_requests,
+        "successful_http_responses": total_http_responses,
+        "successful_provider_rate_pct": (total_http_responses / total_http_requests * 100) if total_http_requests else 0.0,
+        "provider_latency": {
+            "sample_size": len(raw_latencies),
+            "initial_responses": sum(1 for r in first_attempts if r.get("response_received") and r.get("latency_ms")),
+            "retry_responses": sum(1 for r in retries if r.get("response_received") and r.get("latency_ms")),
+            "mean_ms": mean_provider_lat,
+            "median_ms": med_provider_lat,
+            "p95_ms": p95_provider_lat,
+            "raw_samples": raw_latencies,
+        },
+        "first_pass_quality": {
+            "responses_received": n_first_pass,
+            "schema_valid": first_pass_schema,
+            "wording_valid": first_pass_wording,
+            "category_concordance": first_pass_concordance,
+            "concept_keyword_coverage": first_pass_concept_kw,
+            "initial_validation_failures": initial_validation_failures,
+        },
+        "pipeline_quality": {
+            "deterministic_fallbacks": deterministic_fallbacks,
+            "final_accepted_outputs": final_accepted,
+            "evidence_grounding_passed": evidence_grounding,
+            "post_guard_category_preserved": post_guard_category,
+            "post_guard_concept_keyword_coverage": post_guard_concept_kw,
+        },
     }

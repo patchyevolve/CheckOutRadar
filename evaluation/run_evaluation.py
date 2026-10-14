@@ -39,7 +39,20 @@ from app.analysis.detectors import (
     detect_basket_sneaking_indicators,
     detect_false_urgency_indicators,
 )
-from app.analysis.classifier import LLMClassifier, ClassifiedFinding
+from app.analysis.classifier import LLMClassifier, ClassifiedFinding, calculate_metrics_from_records
+
+
+def get_git_commit() -> str:
+    try:
+        import subprocess
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(Path(__file__).parent.parent),
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        return "unknown"
 
 
 def run_benchmark_on_bundles(bundles: List[Dict[str, Any]], use_llm: bool = False) -> Dict[str, Any]:
@@ -228,93 +241,76 @@ def main():
 
         if candidates:
             cand = max(candidates, key=lambda c: c.get("confidence", 0.0))
+            if "id" not in cand:
+                cand["id"] = f"{b.get('bundle_id', 'eval_bundle')}_{cand['category']}"
             candidate_queue.put((cand, run_bundle))
 
-    # Auditable telemetry counters
-    candidates_submitted = 0
-    initial_responses_received = 0
-    provider_failures = 0
-    first_pass_schema_valid = 0
-    first_pass_wording_valid = 0
-    raw_category_concordance_passed = 0
-    raw_concept_keyword_coverage_passed = 0
-    initial_model_validation_failures = 0
-    retries_attempted = 0
-    retry_responses_received = 0
-    retry_provider_failures = 0
-    retry_validation_acceptances = 0
-    retry_validation_rejections = 0
-    deterministic_fallbacks = 0
-    fallback_reasons: Dict[str, int] = defaultdict(int)
-    final_accepted_outputs = 0
-    evidence_grounding_passed = 0
-    post_guard_category_preserved = 0
-    post_guard_concept_keyword_coverage = 0
-    provider_http_latencies_ms: List[float] = []
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Checkout Radar Evaluation Suite")
+    parser.add_argument(
+        "--from-telemetry",
+        type=str,
+        default=None,
+        help="Path to persisted telemetry JSON file to calculate and report metrics from without re-running",
+    )
+    args, _ = parser.parse_known_args()
+
+    telemetry_output_file = Path(__file__).parent / "last_run_telemetry.json"
+
+    if args.from_telemetry:
+        persisted_file = Path(args.from_telemetry)
+        if not persisted_file.exists():
+            print(f"Error: Persisted telemetry file {persisted_file} does not exist.")
+            sys.exit(1)
+        with open(persisted_file, "r", encoding="utf-8") as f:
+            persisted_data = json.load(f)
+
+        metrics = calculate_metrics_from_records(
+            persisted_data["attempt_records"],
+            persisted_data.get("candidate_telemetry"),
+        )
+        cand_lats = [
+            c.get("candidate_latency_ms", 0.0)
+            for c in persisted_data.get("candidate_telemetry", [])
+            if c.get("candidate_latency_ms", 0.0) > 0
+        ]
+        exec_mode = f"Persisted Telemetry Record Set ({persisted_data.get('execution_mode', 'Recorded Run')})"
+        pacing_sec = persisted_data.get("candidate_pacing_seconds", 2.0)
+        is_live = bool(persisted_data.get("execution_mode", "").startswith("Live"))
+        print_tier2_results(
+            metrics=metrics,
+            exec_mode=exec_mode,
+            pacing_seconds=pacing_sec,
+            t2_elapsed=0.0,
+            telemetry_file=str(persisted_file),
+            is_live_llm=is_live,
+            candidate_latencies_ms=cand_lats,
+        )
+        return
+
+    # Process candidates through bounded queue with inter-request pacing
+    all_attempt_records: List[Dict[str, Any]] = []
+    candidate_telemetry: List[Dict[str, Any]] = []
     candidate_latencies_ms: List[float] = []
-    telemetry_records: List[Dict[str, Any]] = []
 
     t2_start = time.time()
 
-    # Process candidates through bounded queue with inter-request pacing
     while not candidate_queue.empty():
         cand, run_bundle = candidate_queue.get()
-        candidates_submitted += 1
 
         classified = classifier.classify_candidate(cand, run_bundle)
         evaluated_candidates.append(classified)
-        final_accepted_outputs += 1
 
         telem = classified.get("telemetry", {})
-        telemetry_records.append(telem)
-
-        # 1. Auditable Provider Telemetry
-        if is_live_llm:
-            if telem.get("initial_response_received"):
-                initial_responses_received += 1
-                p_lat = telem.get("provider_http_latency_ms")
-                if p_lat is not None and p_lat > 0:
-                    provider_http_latencies_ms.append(p_lat)
-                if telem.get("first_pass_schema_valid"):
-                    first_pass_schema_valid += 1
-                if telem.get("first_pass_wording_valid"):
-                    first_pass_wording_valid += 1
-                if telem.get("raw_category_concordance"):
-                    raw_category_concordance_passed += 1
-                if telem.get("raw_concept_keyword_coverage") or telem.get("raw_statutory_concept_alignment"):
-                    raw_concept_keyword_coverage_passed += 1
-                if telem.get("model_validation_failure"):
-                    initial_model_validation_failures += 1
-            else:
-                provider_failures += 1
-
-            if telem.get("retry_attempted"):
-                retries_attempted += 1
-                if telem.get("retry_response_received"):
-                    retry_responses_received += 1
-                    r_lat = telem.get("retry_http_latency_ms")
-                    if r_lat is not None and r_lat > 0:
-                        provider_http_latencies_ms.append(r_lat)
-                    if telem.get("retry_validation_accepted") or telem.get("retry_succeeded"):
-                        retry_validation_acceptances += 1
-                    else:
-                        retry_validation_rejections += 1
-                else:
-                    retry_provider_failures += 1
-
-            if telem.get("fallback_used"):
-                deterministic_fallbacks += 1
-                fb_r = telem.get("fallback_reason", "provider_error")
-                fallback_reasons[fb_r] += 1
-        else:
-            deterministic_fallbacks += 1
-            fallback_reasons["offline_mode"] += 1
+        attempts = telem.get("attempt_records", [])
+        all_attempt_records.extend(attempts)
 
         cand_lat = telem.get("candidate_latency_ms", 0.0)
         if cand_lat > 0:
             candidate_latencies_ms.append(cand_lat)
 
-        # 2. Evidence Grounding Verification
+        # Evidence Grounding Verification
         is_grounded, _ = validate_explanation(
             classified.get("explanation", ""),
             classified.get("category", ""),
@@ -322,14 +318,11 @@ def main():
             candidate_finding=cand,
             evidence_ids=classified.get("evidence_ids", []),
         )
-        if is_grounded:
-            evidence_grounding_passed += 1
 
-        # 3. Post-Guard Category Preservation (Enforced Pipeline Invariant)
-        if classified.get("category") == cand.get("category"):
-            post_guard_category_preserved += 1
+        # Post-Guard Category Preservation (Enforced Pipeline Invariant)
+        cat_preserved = (classified.get("category") == cand.get("category"))
 
-        # 4. Post-Guard CCPA Concept-Keyword Coverage (Full Pipeline Quality including Fallbacks)
+        # Post-Guard CCPA Concept-Keyword Coverage
         expl = classified.get("explanation", "").lower()
         cat = classified.get("category", "")
         cat_keywords = {
@@ -338,67 +331,137 @@ def main():
             "false_urgency": ["urgency", "annex_1_1", "countdown", "deadline", "timer", "reset"],
         }
         expected_kw = cat_keywords.get(cat, ["ccpa", "dark pattern"])
-        if any(kw in expl for kw in expected_kw):
-            post_guard_concept_keyword_coverage += 1
+        has_post_concept_kw = any(kw in expl for kw in expected_kw)
+
+        candidate_summary = {
+            "candidate_id": cand.get("id") or cand.get("diff_id") or f"cand_{cat}",
+            "category": classified.get("category"),
+            "fallback_used": telem.get("fallback_used", False),
+            "fallback_reason": telem.get("fallback_reason"),
+            "evidence_grounding_valid": is_grounded,
+            "post_guard_category_preserved": cat_preserved,
+            "post_guard_concept_keyword_coverage": has_post_concept_kw,
+            "candidate_latency_ms": cand_lat,
+        }
+        candidate_telemetry.append(candidate_summary)
 
     t2_elapsed = time.time() - t2_start
-    denom = candidates_submitted
+
+    # Persist discrete attempt-level telemetry artifact to disk
+    telemetry_export = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "git_commit": get_git_commit(),
+        "execution_mode": exec_mode,
+        "model": getattr(classifier, "model", "llama-3.3-70b-versatile"),
+        "candidate_pacing_seconds": pacing_seconds,
+        "total_candidates": len(candidate_telemetry),
+        "attempt_records": all_attempt_records,
+        "candidate_telemetry": candidate_telemetry,
+    }
+    with open(telemetry_output_file, "w", encoding="utf-8") as f:
+        json.dump(telemetry_export, f, indent=2)
+
+    # Calculate metrics strictly from the persisted record set
+    with open(telemetry_output_file, "r", encoding="utf-8") as f:
+        persisted_data = json.load(f)
+
+    metrics = calculate_metrics_from_records(
+        persisted_data["attempt_records"],
+        persisted_data.get("candidate_telemetry"),
+    )
+
+    print_tier2_results(
+        metrics=metrics,
+        exec_mode=exec_mode,
+        pacing_seconds=pacing_seconds,
+        t2_elapsed=t2_elapsed,
+        telemetry_file=str(telemetry_output_file),
+        is_live_llm=is_live_llm,
+        candidate_latencies_ms=candidate_latencies_ms,
+    )
+
+
+def print_tier2_results(
+    metrics: Dict[str, Any],
+    exec_mode: str,
+    pacing_seconds: float,
+    t2_elapsed: float,
+    telemetry_file: str,
+    is_live_llm: bool,
+    candidate_latencies_ms: List[float],
+):
+    import statistics
+
+    denom = metrics["candidates_submitted"]
 
     print("=" * 70)
     print("BENCHMARK: Tier 2: Downstream LLM Verification & Statutory Explanation")
     print("=" * 70)
     print(f"Candidates Submitted:          N = {denom} candidate findings (from positive bundles)")
     print(f"Execution Provenance:          {exec_mode}")
+    print(f"Persisted Telemetry Artifact:  {telemetry_file}")
     print(f"Candidate Request Pacing:      {pacing_seconds:.1f}s between submissions (bounded queue)")
     print(f"Detection Architecture:        Deterministic rule detectors (LLM only classifies/explains)")
 
     print("\n1. REMOTE PROVIDER COVERAGE & FAILURE TAXONOMY (Denominator = Submitted Candidates):")
     if is_live_llm:
-        total_http_responses = initial_responses_received + retry_responses_received
-        total_http_requests = denom + retries_attempted
-        print(f"   Initial Provider Responses:    {initial_responses_received} / {denom} ({initial_responses_received/denom*100:.1f}%) returned a raw model response on first submission")
-        print(f"   Initial Provider Failures:     {provider_failures} / {denom} ({provider_failures/denom*100:.1f}%) rate-limited/network error (handled via fallback)")
-        print(f"   Corrective Retries Attempted:  {retries_attempted} (max 1 retry; triggered strictly by invalid model responses, not provider throttling)")
-        print(f"   - Retry Responses Received:    {retry_responses_received} / {retries_attempted if retries_attempted else 1} ({retry_responses_received/retries_attempted*100 if retries_attempted else 0.0:.1f}%) returned an HTTP response")
-        print(f"   - Retry Provider Failures:     {retry_provider_failures} / {retries_attempted if retries_attempted else 1} ({retry_provider_failures/retries_attempted*100 if retries_attempted else 0.0:.1f}%) failed at network/provider layer")
-        print(f"   - Retry Responses Accepted:    {retry_validation_acceptances} / {retries_attempted if retries_attempted else 1} ({retry_validation_acceptances/retries_attempted*100 if retries_attempted else 0.0:.1f}%) passed quality gates")
-        print(f"   - Retry Responses Rejected:    {retry_validation_rejections} / {retries_attempted if retries_attempted else 1} ({retry_validation_rejections/retries_attempted*100 if retries_attempted else 0.0:.1f}%) unrecovered; routed to fallback")
-        print(f"   Successful Provider Responses / Total Attempts: {total_http_responses} / {total_http_requests} ({total_http_responses/total_http_requests*100:.1f}%) across all initial calls and corrective retries")
+        init_resp = metrics["initial_responses_received"]
+        init_fail = metrics["initial_provider_failures"]
+        ret_att = metrics["retries_attempted"]
+        ret_resp = metrics["retry_responses_received"]
+        ret_fail = metrics["retry_provider_failures"]
+        ret_acc = metrics["retry_validation_acceptances"]
+        ret_rej = metrics["retry_validation_rejections"]
+        tot_resp = metrics["successful_http_responses"]
+        tot_req = metrics["total_http_requests"]
+
+        print(f"   Initial Provider Responses:    {init_resp} / {denom} ({init_resp/denom*100:.1f}%) returned a raw model response on first submission")
+        print(f"   Initial Provider Failures:     {init_fail} / {denom} ({init_fail/denom*100:.1f}%) rate-limited/network error (handled via fallback)")
+        print(f"   Corrective Retries Attempted:  {ret_att} (max 1 retry; triggered strictly by invalid model responses, not provider throttling)")
+        print(f"   - Retry Responses Received:    {ret_resp} / {ret_att if ret_att else 1} ({ret_resp/ret_att*100 if ret_att else 0.0:.1f}%) returned an HTTP response")
+        print(f"   - Retry Provider Failures:     {ret_fail} / {ret_att if ret_att else 1} ({ret_fail/ret_att*100 if ret_att else 0.0:.1f}%) failed at network/provider layer")
+        print(f"   - Retry Responses Accepted:    {ret_acc} / {ret_att if ret_att else 1} ({ret_acc/ret_att*100 if ret_att else 0.0:.1f}%) passed quality gates")
+        print(f"   - Retry Responses Rejected:    {ret_rej} / {ret_att if ret_att else 1} ({ret_rej/ret_att*100 if ret_att else 0.0:.1f}%) unrecovered; routed to fallback")
+        print(f"   Successful Provider Responses / Total Attempts: {tot_resp} / {tot_req} ({tot_resp/tot_req*100:.1f}%) across all initial calls and corrective retries")
     else:
         print("   Live Provider Metrics:         UNAVAILABLE (Offline CI regression mode)")
-        print(f"   Deterministic Fallback Count:  {deterministic_fallbacks} / {denom} (100% template fallback)")
+        print(f"   Deterministic Fallback Count:  {metrics['pipeline_quality']['deterministic_fallbacks']} / {denom} (100% template fallback)")
 
     print("\n2. FIRST-PASS RAW MODEL QUALITY GATES (Denominator = Responses Received):")
-    if is_live_llm and initial_responses_received > 0:
-        resp_n = initial_responses_received
-        print(f"   First-Pass Schema Validity:            {first_pass_schema_valid} / {resp_n} ({first_pass_schema_valid/resp_n*100:.1f}%) raw JSON conformed to ClassifiedFinding")
-        print(f"   First-Pass Non-Judicial Wording:       {first_pass_wording_valid} / {resp_n} ({first_pass_wording_valid/resp_n*100:.1f}%) raw responses avoided adjudicative terms")
-        print(f"   Raw Model Category Concordance:        {raw_category_concordance_passed} / {resp_n} ({raw_category_concordance_passed/resp_n*100:.1f}%) model independently agreed with candidate category before guards")
-        print(f"   Raw Model Concept-Keyword Coverage:    {raw_concept_keyword_coverage_passed} / {resp_n} ({raw_concept_keyword_coverage_passed/resp_n*100:.1f}%) raw response cited CCPA statutory vocabulary before guards")
-        print(f"   Initial Model Validation Failures:     {initial_model_validation_failures} / {resp_n} ({initial_model_validation_failures/resp_n*100:.1f}%) model responses rejected by guardrails")
+    fp_q = metrics["first_pass_quality"]
+    if is_live_llm and fp_q["responses_received"] > 0:
+        resp_n = fp_q["responses_received"]
+        print(f"   First-Pass Schema Validity:            {fp_q['schema_valid']} / {resp_n} ({fp_q['schema_valid']/resp_n*100:.1f}%) raw JSON conformed to ClassifiedFinding")
+        print(f"   First-Pass Non-Judicial Wording:       {fp_q['wording_valid']} / {resp_n} ({fp_q['wording_valid']/resp_n*100:.1f}%) raw responses avoided adjudicative terms")
+        print(f"   Raw Model Category Concordance:        {fp_q['category_concordance']} / {resp_n} ({fp_q['category_concordance']/resp_n*100:.1f}%) model independently agreed with candidate category before guards")
+        print(f"   Raw Model Concept-Keyword Coverage:    {fp_q['concept_keyword_coverage']} / {resp_n} ({fp_q['concept_keyword_coverage']/resp_n*100:.1f}%) raw response cited CCPA statutory vocabulary before guards")
+        print(f"   Initial Model Validation Failures:     {fp_q['initial_validation_failures']} / {resp_n} ({fp_q['initial_validation_failures']/resp_n*100:.1f}%) model responses rejected by guardrails")
     elif is_live_llm:
         print("   First-Pass Raw Model Quality:          N/A (0 raw responses received due to provider throttling)")
     else:
         print("   First-Pass Raw Model Quality:          N/A (Offline template-fallback mode)")
 
     print("\n3. POST-VALIDATION ACCEPTANCE & PIPELINE QUALITY (Denominator = Submitted Candidates):")
-    print(f"   Deterministic Fallbacks Emitted:       {deterministic_fallbacks} / {denom} ({deterministic_fallbacks/denom*100:.1f}%) safe template fallback invoked ({provider_failures} provider errors, {initial_model_validation_failures - retry_validation_acceptances} unrecovered validation failures)")
-    print(f"   Final Accepted Outputs:                {final_accepted_outputs} / {denom} ({final_accepted_outputs/denom*100:.1f}%) verified compliant before return/persistence")
-    print(f"   Evidence Grounding Rate:               {evidence_grounding_passed} / {denom} ({evidence_grounding_passed/denom*100:.1f}%) zero ungrounded absence claims or invented values")
-    print(f"   Post-Guard Category Preservation:      {post_guard_category_preserved} / {denom} ({post_guard_category_preserved/denom*100:.1f}%) architectural invariant: accepted category strictly preserves candidate category")
-    print(f"   Post-Guard Pipeline Concept-Keyword:   {post_guard_concept_keyword_coverage} / {denom} ({post_guard_concept_keyword_coverage/denom*100:.1f}%) full-pipeline outputs (including validated fallbacks) include statutory Gazette keywords")
+    pipe_q = metrics["pipeline_quality"]
+    init_fail = metrics.get("initial_provider_failures", 0)
+    unrec_fail = metrics.get("retry_validation_rejections", 0)
+    print(f"   Deterministic Fallbacks Emitted:       {pipe_q['deterministic_fallbacks']} / {denom} ({pipe_q['deterministic_fallbacks']/denom*100:.1f}%) safe template fallback invoked ({init_fail} provider errors, {unrec_fail} unrecovered validation failures)")
+    print(f"   Final Accepted Outputs:                {pipe_q['final_accepted_outputs']} / {denom} ({pipe_q['final_accepted_outputs']/denom*100:.1f}%) verified compliant before return/persistence")
+    print(f"   Evidence Grounding Rate:               {pipe_q['evidence_grounding_passed']} / {denom} ({pipe_q['evidence_grounding_passed']/denom*100:.1f}%) zero ungrounded absence claims or invented values")
+    print(f"   Post-Guard Category Preservation:      {pipe_q['post_guard_category_preserved']} / {denom} ({pipe_q['post_guard_category_preserved']/denom*100:.1f}%) architectural invariant: accepted category strictly preserves candidate category")
+    print(f"   Post-Guard Pipeline Concept-Keyword:   {pipe_q['post_guard_concept_keyword_coverage']} / {denom} ({pipe_q['post_guard_concept_keyword_coverage']/denom*100:.1f}%) full-pipeline outputs (including validated fallbacks) include statutory Gazette keywords")
     print(f"   Verification Method:                   Regex match against CCPA 2023 Gazette statutory definition terminology sets (Annex 1.8, 1.2, 1.1). Confirms vocabulary presence, not judicial semantic correctness.")
 
     print("\n4. THREE-DIMENSIONAL LATENCY & EXECUTION PROFILE:")
-    lat_summary = aggregate_provider_latencies(telemetry_records) if is_live_llm else {}
-    if is_live_llm and lat_summary.get("sample_size", 0) > 0:
-        n_samples = lat_summary["sample_size"]
+    lat_q = metrics["provider_latency"]
+    if is_live_llm and lat_q.get("sample_size", 0) > 0:
+        n_samples = lat_q["sample_size"]
         print(f"   A. Provider HTTP Request Latency (Individual Successful Network Calls, N = {n_samples}):")
-        print(f"      Successful Provider Responses: {n_samples} calls ({lat_summary['initial_responses']} initial + {lat_summary['retry_responses']} retries)")
-        print(f"      Average Provider Latency:      {lat_summary['mean_ms']:.1f} ms per successful HTTP round-trip")
-        print(f"      Median (p50) Latency:          {lat_summary['median_ms']:.1f} ms")
-        print(f"      95th Percentile (p95):         {lat_summary['p95_ms']:.1f} ms")
-        print(f"      Latency Samples (ms):          {[round(x, 1) for x in lat_summary['raw_samples']]}")
+        print(f"      Successful Provider Responses: {n_samples} calls ({lat_q['initial_responses']} initial + {lat_q['retry_responses']} retries)")
+        print(f"      Average Provider Latency:      {lat_q['mean_ms']:.1f} ms per successful HTTP round-trip")
+        print(f"      Median (p50) Latency:          {lat_q['median_ms']:.1f} ms")
+        print(f"      95th Percentile (p95):         {lat_q['p95_ms']:.1f} ms")
+        print(f"      Latency Samples (ms):          {[round(x, 1) for x in lat_q['raw_samples']]}")
     else:
         print("   A. Provider HTTP Request Latency: UNAVAILABLE (Offline regression mode)")
 
@@ -413,8 +476,9 @@ def main():
         print(f"      Median (p50) Latency:          {med_cand:.1f} ms")
         print(f"      95th Percentile (p95):         {p95_cand:.1f} ms")
 
-    print("   C. Batch Evaluation Elapsed Duration:")
-    print(f"      Total Batch Processing Time:   {t2_elapsed:.2f} s for all {denom} candidates")
+    if t2_elapsed > 0:
+        print("   C. Batch Evaluation Elapsed Duration:")
+        print(f"      Total Batch Processing Time:   {t2_elapsed:.2f} s for all {denom} candidates")
 
     print("\n5. METHODOLOGICAL SCOPE & DISCLOSURE:")
     print("   - Tier 1 measures algorithmic rule-engine conformance across 45 synthetic fixtures (not production recall).")
@@ -428,6 +492,7 @@ def main():
     print("   - Shared request pacing across all outbound calls (including corrective retries) and bounded Retry-After backoff (max 5.0s budget)")
     print("     prevent provider exhaustion while maintaining safe execution limits.")
     print("   - Three-dimensional latency accounting separates individual HTTP network round-trips from per-candidate wall-clock processing and total batch elapsed time.")
+    print("   - Persisted Telemetry: Every individual provider attempt is durably recorded with HTTP status, latency, validation outcome, and fallback reason.")
 
     print("\n" + "=" * 70)
     print("TIER 3: INDEPENDENT DUAL-ANNOTATED BENCHMARK STATUS: PENDING")

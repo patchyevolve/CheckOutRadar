@@ -77,7 +77,7 @@
   - All currency stored as integer minor units.
   - Mandatory equation: $\text{Subtotal} + \text{Charges} + \text{Taxes} - \text{Discounts} = \text{Final Payable}$. Mismatches trigger `extraction_inconsistent` and are excluded from diffs.
 - **Comprehensive Quality Gate:**
-  - 40 container tests passing in CI/Docker across normalizers, reconcilers, detectors, diff engine, lease recovery, category mutation prevention, and classifier guards.
+  - 44 container tests passing in CI/Docker across normalizers, reconcilers, detectors, diff engine, lease recovery, category mutation prevention, classifier guards, and telemetry aggregation.
 
 ---
 
@@ -91,6 +91,7 @@
      - Corrective Retries (5-Level Taxonomy): 3 attempted (triggered strictly by model errors), 3/3 (100.0%) HTTP responses received (0 network errors), 1/3 (33.3%) accepted after retry, 2/3 (66.7%) unrecovered rejections routed to fallback; Successful Provider Responses / Total Attempts: **24 / 33 (72.7%)**.
      - Post-Guard Accepted Quality ($N = 30$): 100.0% (30/30) accepted outputs, 100.0% evidence grounding, 100.0% post-guard category preservation (enforced invariant), 100.0% post-guard pipeline concept-keyword coverage (including validated fallbacks).
      - Three-Dimensional Latency: Provider HTTP round-trip ($N = 24$ successful provider responses, 21 initial + 3 retries): Avg **$\approx 1,265\text{ ms}$ (estimated)**; Median & p95 **Unavailable / Pending** fresh live capture of raw timings; Candidate end-to-end ($N = 30$): Avg **5,914.8 ms** (Median 6,425.8 ms, p95 9,533.1 ms); Total batch duration: **177.45 s** (~2.95 min).
+     - Disk Telemetry Persistence: Every individual provider attempt durably recorded to `last_run_telemetry.json` (candidate ID, attempt number, HTTP outcome, response-received flag, latency ms, validator outcome, fallback reason). Metrics strictly derived from persisted records via `calculate_metrics_from_records` (auditable via `--from-telemetry`).
   3. **Tier 3 (Dual-Annotated Real Sites):** In-progress for Day 4 (17 Oct) per Section 13 milestone. Two labelers annotating live Indian e-commerce checkout funnels. Cohen's Kappa will be established before model evaluation.
 
 ---

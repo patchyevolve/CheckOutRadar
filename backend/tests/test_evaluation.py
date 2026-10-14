@@ -165,3 +165,197 @@ def test_latency_aggregation_includes_validator_rejected_retries():
     assert summary["mean_ms"] == 1362.5
     assert summary["median_ms"] == 1350.0
     assert summary["p95_ms"] == 1800.0
+
+
+def test_attempt_records_instrumentation_in_classifier():
+    """
+    Verifies that LLMClassifier.classify_candidate instruments attempt-level records
+    with all required empirical audit fields: candidate_id, attempt, attempt_type,
+    http_outcome, response_received, latency_ms, validator_outcome, and fallback_reason.
+    """
+    from app.analysis.classifier import LLMClassifier
+
+    classifier = LLMClassifier()
+    candidate = {
+        "id": "cand_eval_101",
+        "category": "drip_pricing",
+        "severity": "high",
+        "confidence": 0.9,
+        "explanation": "Potential drip pricing indicator: mandatory fee added at checkout.",
+        "evidence_ids": ["snap_1"],
+    }
+    evidence = {
+        "disclosures": [{"stage": "product", "text": "All taxes included"}],
+        "charges": [{"stage": "checkout_summary", "amount_minor": 500, "label": "Handling Fee"}],
+    }
+
+    result = classifier.classify_candidate(candidate, evidence)
+    assert "telemetry" in result
+    telem = result["telemetry"]
+    assert "attempt_records" in telem
+    records = telem["attempt_records"]
+    assert len(records) >= 1
+
+    first_record = records[0]
+    required_keys = [
+        "candidate_id",
+        "category",
+        "attempt",
+        "attempt_type",
+        "http_outcome",
+        "response_received",
+        "latency_ms",
+        "validator_outcome",
+        "fallback_reason",
+    ]
+    for k in required_keys:
+        assert k in first_record, f"Missing required telemetry key '{k}' in attempt record"
+
+    assert first_record["candidate_id"] == "cand_eval_101"
+    assert first_record["category"] == "drip_pricing"
+    assert first_record["attempt"] == 0
+    assert first_record["attempt_type"] == "initial"
+
+
+def test_calculate_metrics_from_records_provenance():
+    """
+    Verifies that calculate_metrics_from_records strictly derives all evaluation metrics
+    (coverage, retry breakdown, provider response rate, and latencies) from a discrete
+    persisted attempt-level record set without reconstruction or fabrication.
+    """
+    from app.analysis.classifier import calculate_metrics_from_records
+
+    # Explicit 10-candidate test set:
+    # Candidates 1-7: First-attempt success (latencies 1000, 1100, 1200, 1300, 1400, 1500, 1600 ms)
+    # Candidate 8: First-attempt 429 rate limit -> fallback
+    # Candidate 9: First-attempt 429 rate limit -> fallback
+    # Candidate 10: First-attempt validation failure (latency 1700 ms) -> Retry attempted (latency 1800 ms) -> Retry rejected by validator -> fallback
+    attempt_records = [
+        # 1-7: initial success
+        {"candidate_id": "c1", "category": "drip_pricing", "attempt": 0, "response_received": True, "latency_ms": 1000.0, "validator_outcome": "accepted", "fallback_reason": None, "schema_valid": True, "wording_valid": True, "category_concordance": True, "concept_keyword_coverage": True},
+        {"candidate_id": "c2", "category": "drip_pricing", "attempt": 0, "response_received": True, "latency_ms": 1100.0, "validator_outcome": "accepted", "fallback_reason": None, "schema_valid": True, "wording_valid": True, "category_concordance": True, "concept_keyword_coverage": True},
+        {"candidate_id": "c3", "category": "basket_sneaking", "attempt": 0, "response_received": True, "latency_ms": 1200.0, "validator_outcome": "accepted", "fallback_reason": None, "schema_valid": True, "wording_valid": True, "category_concordance": True, "concept_keyword_coverage": True},
+        {"candidate_id": "c4", "category": "basket_sneaking", "attempt": 0, "response_received": True, "latency_ms": 1300.0, "validator_outcome": "accepted", "fallback_reason": None, "schema_valid": True, "wording_valid": True, "category_concordance": True, "concept_keyword_coverage": True},
+        {"candidate_id": "c5", "category": "false_urgency", "attempt": 0, "response_received": True, "latency_ms": 1400.0, "validator_outcome": "accepted", "fallback_reason": None, "schema_valid": True, "wording_valid": True, "category_concordance": True, "concept_keyword_coverage": True},
+        {"candidate_id": "c6", "category": "false_urgency", "attempt": 0, "response_received": True, "latency_ms": 1500.0, "validator_outcome": "accepted", "fallback_reason": None, "schema_valid": True, "wording_valid": True, "category_concordance": True, "concept_keyword_coverage": True},
+        {"candidate_id": "c7", "category": "drip_pricing", "attempt": 0, "response_received": True, "latency_ms": 1600.0, "validator_outcome": "accepted", "fallback_reason": None, "schema_valid": True, "wording_valid": True, "category_concordance": True, "concept_keyword_coverage": True},
+        # 8-9: initial rate limits
+        {"candidate_id": "c8", "category": "drip_pricing", "attempt": 0, "response_received": False, "latency_ms": None, "validator_outcome": "not_applicable", "fallback_reason": "provider_error"},
+        {"candidate_id": "c9", "category": "drip_pricing", "attempt": 0, "response_received": False, "latency_ms": None, "validator_outcome": "not_applicable", "fallback_reason": "provider_error"},
+        # 10: initial validation failure + retry rejected
+        {"candidate_id": "c10", "category": "drip_pricing", "attempt": 0, "response_received": True, "latency_ms": 1700.0, "validator_outcome": "rejected_wording", "fallback_reason": None, "schema_valid": True, "wording_valid": False, "category_concordance": True, "concept_keyword_coverage": True},
+        {"candidate_id": "c10", "category": "drip_pricing", "attempt": 1, "response_received": True, "latency_ms": 1800.0, "validator_outcome": "rejected_wording", "fallback_reason": "model_validation_exhausted"},
+    ]
+
+    candidate_telemetry = [
+        {"candidate_id": "c1", "fallback_used": False, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+        {"candidate_id": "c2", "fallback_used": False, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+        {"candidate_id": "c3", "fallback_used": False, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+        {"candidate_id": "c4", "fallback_used": False, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+        {"candidate_id": "c5", "fallback_used": False, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+        {"candidate_id": "c6", "fallback_used": False, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+        {"candidate_id": "c7", "fallback_used": False, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+        {"candidate_id": "c8", "fallback_used": True, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+        {"candidate_id": "c9", "fallback_used": True, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+        {"candidate_id": "c10", "fallback_used": True, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+    ]
+
+    metrics = calculate_metrics_from_records(attempt_records, candidate_telemetry)
+
+    # 1. Coverage & Requests
+    assert metrics["candidates_submitted"] == 10
+    assert metrics["initial_responses_received"] == 8  # 7 valid + 1 rejected
+    assert metrics["initial_provider_failures"] == 2   # c8, c9
+    assert metrics["initial_provider_coverage_pct"] == 80.0
+    assert metrics["total_http_requests"] == 11
+    assert metrics["successful_http_responses"] == 9   # 8 initial + 1 retry
+    assert round(metrics["successful_provider_rate_pct"], 1) == 81.8
+
+    # 2. Retries
+    assert metrics["retries_attempted"] == 1
+    assert metrics["retry_responses_received"] == 1
+    assert metrics["retry_validation_acceptances"] == 0
+    assert metrics["retry_validation_rejections"] == 1
+
+    # 3. Provider Latency (9 successful responses: 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800)
+    lat_q = metrics["provider_latency"]
+    assert lat_q["sample_size"] == 9
+    assert lat_q["initial_responses"] == 8
+    assert lat_q["retry_responses"] == 1
+    # Sum = 12600.0 / 9 = 1400.0
+    assert lat_q["mean_ms"] == 1400.0
+    assert lat_q["median_ms"] == 1400.0
+    # p95 index = int(0.95 * 9) = 8 -> 1800.0
+    assert lat_q["p95_ms"] == 1800.0
+
+    # 4. Pipeline Outputs
+    assert metrics["pipeline_quality"]["deterministic_fallbacks"] == 3
+    assert metrics["pipeline_quality"]["final_accepted_outputs"] == 10
+
+
+def test_telemetry_json_serialization_and_deserialization(tmp_path):
+    """
+    Verifies that attempt records and candidate telemetry serialize cleanly to disk JSON
+    and that calculate_metrics_from_records can load and calculate metrics from the saved file.
+    """
+    from app.analysis.classifier import calculate_metrics_from_records
+
+    sample_data = {
+        "timestamp": "2026-10-14T22:00:00Z",
+        "git_commit": "cb56b0b",
+        "execution_mode": "Live Remote Provider (test-model)",
+        "model": "test-model",
+        "candidate_pacing_seconds": 2.0,
+        "total_candidates": 2,
+        "attempt_records": [
+            {
+                "candidate_id": "c1",
+                "category": "drip_pricing",
+                "attempt": 0,
+                "attempt_type": "initial",
+                "http_outcome": "200_ok",
+                "response_received": True,
+                "latency_ms": 1250.0,
+                "validator_outcome": "accepted",
+                "fallback_reason": None,
+                "schema_valid": True,
+                "wording_valid": True,
+                "category_concordance": True,
+                "concept_keyword_coverage": True,
+            },
+            {
+                "candidate_id": "c2",
+                "category": "basket_sneaking",
+                "attempt": 0,
+                "attempt_type": "initial",
+                "http_outcome": "429_rate_limit",
+                "response_received": False,
+                "latency_ms": None,
+                "validator_outcome": "not_applicable",
+                "fallback_reason": "provider_error",
+                "schema_valid": None,
+                "wording_valid": None,
+                "category_concordance": None,
+                "concept_keyword_coverage": None,
+            },
+        ],
+        "candidate_telemetry": [
+            {"candidate_id": "c1", "fallback_used": False, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+            {"candidate_id": "c2", "fallback_used": True, "evidence_grounding_valid": True, "post_guard_category_preserved": True, "post_guard_concept_keyword_coverage": True},
+        ],
+    }
+
+    test_file = tmp_path / "telemetry_test.json"
+    with open(test_file, "w", encoding="utf-8") as f:
+        json.dump(sample_data, f, indent=2)
+
+    with open(test_file, "r", encoding="utf-8") as f:
+        loaded = json.load(f)
+
+    metrics = calculate_metrics_from_records(loaded["attempt_records"], loaded["candidate_telemetry"])
+    assert metrics["candidates_submitted"] == 2
+    assert metrics["initial_responses_received"] == 1
+    assert metrics["initial_provider_failures"] == 1
+    assert metrics["pipeline_quality"]["final_accepted_outputs"] == 2
+    assert metrics["provider_latency"]["sample_size"] == 1
+    assert metrics["provider_latency"]["mean_ms"] == 1250.0

@@ -159,6 +159,7 @@ The LLM does not alter detection boundaries; candidate indicators are strictly p
     - Raw model quality metrics are calculated strictly over received responses ($N = 21$), representing an empirical sample under provider limits rather than a universal guarantee. Concordance on received responses does not prove universal 100% model accuracy across all possible prompts.
     - Concept-keyword coverage measures regex inclusion of Gazette statutory terms, not independent human or judicial assessment of legal correctness.
     - Post-guard category preservation (30/30) and pipeline concept-keyword coverage (30/30) are architectural invariants enforced by deterministic validators and safe template fallbacks.
+    - **Disk Telemetry Persistence & Empirical Provenance:** Every benchmark execution durably persists attempt-level records (candidate ID, attempt number, HTTP outcome, response-received flag, latency ms, validator outcome, and fallback reason) to `evaluation/last_run_telemetry.json`. All reported metrics are calculated directly from this persisted record set via `calculate_metrics_from_records`, and can be audited or re-rendered anytime without re-execution using `python3 evaluation/run_evaluation.py --from-telemetry evaluation/last_run_telemetry.json`.
 
 ### Tier 3: Independent Dual-Annotated Real-Site Dataset
 - **Status:** **PENDING** — Scheduled for Day 4 (17 Oct 2026) per Section 13 milestone.
@@ -201,7 +202,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r backend/requirements.txt
 
-# Run test suite (40 tests)
+# Run test suite (44 tests)
 cd backend && pytest -v
 
 # Run evaluation benchmark
