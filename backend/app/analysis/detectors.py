@@ -404,6 +404,20 @@ def assess_audit_outcome(
                         f"Stage '{st_name}' in run {r_id} was not fully verified (capture: {cap_st}, inspection: {insp_st})."
                     )
 
+            # Ensure required flow stages (product and checkout_summary) were inspected
+            inspected_stages = {
+                sc.get("step_name")
+                for sc in stage_caps
+                if sc.get("capture_status") == "verified" and sc.get("inspection_status") == "inspected"
+            }
+            required_stages = {"product", "checkout_summary"}
+            missing_stages = required_stages - inspected_stages
+            if missing_stages:
+                inconclusive_reasons.append(
+                    f"Run {r_id} is missing verified and inspected required stage(s): {sorted(list(missing_stages))}. "
+                    f"A clean outcome cannot be established without inspecting the checkout summary."
+                )
+
             # Check unknown disclosure states where charges were observed
             charges = r.get("charges", [])
             disclosures = r.get("disclosures", [])

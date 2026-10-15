@@ -20,24 +20,49 @@ STATIC_HOSTS = {
 
 _dns_patched = False
 def _ensure_resilient_dns():
+    """
+    Ensure reliable DNS resolution for TinyFish endpoints.
+
+    Rationale, Freshness & Failure Behavior:
+    1. Standard Live DNS (IPv4 Preferred):
+       Many Linux environments (systemd-resolved, dual-stack networks, NAT64) return synthesized
+       IPv6 (NAT64 64:ff9b::) addresses ahead of IPv4. When host IPv6 routing is unavailable,
+       connection handshakes hang until timeout. Querying AF_INET first ensures 100% dynamic
+       upstream DNS resolution, receiving fresh, current IP addresses from authoritative resolvers.
+    2. Fallback to Standard Resolution:
+       If IPv4-specific lookup raises an error, fall back to standard family resolution.
+    3. Last-Resort Static Fallback (STATIC_HOSTS):
+       If both standard lookups fail with socket.gaierror (e.g. transient local resolver outage),
+       fall back to last-known static IPv4 addresses to preserve audit execution continuity.
+    """
     global _dns_patched
     if not _dns_patched:
         orig_getaddrinfo = socket.getaddrinfo
         def resilient_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
-            if host in STATIC_HOSTS:
-                return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (STATIC_HOSTS[host], port))]
+            # Step 1: Attempt standard live DNS resolution with IPv4 preference
+            try:
+                res = orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+                if res:
+                    return res
+            except socket.gaierror:
+                pass
+            except Exception:
+                pass
+
+            # Step 2: Attempt standard resolution with original family
             try:
                 return orig_getaddrinfo(host, port, family, type, proto, flags)
             except socket.gaierror:
-                try:
-                    ip = socket.gethostbyname(host)
-                    return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (ip, port))]
-                except Exception:
-                    raise
+                # Step 3: Last-resort fallback for known TinyFish hosts
+                if host in STATIC_HOSTS:
+                    return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (STATIC_HOSTS[host], port))]
+                raise
+
         socket.getaddrinfo = resilient_getaddrinfo
         _dns_patched = True
 
 _ensure_resilient_dns()
+
 
 
 class RealTinyFishClient(TinyFishAdapter):

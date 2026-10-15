@@ -301,4 +301,26 @@ def test_assess_audit_outcome_distinctions():
     assert res_zero_stages["status"] == "inconclusive"
     assert any("zero stage captures" in r for r in res_zero_stages["inconclusive_reasons"])
 
+    # 7. Inconclusive: Missing required checkout_summary stage
+    res_missing_summary = assess_audit_outcome(
+        runs=[
+            {
+                "id": "r1",
+                "outcome": "ok",
+                "stage_captures": [
+                    {"step_name": "product", "capture_status": "verified", "inspection_status": "inspected"},
+                    {"step_name": "cart", "capture_status": "verified", "inspection_status": "inspected"},
+                ],
+                "charges": [],
+                "disclosures": [],
+                "urgency_indicators": [],
+            }
+        ],
+        findings=[],
+    )
+    assert res_missing_summary["status"] == "inconclusive"
+    assert any("missing verified and inspected required stage(s)" in r for r in res_missing_summary["inconclusive_reasons"])
+    assert "checkout_summary" in str(res_missing_summary["inconclusive_reasons"])
+
+
 

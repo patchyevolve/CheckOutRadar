@@ -43,8 +43,14 @@ def reconcile_totals(
         tax_model = "inclusive"
     else:
         is_reconciled = False
-        calculated_payable = calc_exclusive
-        discrepancy = calc_exclusive - final_payable_minor
+        diff_ex = calc_exclusive - final_payable_minor
+        diff_in = calc_inclusive - final_payable_minor
+        if abs(diff_in) < abs(diff_ex):
+            calculated_payable = calc_inclusive
+            discrepancy = diff_in
+        else:
+            calculated_payable = calc_exclusive
+            discrepancy = diff_ex
         tax_model = "mismatch"
 
     detail = {
