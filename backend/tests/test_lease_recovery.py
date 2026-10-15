@@ -92,3 +92,59 @@ def test_lease_recovery_avoids_duplicate_agent_submission():
     # Verify run completed successfully
     run_after = crud.get_run(run_id)
     assert run_after["outcome"] == "ok"
+
+
+def test_legacy_database_migration_adds_lease_generation_idempotently(tmp_path, monkeypatch):
+    """
+    Validates that:
+    1. An existing database created without `lease_generation` is safely upgraded by `connection.init_db()`.
+    2. Existing rows have `lease_generation` defaulted to 0 without data loss.
+    3. `init_db()` is idempotent and safe to run repeatedly on upgraded or existing databases.
+    4. Workers can immediately claim legacy jobs and increment `lease_generation` to 1.
+    """
+    import sqlite3
+    legacy_db = tmp_path / "legacy_migration.db"
+    monkeypatch.setenv("SQLITE_DB_PATH", str(legacy_db))
+
+    from pathlib import Path
+    schema_path = Path(__file__).parent.parent / "app" / "db" / "schema.sql"
+    with open(schema_path, "r", encoding="utf-8") as f:
+        legacy_sql = f.read().replace("lease_generation INTEGER NOT NULL DEFAULT 0,", "")
+
+    conn = sqlite3.connect(str(legacy_db))
+    conn.executescript(legacy_sql)
+    conn.execute("INSERT INTO audits (id, input_url, merchant, preset, status, created_at) VALUES ('aud_leg', 'http://legacy.test', 'Legacy Merchant', 'quick', 'pending', '2026-10-15T00:00:00Z');")
+    conn.execute("INSERT INTO conditions (id, audit_id, condition_key, requested) VALUES ('cond_leg', 'aud_leg', 'key_1', '{\"session\": \"fresh\"}');")
+    conn.execute("INSERT INTO runs (id, condition_id, requested) VALUES ('run_leg', 'cond_leg', '{\"session\": \"fresh\"}');")
+    conn.execute("INSERT INTO jobs (id, run_id, state) VALUES ('job_leg_1', 'run_leg', 'queued');")
+    conn.commit()
+    conn.close()
+
+    # Verify initial schema lacks lease_generation
+    conn = sqlite3.connect(str(legacy_db))
+    cols_before = [c[1] for c in conn.execute("PRAGMA table_info(jobs)").fetchall()]
+    assert "lease_generation" not in cols_before
+    conn.close()
+
+    # Pass 1: Run init_db() to execute live migration
+    connection.init_db()
+
+    conn = sqlite3.connect(str(legacy_db))
+    cols_after = [c[1] for c in conn.execute("PRAGMA table_info(jobs)").fetchall()]
+    assert "lease_generation" in cols_after
+    row = conn.execute("SELECT id, state, lease_generation FROM jobs WHERE id = 'job_leg_1'").fetchone()
+    assert row[0] == "job_leg_1"
+    assert row[1] == "queued"
+    assert row[2] == 0
+    conn.close()
+
+    # Pass 2 & 3: Run init_db() repeatedly to verify idempotency
+    connection.init_db()
+    connection.init_db()
+
+    # Verify worker can claim the upgraded legacy job and bump generation to 1
+    claimed = crud.claim_next_job(worker_id="upgrade_worker", lease_duration_seconds=60)
+    assert claimed is not None
+    assert claimed["id"] == "job_leg_1"
+    assert claimed["lease_generation"] == 1
+    assert claimed["lease_owner"] == "upgrade_worker"
