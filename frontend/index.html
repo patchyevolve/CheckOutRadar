@@ -92,6 +92,134 @@
                 </div>
             </div>
 
+            <!-- Assessment Status Banner -->
+            <div id="assessment-banner" class="assessment-banner hidden">
+                <div class="assessment-header">
+                    <div class="assessment-badge-group">
+                        <span class="assessment-status-badge" id="assessment-badge">ASSESSMENT</span>
+                        <h3 class="assessment-title" id="assessment-title">Evaluating Audit Journey...</h3>
+                    </div>
+                    <span class="assessment-count-tag" id="assessment-count-tag">0 Indicators</span>
+                </div>
+                <div class="assessment-summary" id="assessment-summary"></div>
+                <div id="assessment-reasons-container" class="assessment-reasons hidden">
+                    <span class="reasons-heading">Inconclusive Factors / Missing Observations:</span>
+                    <ul id="assessment-reasons-list"></ul>
+                </div>
+                <div class="assessment-disclaimer" id="assessment-disclaimer">
+                    <small>ℹ️ <strong>Scope & Limitations:</strong> Assessment applies strictly to the observed automated journey under tested conditions. Does not certify uninspected third-party payment gateways, unselected payment options (e.g. COD fees), or alternate browsing environments.</small>
+                </div>
+            </div>
+
+            <!-- Evidence Gallery: 3-Stage Checkout Journey -->
+            <section class="card evidence-gallery-card" id="evidence-gallery-section">
+                <div class="section-title-row">
+                    <div>
+                        <h3>📸 Journey Evidence & Visual Viewports</h3>
+                        <p class="subtitle" style="margin-bottom: 0;">Verified visual audit snapshots across the three critical checkout stages.</p>
+                    </div>
+                    <div id="run-selector-container" class="run-selector-container hidden">
+                        <label for="gallery-run-select">Condition Run:</label>
+                        <select id="gallery-run-select" class="run-select-dropdown" onchange="onGalleryRunChanged()"></select>
+                    </div>
+                </div>
+
+                <div class="gallery-grid" id="gallery-cards-grid">
+                    <!-- Card 1: Product Page -->
+                    <div class="gallery-card" id="card-stage-product">
+                        <div class="gallery-card-header">
+                            <div class="stage-tag-group">
+                                <span class="stage-step-num">Stage 1</span>
+                                <span class="stage-name">Product Page</span>
+                            </div>
+                            <span class="stage-status-badge" id="badge-stage-product">WAITING</span>
+                        </div>
+                        <div class="gallery-img-container" id="img-container-product">
+                            <div class="stage-empty-state">No viewport captured yet</div>
+                        </div>
+                        <div class="gallery-card-meta">
+                            <div class="meta-row">
+                                <span class="meta-label">Snapshot ID:</span>
+                                <span class="meta-value mono" id="meta-snap-product">-</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="meta-label">SHA-256:</span>
+                                <span class="meta-value mono hash-truncate" id="meta-hash-product" title="-">-</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="meta-label">Captured:</span>
+                                <span class="meta-value" id="meta-time-product">-</span>
+                            </div>
+                        </div>
+                        <div class="gallery-card-footer" id="footer-stage-product">
+                            <span class="text-disabled">Awaiting capture</span>
+                        </div>
+                    </div>
+
+                    <!-- Card 2: Cart Drawer / Page -->
+                    <div class="gallery-card" id="card-stage-cart">
+                        <div class="gallery-card-header">
+                            <div class="stage-tag-group">
+                                <span class="stage-step-num">Stage 2</span>
+                                <span class="stage-name">Cart Drawer / Page</span>
+                            </div>
+                            <span class="stage-status-badge" id="badge-stage-cart">WAITING</span>
+                        </div>
+                        <div class="gallery-img-container" id="img-container-cart">
+                            <div class="stage-empty-state">No viewport captured yet</div>
+                        </div>
+                        <div class="gallery-card-meta">
+                            <div class="meta-row">
+                                <span class="meta-label">Snapshot ID:</span>
+                                <span class="meta-value mono" id="meta-snap-cart">-</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="meta-label">SHA-256:</span>
+                                <span class="meta-value mono hash-truncate" id="meta-hash-cart" title="-">-</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="meta-label">Captured:</span>
+                                <span class="meta-value" id="meta-time-cart">-</span>
+                            </div>
+                        </div>
+                        <div class="gallery-card-footer" id="footer-stage-cart">
+                            <span class="text-disabled">Awaiting capture</span>
+                        </div>
+                    </div>
+
+                    <!-- Card 3: Checkout Summary -->
+                    <div class="gallery-card" id="card-stage-checkout_summary">
+                        <div class="gallery-card-header">
+                            <div class="stage-tag-group">
+                                <span class="stage-step-num">Stage 3</span>
+                                <span class="stage-name">Checkout Summary</span>
+                            </div>
+                            <span class="stage-status-badge" id="badge-stage-checkout_summary">WAITING</span>
+                        </div>
+                        <div class="gallery-img-container" id="img-container-checkout_summary">
+                            <div class="stage-empty-state">No viewport captured yet</div>
+                        </div>
+                        <div class="gallery-card-meta">
+                            <div class="meta-row">
+                                <span class="meta-label">Snapshot ID:</span>
+                                <span class="meta-value mono" id="meta-snap-checkout_summary">-</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="meta-label">SHA-256:</span>
+                                <span class="meta-value mono hash-truncate" id="meta-hash-checkout_summary" title="-">-</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="meta-label">Captured:</span>
+                                <span class="meta-value" id="meta-time-checkout_summary">-</span>
+                            </div>
+                        </div>
+                        <div class="gallery-card-footer" id="footer-stage-checkout_summary">
+                            <span class="text-disabled">Awaiting capture</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Two-column view: Findings & Diff Matrix -->
             <div class="two-col-grid">
                 <!-- Column 1: Findings -->
@@ -167,6 +295,32 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="copyComplaintText()">📋 Copy Text to Clipboard</button>
                 <button class="btn btn-primary" onclick="closeComplaintModal()">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Full-Resolution Screenshot Lightbox Modal -->
+    <div id="screenshot-modal" class="modal hidden">
+        <div class="modal-content modal-image-content">
+            <div class="modal-header">
+                <div>
+                    <h3 id="modal-stage-title" style="margin-bottom: 2px;">Stage Viewport Screenshot</h3>
+                    <span class="mono-id" id="modal-snap-id">snap_id</span>
+                </div>
+                <button class="btn-close" onclick="closeScreenshotModal()">&times;</button>
+            </div>
+            <div class="modal-image-wrapper">
+                <img id="modal-img" src="" alt="Full-resolution audit viewport" />
+            </div>
+            <div class="modal-image-footer">
+                <div class="modal-hash-container">
+                    <span class="meta-label">Cryptographic SHA-256 Digest:</span>
+                    <span class="meta-value mono" id="modal-hash-val">-</span>
+                </div>
+                <div class="modal-actions">
+                    <a id="modal-raw-link" href="#" target="_blank" class="btn btn-secondary">🔗 Open Original Artifact</a>
+                    <button class="btn btn-primary" onclick="closeScreenshotModal()">Close</button>
+                </div>
             </div>
         </div>
     </div>

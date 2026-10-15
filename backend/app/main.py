@@ -17,16 +17,18 @@ Endpoints:
 import os
 import json
 import asyncio
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .db import crud, connection
 from .models.schemas import CreateAuditRequest, AuditResponse
 from .matrix.orchestrator import expand_matrix
 from .worker.job_runner import JobRunner
+from .worker.redactor import get_evidence_dir
 from .reports.html_report import generate_html_report
 from .reports.complaint_draft import generate_complaint_draft
 from .analysis.detectors import assess_audit_outcome
@@ -61,6 +63,50 @@ if os.path.exists(FRONTEND_DIR):
         index_file = os.path.join(FRONTEND_DIR, "index.html")
         with open(index_file, "r", encoding="utf-8") as f:
             return f.read()
+
+
+ALLOWED_EVIDENCE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".html", ".json"}
+
+@app.get("/evidence/{filename:path}")
+def get_evidence_file(filename: str):
+    """
+    Safely serve generated evidence artifacts from the configured evidence directory.
+    Enforces strict path traversal defenses, disallows dangerous extensions (.db, .env, .py),
+    and ensures only regular files within EVIDENCE_DIR are served.
+    """
+    if not filename or "\x00" in filename:
+        raise HTTPException(status_code=404, detail="Evidence file not found")
+
+    path_obj = Path(filename)
+    if ".." in path_obj.parts or path_obj.is_absolute():
+        raise HTTPException(status_code=404, detail="Evidence file not found")
+
+    ext = path_obj.suffix.lower()
+    if ext not in ALLOWED_EVIDENCE_EXTENSIONS:
+        raise HTTPException(status_code=404, detail="Evidence file not found")
+
+    ev_dir = get_evidence_dir().resolve()
+    target_path = (ev_dir / filename).resolve()
+
+    # Enforce strictly that target_path resides within ev_dir
+    try:
+        target_path.relative_to(ev_dir)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Evidence file not found")
+
+    if not target_path.is_file():
+        raise HTTPException(status_code=404, detail="Evidence file not found")
+
+    media_type = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".html": "text/html; charset=utf-8",
+        ".json": "application/json",
+    }.get(ext, "application/octet-stream")
+
+    return FileResponse(path=str(target_path), media_type=media_type)
 
 
 
@@ -164,8 +210,49 @@ def get_audit_details(audit_id: str):
             rd = dict(r)
             run_id = rd["id"]
             rd["requested"] = json.loads(rd["requested"]) if rd.get("requested") else {}
-            rd["observed"] = json.loads(rd["observed"]) if rd.get("observed") else {}
-            rd["stage_captures"] = [dict(sc) for sc in conn.execute("SELECT * FROM stage_captures WHERE run_id = ?", (run_id,)).fetchall()]
+            sc_rows = conn.execute(
+                """
+                SELECT 
+                    sc.*,
+                    s.artifact_path,
+                    s.sha256 as snapshot_sha256,
+                    s.captured_at as snapshot_captured_at
+                FROM stage_captures sc
+                LEFT JOIN snapshots s ON sc.snapshot_id = s.id
+                WHERE sc.run_id = ?
+                ORDER BY sc.step_index ASC
+                """,
+                (run_id,),
+            ).fetchall()
+
+            stage_captures = []
+            for sc in sc_rows:
+                sc_dict = dict(sc)
+                # Fallback to finding snapshot by step_name if not directly joined via snapshot_id
+                if not sc_dict.get("snapshot_sha256") and sc_dict.get("step_name"):
+                    fallback_snap = conn.execute(
+                        "SELECT * FROM snapshots WHERE run_id = ? AND step_name = ? ORDER BY captured_at DESC LIMIT 1",
+                        (run_id, sc_dict["step_name"]),
+                    ).fetchone()
+                    if fallback_snap:
+                        f_dict = dict(fallback_snap)
+                        sc_dict["snapshot_id"] = sc_dict.get("snapshot_id") or f_dict["id"]
+                        sc_dict["snapshot_sha256"] = f_dict["sha256"]
+                        sc_dict["snapshot_captured_at"] = f_dict["captured_at"]
+                        sc_dict["artifact_path"] = f_dict["artifact_path"]
+
+                art_path = sc_dict.get("artifact_path")
+                if art_path:
+                    fname = Path(art_path).name
+                    sc_dict["evidence_filename"] = fname
+                    sc_dict["evidence_url"] = f"/evidence/{fname}"
+                else:
+                    sc_dict["evidence_filename"] = None
+                    sc_dict["evidence_url"] = None
+                stage_captures.append(sc_dict)
+
+            rd["stage_captures"] = stage_captures
+            rd["snapshots"] = [dict(s) for s in conn.execute("SELECT * FROM snapshots WHERE run_id = ?", (run_id,)).fetchall()]
             rd["charges"] = [dict(c) for c in conn.execute("SELECT * FROM charge_observations WHERE run_id = ?", (run_id,)).fetchall()]
             rd["disclosures"] = [dict(d) for d in conn.execute("SELECT * FROM disclosure_observations WHERE run_id = ?", (run_id,)).fetchall()]
             rd["urgency_indicators"] = [dict(u) for u in conn.execute("SELECT * FROM urgency_observations WHERE run_id = ?", (run_id,)).fetchall()]

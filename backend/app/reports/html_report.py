@@ -171,7 +171,7 @@ def generate_html_report(
             if snap_id in snap_lookup and snap_lookup[snap_id].get("artifact_path"):
                 art_path = snap_lookup[snap_id]["artifact_path"]
                 fname = Path(art_path).name
-                snap_display = f'<a href="./{fname}" target="_blank" style="font-family: monospace; font-size: 0.9em; color: #0284c7; text-decoration: underline; font-weight: 600;" title="Click to view full screenshot artifact">{snap_id}</a>'
+                snap_display = f'<a href="/evidence/{fname}" target="_blank" style="font-family: monospace; font-size: 0.9em; color: #0284c7; text-decoration: underline; font-weight: 600;" title="Click to view full screenshot artifact">{snap_id}</a>'
 
             stage_captures_rows += f"""
             <tr style="border-bottom: 1px solid #e2e8f0; font-size: 0.85em;">

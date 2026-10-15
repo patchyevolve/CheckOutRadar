@@ -2,10 +2,18 @@
 
 let currentAuditId = null;
 let eventSource = null;
+let currentAuditRuns = [];
+let selectedRunId = null;
 
 document.addEventListener("DOMContentLoaded", () => {
     checkHealth();
     loadPastAudits();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const qAuditId = urlParams.get("audit_id");
+    if (qAuditId) {
+        selectAudit(qAuditId, "Loading Audit...");
+    }
 
     document.getElementById("audit-form").addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -52,6 +60,8 @@ async function launchAudit() {
         });
         const data = await resp.json();
         currentAuditId = data.id;
+        selectedRunId = null;
+        currentAuditRuns = [];
 
         // Switch view to active audit
         document.getElementById("active-audit-section").classList.remove("hidden");
@@ -144,13 +154,21 @@ async function refreshAuditData(auditId) {
         const findsData = await findResp.json();
         const callsData = await callsResp.json();
 
+        currentAuditRuns = det.runs || [];
+
+        if (det.audit && det.audit.merchant) {
+            document.getElementById("active-merchant").innerText = det.audit.merchant;
+        }
+
         // Update progress
         const totalConds = det.conditions ? det.conditions.length : 1;
-        const compRuns = det.runs ? det.runs.filter(r => r.finished_at).length : 0;
+        const compRuns = currentAuditRuns.filter(r => r.finished_at).length;
         const pct = Math.min(100, Math.round((compRuns / totalConds) * 100));
         document.getElementById("progress-bar").style.width = `${pct}%`;
         document.getElementById("progress-count").innerText = `${compRuns} / ${totalConds} runs`;
 
+        renderAssessmentBanner(det.assessment);
+        renderEvidenceGallery(currentAuditRuns, selectedRunId);
         renderFindings(findsData.findings || []);
         renderDiffs(diffsData.diffs || []);
         renderCalls(callsData.provider_calls || []);
@@ -277,9 +295,18 @@ async function loadPastAudits() {
 
 function selectAudit(auditId, merchant) {
     currentAuditId = auditId;
+    selectedRunId = null;
+    currentAuditRuns = [];
     document.getElementById("active-audit-section").classList.remove("hidden");
-    document.getElementById("active-merchant").innerText = merchant;
+    if (merchant) {
+        document.getElementById("active-merchant").innerText = merchant;
+    }
     document.getElementById("active-audit-id").innerText = auditId;
+    try {
+        const u = new URL(window.location);
+        u.searchParams.set("audit_id", auditId);
+        window.history.replaceState({}, "", u);
+    } catch (e) {}
     connectEventStream(auditId);
     refreshAuditData(auditId);
     window.scrollTo({ top: 300, behavior: "smooth" });
@@ -323,4 +350,259 @@ async function triggerReobserve() {
     } catch (e) {
         alert("Failed to trigger re-observation: " + e.message);
     }
+}
+
+// -------------------------------------------------------------
+// Assessment Banner Rendering
+// -------------------------------------------------------------
+
+function renderAssessmentBanner(assessment) {
+    const banner = document.getElementById("assessment-banner");
+    if (!assessment) {
+        banner.classList.add("hidden");
+        return;
+    }
+
+    banner.classList.remove("hidden");
+    banner.classList.remove("assessment-clean", "assessment-indicators", "assessment-inconclusive");
+
+    const badge = document.getElementById("assessment-badge");
+    const title = document.getElementById("assessment-title");
+    const countTag = document.getElementById("assessment-count-tag");
+    const summary = document.getElementById("assessment-summary");
+    const reasonsContainer = document.getElementById("assessment-reasons-container");
+    const reasonsList = document.getElementById("assessment-reasons-list");
+
+    badge.className = "assessment-status-badge";
+
+    // Strictly enforce backend assessment contract:
+    // Never label VERIFIED CLEAN without explicit is_clean boolean flag and clean status.
+    const isClean = Boolean(assessment.is_clean === true && assessment.status === "clean");
+    const isInconclusive = Boolean(assessment.is_inconclusive === true || assessment.status === "inconclusive");
+    const hasIndicators = Boolean(
+        assessment.status === "potential_indicators_detected" || 
+        assessment.status === "indicators_detected" || 
+        (assessment.findings_count > 0 && !isInconclusive)
+    );
+
+    if (isClean) {
+        banner.classList.add("assessment-clean");
+        badge.classList.add("badge-clean");
+        badge.innerText = "VERIFIED CLEAN (UNDER TESTED FLOW)";
+        title.innerText = "Verified Clean Checkout Flow";
+        countTag.innerText = "0 Indicators Detected";
+        countTag.style.color = "#10b981";
+        summary.innerText = assessment.summary || "All required stages were captured and inspected; 0 potential dark pattern indicators detected within observed flow boundary.";
+        reasonsContainer.classList.add("hidden");
+    } else if (hasIndicators) {
+        banner.classList.add("assessment-indicators");
+        badge.classList.add("badge-indicators");
+        badge.innerText = "INDICATORS DETECTED";
+        title.innerText = `${assessment.findings_count || 1} Potential Dark Pattern Indicator(s) Flagged`;
+        countTag.innerText = `${assessment.findings_count || 1} Indicator(s)`;
+        countTag.style.color = "#f87171";
+        summary.innerText = assessment.summary || "Technical checkout audit findings flagged candidate dark patterns matching CCPA 2023 regulations.";
+        reasonsContainer.classList.add("hidden");
+    } else {
+        // Conservative fail-closed default: missing findings alone NEVER equals clean
+        banner.classList.add("assessment-inconclusive");
+        badge.classList.add("badge-inconclusive");
+        badge.innerText = "INCONCLUSIVE AUDIT";
+        title.innerText = "Audit Inconclusive: Incomplete or Obstructed Journey";
+        countTag.innerText = "Flow Incomplete";
+        countTag.style.color = "#f59e0b";
+        summary.innerText = assessment.summary || "Missing, uninspected, or obstructed stage observations cannot establish that the flow is clean.";
+
+        const reasons = assessment.inconclusive_reasons || [];
+        if (reasons.length > 0) {
+            reasonsList.innerHTML = reasons.map(r => `<li>${escapeHtml(r)}</li>`).join("");
+            reasonsContainer.classList.remove("hidden");
+        } else {
+            reasonsContainer.classList.add("hidden");
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// Evidence Gallery Rendering (3 Stages)
+// -------------------------------------------------------------
+
+function renderEvidenceGallery(runs, targetRunId) {
+    if (!runs || !runs.length) {
+        resetGalleryCards();
+        return;
+    }
+
+    // Determine target run: if specified, use it; else prefer reference run, else first run
+    let activeRun = null;
+    if (targetRunId) {
+        activeRun = runs.find(r => r.id === targetRunId);
+    }
+    if (!activeRun) {
+        activeRun = runs.find(r => r.is_reference) || runs[0];
+    }
+    selectedRunId = activeRun ? activeRun.id : null;
+
+    // Handle run selector dropdown if multiple runs
+    const selContainer = document.getElementById("run-selector-container");
+    const dropdown = document.getElementById("gallery-run-select");
+    if (runs.length > 1) {
+        selContainer.classList.remove("hidden");
+        dropdown.innerHTML = runs.map(r => {
+            const label = r.is_reference 
+                ? `Reference (${r.condition_key || r.id.substring(0, 8)})` 
+                : `Run ${r.id.substring(0, 8)} (${r.condition_key || 'Variant'})`;
+            const selected = (r.id === selectedRunId) ? 'selected' : '';
+            return `<option value="${r.id}" ${selected}>${escapeHtml(label)}</option>`;
+        }).join("");
+    } else {
+        selContainer.classList.add("hidden");
+    }
+
+    const stages = [
+        { key: "product", name: "Product Page", num: "Stage 1" },
+        { key: "cart", name: "Cart Drawer / Page", num: "Stage 2" },
+        { key: "checkout_summary", name: "Checkout Summary", num: "Stage 3" },
+    ];
+
+    const stageCaps = activeRun ? (activeRun.stage_captures || []) : [];
+
+    stages.forEach(st => {
+        // Resolve stage capture record
+        const sc = stageCaps.find(c => {
+            const sName = (c.step_name || "").toLowerCase();
+            if (st.key === "product") return sName === "product" || sName.includes("prod");
+            if (st.key === "cart") return sName === "cart" || sName.includes("cart");
+            if (st.key === "checkout_summary") return sName === "checkout_summary" || sName === "checkout" || sName.includes("check");
+            return false;
+        });
+
+        const badge = document.getElementById(`badge-stage-${st.key}`);
+        const imgContainer = document.getElementById(`img-container-${st.key}`);
+        const snapMeta = document.getElementById(`meta-snap-${st.key}`);
+        const hashMeta = document.getElementById(`meta-hash-${st.key}`);
+        const timeMeta = document.getElementById(`meta-time-${st.key}`);
+        const footer = document.getElementById(`footer-stage-${st.key}`);
+
+        if (sc && (sc.evidence_url || sc.snapshot_id || sc.provider_step_id)) {
+            const isVerified = (sc.capture_status === "verified");
+            badge.className = `stage-status-badge ${isVerified ? 'badge-stage-verified' : 'badge-stage-waiting'}`;
+            badge.innerText = isVerified ? "VERIFIED" : (sc.capture_status || "CAPTURED").toUpperCase();
+
+            const evUrl = sc.evidence_url || (sc.evidence_filename ? `/evidence/${sc.evidence_filename}` : "");
+            const snapId = sc.snapshot_id || sc.provider_step_id || "snap_unknown";
+            const sha256 = sc.snapshot_sha256 || "";
+            const timeRaw = sc.snapshot_captured_at || sc.captured_at;
+            const timeStr = timeRaw ? formatTimestamp(timeRaw) : "Timestamp recorded";
+
+            if (evUrl) {
+                imgContainer.innerHTML = `
+                    <img src="${evUrl}" 
+                         alt="${escapeHtml(st.name)} Viewport" 
+                         class="gallery-thumb" 
+                         onclick="openScreenshotModal('${evUrl}', '${escapeHtml(st.name)}', '${escapeHtml(snapId)}', '${escapeHtml(sha256)}')"
+                         title="Click to view full-resolution screenshot"
+                         onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'stage-empty-state\\'>🖼️ Artifact referenced (${escapeHtml(snapId)})<br><small style=\\'color:#94a3b8\\'>File pending on disk</small></div>';" />
+                `;
+                footer.innerHTML = `
+                    <button class="btn btn-secondary btn-chip" onclick="openScreenshotModal('${evUrl}', '${escapeHtml(st.name)}', '${escapeHtml(snapId)}', '${escapeHtml(sha256)}')">
+                        🔍 Full Resolution
+                    </button>
+                `;
+            } else {
+                imgContainer.innerHTML = `<div class="stage-empty-state">📸 Snapshot metadata recorded (${escapeHtml(snapId)})</div>`;
+                footer.innerHTML = `<span class="text-disabled">Metadata verified</span>`;
+            }
+
+            snapMeta.innerText = snapId;
+            snapMeta.title = snapId;
+
+            if (sha256) {
+                hashMeta.innerText = `${sha256.substring(0, 16)}...`;
+                hashMeta.title = sha256;
+            } else {
+                hashMeta.innerText = "N/A";
+                hashMeta.title = "No cryptographic digest recorded";
+            }
+
+            timeMeta.innerText = timeStr;
+        } else {
+            // Stage was not captured in this run
+            badge.className = "stage-status-badge badge-stage-missing";
+            badge.innerText = "NOT CAPTURED";
+            imgContainer.innerHTML = `<div class="stage-empty-state">⚠️ Stage was not captured in this audit run</div>`;
+            snapMeta.innerText = "-";
+            snapMeta.title = "-";
+            hashMeta.innerText = "-";
+            hashMeta.title = "-";
+            timeMeta.innerText = "-";
+            footer.innerHTML = `<span class="text-disabled">No viewport captured</span>`;
+        }
+    });
+}
+
+function resetGalleryCards() {
+    ["product", "cart", "checkout_summary"].forEach(k => {
+        const badge = document.getElementById(`badge-stage-${k}`);
+        const imgContainer = document.getElementById(`img-container-${k}`);
+        const snapMeta = document.getElementById(`meta-snap-${k}`);
+        const hashMeta = document.getElementById(`meta-hash-${k}`);
+        const timeMeta = document.getElementById(`meta-time-${k}`);
+        const footer = document.getElementById(`footer-stage-${k}`);
+
+        if (badge) { badge.className = "stage-status-badge badge-stage-waiting"; badge.innerText = "WAITING"; }
+        if (imgContainer) imgContainer.innerHTML = `<div class="stage-empty-state">No viewport captured yet</div>`;
+        if (snapMeta) { snapMeta.innerText = "-"; snapMeta.title = "-"; }
+        if (hashMeta) { hashMeta.innerText = "-"; hashMeta.title = "-"; }
+        if (timeMeta) timeMeta.innerText = "-";
+        if (footer) footer.innerHTML = `<span class="text-disabled">Awaiting capture</span>`;
+    });
+}
+
+function onGalleryRunChanged() {
+    const dropdown = document.getElementById("gallery-run-select");
+    if (!dropdown) return;
+    const chosenRunId = dropdown.value;
+    renderEvidenceGallery(currentAuditRuns, chosenRunId);
+}
+
+// -------------------------------------------------------------
+// Full-Resolution Screenshot Lightbox
+// -------------------------------------------------------------
+
+function openScreenshotModal(imgUrl, stageTitle, snapId, sha256) {
+    const modal = document.getElementById("screenshot-modal");
+    document.getElementById("modal-stage-title").innerText = `${stageTitle} Viewport`;
+    document.getElementById("modal-snap-id").innerText = snapId || "-";
+    document.getElementById("modal-img").src = imgUrl;
+    document.getElementById("modal-hash-val").innerText = sha256 || "N/A (digest not supplied)";
+    document.getElementById("modal-raw-link").href = imgUrl;
+    modal.classList.remove("hidden");
+}
+
+function closeScreenshotModal() {
+    const modal = document.getElementById("screenshot-modal");
+    modal.classList.add("hidden");
+    document.getElementById("modal-img").src = "";
+}
+
+function formatTimestamp(isoStr) {
+    if (!isoStr) return "-";
+    try {
+        const d = new Date(isoStr);
+        if (isNaN(d.getTime())) return String(isoStr).substring(11, 19);
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' UTC';
+    } catch {
+        return String(isoStr).substring(11, 19);
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }

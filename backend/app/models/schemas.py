@@ -45,6 +45,11 @@ class StageCapture(BaseModel):
     capture_status: str  # verified, failed, incomplete
     inspection_status: str  # inspected, uninspected
     screenshot_ref: Optional[str] = None
+    snapshot_id: Optional[str] = None
+    snapshot_sha256: Optional[str] = None
+    snapshot_captured_at: Optional[str] = None
+    evidence_url: Optional[str] = None
+    evidence_filename: Optional[str] = None
 
 
 class ChargeObservation(BaseModel):
