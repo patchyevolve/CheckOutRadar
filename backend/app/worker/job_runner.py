@@ -77,7 +77,7 @@ class JobRunner:
 
         try:
             self._process_job(job)
-            crud.complete_job(job_id)
+            crud.complete_job(job_id, worker_id=self.worker_id)
             self._check_and_finalize_audit(audit_id)
             return True
         except Exception as e:
@@ -254,34 +254,8 @@ class JobRunner:
         if req_pin and obs_pin and req_pin != obs_pin:
             run_outcome = "condition_not_applied"
 
-        # Ensure observation idempotency on retries / lease recovery
-        crud.clear_run_observations(run_id)
-
-        # Reconcile Monetary Totals
-        is_reconciled = False
-        if totals:
-            is_reconciled = crud.insert_reconciliation(
-                run_id=run_id,
-                subtotal_minor=totals.get("subtotal_minor", 0),
-                charges_minor=totals.get("charges_minor", 0),
-                taxes_minor=totals.get("taxes_minor", 0),
-                discounts_minor=totals.get("discounts_minor", 0),
-                final_payable_minor=totals.get("final_payable_minor", 0),
-            )
-            if not is_reconciled and run_outcome == "ok":
-                run_outcome = "extraction_inconsistent"
-
-        # Update run record in DB
-        crud.update_run_outcome(
-            run_id=run_id,
-            provider_run_id=provider_run_id,
-            provider_status=prov_status,
-            outcome=run_outcome,
-            observed=observed,
-            profile_state_verified=is_returning,
-        )
-
-        # 7. Persist Stage Captures & Observations
+        # 7. Resolve Snapshot IDs and Persist Stage Captures & Observations Atomically
+        resolved_stage_captures = []
         for sc in result_dict.get("stage_captures", []):
             st_name = sc.get("step_name", "product")
             snap_id = (
@@ -291,73 +265,27 @@ class JobRunner:
                 or snapshot_map.get(f"step_{sc.get('step_index')}")
                 or snapshot_map.get(sc.get("step_index"))
             )
-            crud.create_stage_capture(
-                run_id=run_id,
-                step_name=st_name,
-                step_index=sc.get("step_index", 1),
-                provider_step_id=sc.get("provider_step_id"),
-                capture_status=sc.get("capture_status", "verified"),
-                inspection_status=sc.get("inspection_status", "inspected"),
-                snapshot_id=snap_id,
-            )
+            sc_copy = dict(sc)
+            sc_copy["snapshot_id"] = snap_id
+            resolved_stage_captures.append(sc_copy)
 
-        for idx, c in enumerate(charges):
-            crud.insert_charge_observation(
-                run_id=run_id,
-                step_index=idx + 1,
-                label=c.get("label", ""),
-                canonical_label=canonicalize_label(c.get("label", "")),
-                amount_minor=c.get("amount_minor", 0),
-                step=c.get("step", "checkout_summary"),
-                mandatory=c.get("mandatory", "yes"),
-                currency=c.get("currency", "INR"),
-            )
-
-        for d in disclosures:
-            crud.insert_disclosure_observation(
-                run_id=run_id,
-                charge_label=d.get("charge_label", ""),
-                step=d.get("step", "checkout_summary"),
-                state=d.get("state", "observed"),
-                visible_text=d.get("visible_text"),
-                amount_minor=d.get("amount_minor"),
-                condition_text=d.get("condition_text"),
-            )
-
-        for a in addons:
-            crud.insert_addon_observation(
-                run_id=run_id,
-                label=a.get("label", ""),
-                amount_minor=a.get("amount_minor", 0),
-                default_selected=a.get("default_selected", True),
-                user_modified=a.get("user_modified", False),
-                in_total=a.get("in_total", True),
-                step=a.get("step", "cart"),
-            )
-
-        for u in urgencies:
-            crud.insert_urgency_observation(
-                run_id=run_id,
-                text=u.get("text", ""),
-                type_=u.get("type", "countdown"),
-                claimed_deadline=u.get("claimed_deadline"),
-                observed_seconds_remaining=u.get("observed_seconds_remaining"),
-                step=u.get("step", "product"),
-            )
+        is_reconciled, run_outcome = crud.persist_run_observations_atomically(
+            run_id=run_id,
+            outcome=run_outcome,
+            provider_run_id=provider_run_id,
+            provider_status=prov_status,
+            observed=observed,
+            profile_state_verified=is_returning,
+            totals=totals,
+            stage_captures=resolved_stage_captures,
+            charges=charges,
+            disclosures=disclosures,
+            addons=addons,
+            urgencies=urgencies,
+        )
 
         # 8. Diff Engine & Finding Generation (Only if outcome == 'ok')
         if run_outcome == "ok":
-            merged_stage_captures = []
-            for sc in result_dict.get("stage_captures", []):
-                sc_copy = dict(sc)
-                sc_copy["snapshot_id"] = (
-                    snapshot_map.get(sc_copy.get("screenshot_ref"))
-                    or snapshot_map.get(sc_copy.get("provider_step_id"))
-                    or snapshot_map.get(sc_copy.get("step_name"))
-                    or snapshot_map.get(f"step_{sc_copy.get('step_index')}")
-                    or snapshot_map.get(sc_copy.get("step_index"))
-                )
-                merged_stage_captures.append(sc_copy)
 
             current_bundle = {
                 "id": run_id,
@@ -366,7 +294,7 @@ class JobRunner:
                 "observed": observed,
                 "charges": charges,
                 "disclosures": disclosures,
-                "stage_captures": merged_stage_captures,
+                "stage_captures": resolved_stage_captures,
                 "preselected_addons": addons,
                 "urgency_indicators": urgencies,
             }

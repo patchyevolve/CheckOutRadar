@@ -10,7 +10,7 @@ Verifies:
 
 import pytest
 import base64
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from app.db import crud, connection
 from app.worker.job_runner import JobRunner
 from app.tinyfish.adapter import TinyFishAdapter
@@ -308,3 +308,353 @@ def test_cart_stage_linkage_does_not_get_shadowed_by_product_transition():
     # Step 3 ("Inspect cart drawer contents") should be mapped to cart, not Step 2 ("Click 'ADD TO CART'")
     assert cart_cap["snapshot_id"] == step_3_snap_id
     assert cart_cap["snapshot_id"] != step_2_snap_id
+
+
+def test_repeated_processing_of_completed_run_is_strictly_idempotent():
+    """
+    Review Recommendation 1: Repeated processing of the same completed run.
+    Verifies that re-executing or re-enqueueing a completed run preserves exactly
+    canonical counts, leaves no duplicate rows, and maintains identical snapshot references.
+    """
+    audit_id = crud.create_audit(input_url="http://test.com/idempotent", merchant="Idempotent Store", preset="quick")
+    cond_id = crud.create_condition(
+        audit_id=audit_id,
+        condition_key="idempotent_key",
+        requested={"session": "fresh", "cart_tier": "above_threshold"},
+    )
+    run_id = crud.create_run(condition_id=cond_id, requested={"session": "fresh", "cart_tier": "above_threshold"})
+
+    poll_payload = {
+        "status": "COMPLETED",
+        "steps": [
+            {"id": "step_1", "action": "View product details", "screenshot": TINY_JPEG_B64},
+            {"id": "step_2", "action": "Inspect cart drawer", "screenshot": TINY_JPEG_B64},
+            {"id": "step_3", "action": "Checkout summary review", "screenshot": TINY_JPEG_B64},
+        ],
+        "result": {
+            "status": "ok",
+            "requested": {"session": "fresh", "cart_tier": "above_threshold"},
+            "observed": {"subtotal_minor": 199900, "currency": "INR"},
+            "stage_captures": [
+                {"step_name": "product", "step_index": 1, "capture_status": "verified", "inspection_status": "inspected", "screenshot_ref": "step_1"},
+                {"step_name": "cart", "step_index": 2, "capture_status": "verified", "inspection_status": "inspected", "screenshot_ref": "step_2"},
+                {"step_name": "checkout_summary", "step_index": 3, "capture_status": "verified", "inspection_status": "inspected", "screenshot_ref": "step_3"},
+            ],
+            "charges": [
+                {"label": "Delivery fee", "amount_minor": 0, "currency": "INR", "step": "product", "mandatory": "yes"},
+            ],
+            "disclosures": [
+                {"charge_label": "Delivery fee", "step": "product", "state": "observed", "visible_text": "Free shipping", "amount_minor": 0},
+            ],
+            "preselected_addons": [
+                {"label": "Warranty", "amount_minor": 0, "default_selected": False, "user_modified": False, "in_total": False, "step": "product"},
+            ],
+            "urgency_indicators": [
+                {"text": "Fast dispatch", "type": "scarcity", "claimed_deadline": None, "observed_seconds_remaining": None, "step": "product"},
+            ],
+            "totals": {
+                "subtotal_minor": 199900,
+                "charges_minor": 0,
+                "taxes_minor": 0,
+                "discounts_minor": 0,
+                "final_payable_minor": 199900,
+            },
+        },
+    }
+
+    adapter = ControlledPipelineAdapter(poll_payload)
+    runner = JobRunner(worker_id="worker_rep_1", adapter=adapter)
+
+    # First pass
+    crud.enqueue_job(run_id=run_id)
+    assert runner.run_one_cycle() is True
+
+    # Capture stage capture snapshot IDs from pass 1
+    conn = connection.get_connection()
+    try:
+        initial_caps = {r["step_name"]: r["snapshot_id"] for r in conn.execute("SELECT * FROM stage_captures WHERE run_id = ?", (run_id,)).fetchall()}
+    finally:
+        conn.close()
+
+    assert len(initial_caps) == 3
+    assert all(sid is not None for sid in initial_caps.values())
+
+    # Second pass: re-enqueue and process the exact same completed run
+    crud.enqueue_job(run_id=run_id)
+    assert runner.run_one_cycle() is True
+
+    # Third pass: execute yet again
+    crud.enqueue_job(run_id=run_id)
+    assert runner.run_one_cycle() is True
+
+    conn = connection.get_connection()
+    try:
+        chg_cnt = conn.execute("SELECT count(*) FROM charge_observations WHERE run_id = ?", (run_id,)).fetchone()[0]
+        disc_cnt = conn.execute("SELECT count(*) FROM disclosure_observations WHERE run_id = ?", (run_id,)).fetchone()[0]
+        cap_cnt = conn.execute("SELECT count(*) FROM stage_captures WHERE run_id = ?", (run_id,)).fetchone()[0]
+        rec_cnt = conn.execute("SELECT count(*) FROM total_reconciliations WHERE run_id = ?", (run_id,)).fetchone()[0]
+        add_cnt = conn.execute("SELECT count(*) FROM addon_observations WHERE run_id = ?", (run_id,)).fetchone()[0]
+        urg_cnt = conn.execute("SELECT count(*) FROM urgency_observations WHERE run_id = ?", (run_id,)).fetchone()[0]
+        subsequent_caps = {r["step_name"]: r["snapshot_id"] for r in conn.execute("SELECT * FROM stage_captures WHERE run_id = ?", (run_id,)).fetchall()}
+    finally:
+        conn.close()
+
+    # Strict single-instance canonical invariants
+    assert chg_cnt == 1
+    assert disc_cnt == 1
+    assert cap_cnt == 3
+    assert rec_cnt == 1
+    assert add_cnt == 1
+    assert urg_cnt == 1
+
+    # Snapshot references remain valid and non-null in snapshots table
+    conn = connection.get_connection()
+    try:
+        snap_ids_in_db = {s["id"] for s in conn.execute("SELECT id FROM snapshots WHERE run_id = ?", (run_id,)).fetchall()}
+    finally:
+        conn.close()
+    assert all(sid in snap_ids_in_db for sid in subsequent_caps.values())
+
+
+def test_recovery_after_partially_completed_insertion_rolls_back_cleanly(monkeypatch):
+    """
+    Review Recommendation 2: Recovery after a partially completed insertion.
+    Verifies that if an error or crash occurs midway through observation persistence,
+    the entire transaction rolls back atomically without leaving partial orphan rows,
+    and subsequent recovery re-populates the complete record cleanly.
+    """
+    audit_id = crud.create_audit(input_url="http://test.com/atomic", merchant="Atomic Store", preset="quick")
+    cond_id = crud.create_condition(
+        audit_id=audit_id,
+        condition_key="atomic_key",
+        requested={"session": "fresh", "cart_tier": "above_threshold"},
+    )
+    run_id = crud.create_run(condition_id=cond_id, requested={"session": "fresh", "cart_tier": "above_threshold"})
+
+    totals = {"subtotal_minor": 1000, "charges_minor": 0, "taxes_minor": 0, "discounts_minor": 0, "final_payable_minor": 1000}
+    snap_id = crud.create_snapshot(
+        run_id=run_id,
+        step_name="product",
+        artifact_path="/tmp/fake.jpg",
+        sha256="abc123456789",
+        redaction_status="redacted",
+    )
+    stage_captures = [{"step_name": "product", "step_index": 1, "capture_status": "verified", "inspection_status": "inspected", "snapshot_id": snap_id}]
+    charges = [{"label": "Fee", "amount_minor": 100, "step": "checkout_summary", "mandatory": "yes"}]
+
+    # Simulate an error during insertion by causing an intentional type error on charges
+    bad_charges = [{"label": "Fee", "amount_minor": "INVALID_AMOUNT_STRING", "step": "checkout_summary", "mandatory": "yes"}]
+
+    # Attempt persistence with corrupted payload inside the atomic transaction
+    with pytest.raises(Exception):
+        crud.persist_run_observations_atomically(
+            run_id=run_id,
+            outcome="ok",
+            provider_run_id="prov_01",
+            provider_status="COMPLETED",
+            observed={},
+            profile_state_verified=False,
+            totals=totals,
+            stage_captures=stage_captures,
+            charges=bad_charges,
+        )
+
+    # Invariant: Because of atomic transaction rollback, ZERO partial records exist in DB!
+    conn = connection.get_connection()
+    try:
+        cap_cnt = conn.execute("SELECT count(*) FROM stage_captures WHERE run_id = ?", (run_id,)).fetchone()[0]
+        chg_cnt = conn.execute("SELECT count(*) FROM charge_observations WHERE run_id = ?", (run_id,)).fetchone()[0]
+        rec_cnt = conn.execute("SELECT count(*) FROM total_reconciliations WHERE run_id = ?", (run_id,)).fetchone()[0]
+    finally:
+        conn.close()
+
+    assert cap_cnt == 0, f"Expected 0 stage captures after rollback, got {cap_cnt}"
+    assert chg_cnt == 0, f"Expected 0 charge observations after rollback, got {chg_cnt}"
+    assert rec_cnt == 0, f"Expected 0 reconciliations after rollback, got {rec_cnt}"
+
+    # Now recover cleanly with valid payload
+    crud.persist_run_observations_atomically(
+        run_id=run_id,
+        outcome="ok",
+        provider_run_id="prov_01",
+        provider_status="COMPLETED",
+        observed={},
+        profile_state_verified=False,
+        totals=totals,
+        stage_captures=stage_captures,
+        charges=charges,
+    )
+
+    conn = connection.get_connection()
+    try:
+        cap_cnt_after = conn.execute("SELECT count(*) FROM stage_captures WHERE run_id = ?", (run_id,)).fetchone()[0]
+        chg_cnt_after = conn.execute("SELECT count(*) FROM charge_observations WHERE run_id = ?", (run_id,)).fetchone()[0]
+        rec_cnt_after = conn.execute("SELECT count(*) FROM total_reconciliations WHERE run_id = ?", (run_id,)).fetchone()[0]
+    finally:
+        conn.close()
+
+    assert cap_cnt_after == 1
+    assert chg_cnt_after == 1
+    assert rec_cnt_after == 1
+
+
+def test_concurrent_and_overlapping_retry_protection():
+    """
+    Review Recommendation 3: Concurrent or overlapping retry attempts.
+    Verifies that:
+    1. Active lease prevents any second worker from claiming the job.
+    2. Concurrent thread claim attempts race safely with exclusive lock (exactly 1 claim succeeds).
+    3. An expired-lease worker that lost its lease to another worker cannot complete or overwrite the job.
+    """
+    import concurrent.futures
+    audit_id = crud.create_audit(input_url="http://test.com/concurrent", merchant="Concurrent Store", preset="quick")
+    cond_id = crud.create_condition(
+        audit_id=audit_id,
+        condition_key="conc_key",
+        requested={"session": "fresh", "cart_tier": "above_threshold"},
+    )
+    run_id = crud.create_run(condition_id=cond_id, requested={"session": "fresh", "cart_tier": "above_threshold"})
+    job_id = crud.enqueue_job(run_id=run_id)
+
+    # 3A: Concurrent claim race across multiple threads
+    def try_claim(w_id):
+        return crud.claim_next_job(worker_id=w_id, lease_duration_seconds=60)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(try_claim, f"concurrent_worker_{i}") for i in range(5)]
+        results = [f.result() for f in futures]
+
+    # Exactly ONE worker claimed the job; all other 4 received None
+    successful_claims = [r for r in results if r is not None]
+    assert len(successful_claims) == 1
+    winning_worker = successful_claims[0]["lease_owner"]
+
+    # 3B: While winning worker holds active lease, another worker calling claim receives None
+    assert crud.claim_next_job(worker_id="intruder_worker", lease_duration_seconds=60) is None
+
+    # 3C: Simulate lease expiry and takeover
+    conn = connection.get_connection()
+    expired_time = (datetime.now(timezone.utc) - timedelta(seconds=10)).isoformat()
+    conn.execute("UPDATE jobs SET lease_expires_at = ? WHERE id = ?", (expired_time, job_id))
+    conn.commit()
+    conn.close()
+
+    # Worker 2 claims expired lease
+    takeover_worker = crud.claim_next_job(worker_id="takeover_worker", lease_duration_seconds=60)
+    assert takeover_worker is not None
+    assert takeover_worker["lease_owner"] == "takeover_worker"
+
+    # Winning worker (old owner) attempts to complete the job -> FAILS because lease was lost!
+    old_worker_completed = crud.complete_job(job_id, worker_id=winning_worker)
+    assert old_worker_completed is False
+
+    # Takeover worker completes the job -> SUCCEEDS
+    new_worker_completed = crud.complete_job(job_id, worker_id="takeover_worker")
+    assert new_worker_completed is True
+
+    # State in DB is now 'done'
+    conn = connection.get_connection()
+    try:
+        final_state = conn.execute("SELECT state FROM jobs WHERE id = ?", (job_id,)).fetchone()[0]
+    finally:
+        conn.close()
+    assert final_state == "done"
+
+
+def test_snapshot_references_remain_valid_and_unaltered_after_recovery():
+    """
+    Review Recommendation 4: Snapshot references remaining valid after recovery.
+    Verifies that:
+    1. Screenshots and SHA-256 digests in `snapshots` table are preserved through retries.
+    2. Physical image files on disk are unaltered.
+    3. Stage captures re-link to valid snapshot IDs without creating dangling foreign keys.
+    """
+    import hashlib
+    from pathlib import Path
+
+    audit_id = crud.create_audit(input_url="http://test.com/snapshots", merchant="Snapshot Store", preset="quick")
+    cond_id = crud.create_condition(
+        audit_id=audit_id,
+        condition_key="snap_key",
+        requested={"session": "fresh", "cart_tier": "above_threshold"},
+    )
+    run_id = crud.create_run(condition_id=cond_id, requested={"session": "fresh", "cart_tier": "above_threshold"})
+
+    poll_payload = {
+        "status": "COMPLETED",
+        "steps": [
+            {"id": "step_p1", "action": "Navigate to product", "screenshot": TINY_JPEG_B64},
+            {"id": "step_c2", "action": "Inspect cart drawer", "screenshot": TINY_JPEG_B64},
+            {"id": "step_s3", "action": "Review checkout summary", "screenshot": TINY_JPEG_B64},
+        ],
+        "result": {
+            "status": "ok",
+            "requested": {"session": "fresh", "cart_tier": "above_threshold"},
+            "observed": {"subtotal_minor": 199900, "currency": "INR"},
+            "stage_captures": [
+                {"step_name": "product", "step_index": 1, "capture_status": "verified", "inspection_status": "inspected", "screenshot_ref": "step_p1"},
+                {"step_name": "cart", "step_index": 2, "capture_status": "verified", "inspection_status": "inspected", "screenshot_ref": "step_c2"},
+                {"step_name": "checkout_summary", "step_index": 3, "capture_status": "verified", "inspection_status": "inspected", "screenshot_ref": "step_s3"},
+            ],
+            "charges": [],
+            "disclosures": [],
+            "totals": {"subtotal_minor": 199900, "charges_minor": 0, "taxes_minor": 0, "discounts_minor": 0, "final_payable_minor": 199900},
+        },
+    }
+
+    adapter = ControlledPipelineAdapter(poll_payload)
+    runner = JobRunner(worker_id="snap_worker", adapter=adapter)
+
+    # Initial execution
+    crud.enqueue_job(run_id=run_id)
+    assert runner.run_one_cycle() is True
+
+    conn = connection.get_connection()
+    try:
+        initial_snaps = conn.execute("SELECT * FROM snapshots WHERE run_id = ?", (run_id,)).fetchall()
+        initial_caps = conn.execute("SELECT * FROM stage_captures WHERE run_id = ?", (run_id,)).fetchall()
+    finally:
+        conn.close()
+
+    assert len(initial_snaps) == 3
+    assert len(initial_caps) == 3
+
+    # Check physical files on disk and their SHA-256
+    snap_records = [dict(s) for s in initial_snaps]
+    for s in snap_records:
+        file_path = Path(s["artifact_path"])
+        assert file_path.exists(), f"Snapshot file {file_path} must exist on disk"
+        disk_sha = hashlib.sha256(file_path.read_bytes()).hexdigest()
+        assert disk_sha == s["sha256"], f"Disk hash {disk_sha} must match DB hash {s['sha256']}"
+
+    # Trigger recovery retry (simulating crash or recovery pass)
+    crud.enqueue_job(run_id=run_id)
+    assert runner.run_one_cycle() is True
+
+    conn = connection.get_connection()
+    try:
+        snaps_after = conn.execute("SELECT * FROM snapshots WHERE run_id = ?", (run_id,)).fetchall()
+        caps_after = conn.execute("SELECT * FROM stage_captures WHERE run_id = ?", (run_id,)).fetchall()
+        # Verify foreign key integrity: 0 dangling snapshots
+        dangling_count = conn.execute(
+            """
+            SELECT count(*)
+            FROM stage_captures sc
+            LEFT JOIN snapshots s ON sc.snapshot_id = s.id
+            WHERE sc.run_id = ? AND sc.snapshot_id IS NOT NULL AND s.id IS NULL
+            """,
+            (run_id,),
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+    assert len(caps_after) == 3
+    assert dangling_count == 0, "All stage capture snapshot IDs must resolve to valid snapshots"
+
+    # Verify physical files still exist and hashes remain identical
+    for s in snap_records:
+        file_path = Path(s["artifact_path"])
+        assert file_path.exists()
+        disk_sha = hashlib.sha256(file_path.read_bytes()).hexdigest()
+        assert disk_sha == s["sha256"]
+

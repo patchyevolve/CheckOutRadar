@@ -3,7 +3,7 @@
 import json
 import uuid
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import sqlite3
 from .connection import get_connection
 
@@ -198,9 +198,10 @@ def enqueue_job(run_id: str) -> str:
 
 
 def claim_next_job(worker_id: str, lease_duration_seconds: int = 120) -> Optional[Dict[str, Any]]:
-    """Atomically claim the next queued or expired-lease job."""
+    """Atomically claim the next queued or expired-lease job with exclusive write lock."""
     conn = get_connection()
     try:
+        conn.execute("BEGIN IMMEDIATE;")
         cursor = conn.cursor()
         now = utc_now()
         new_lease_expiry = (datetime.now(timezone.utc) + timedelta(seconds=lease_duration_seconds)).isoformat()
@@ -222,6 +223,7 @@ def claim_next_job(worker_id: str, lease_duration_seconds: int = 120) -> Optiona
         )
         row = cursor.fetchone()
         if not row:
+            conn.commit()
             return None
 
         job_data = dict(row)
@@ -231,24 +233,65 @@ def claim_next_job(worker_id: str, lease_duration_seconds: int = 120) -> Optiona
             SET state = 'claimed',
                 lease_owner = ?,
                 lease_expires_at = ?
-            WHERE id = ?
+            WHERE id = ? AND (
+                state = 'queued'
+                OR (state = 'claimed' AND lease_expires_at IS NOT NULL AND lease_expires_at < ?)
+                OR state = 'retry_wait'
+            )
             """,
-            (worker_id, new_lease_expiry, job_data["id"]),
+            (worker_id, new_lease_expiry, job_data["id"], now),
         )
+        if cursor.rowcount == 0:
+            conn.commit()
+            return None
+
         conn.commit()
         job_data["lease_owner"] = worker_id
         job_data["lease_expires_at"] = new_lease_expiry
         job_data["requested"] = json.loads(job_data["requested"])
         return job_data
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
 
-def complete_job(job_id: str):
+def complete_job(job_id: str, worker_id: Optional[str] = None) -> bool:
+    """Complete a job, verifying lease ownership if worker_id is provided."""
     conn = get_connection()
     try:
-        conn.execute("UPDATE jobs SET state = 'done', lease_expires_at = NULL WHERE id = ?", (job_id,))
+        if worker_id:
+            cursor = conn.execute(
+                "UPDATE jobs SET state = 'done', lease_expires_at = NULL WHERE id = ? AND lease_owner = ?",
+                (job_id, worker_id),
+            )
+            success = cursor.rowcount > 0
+        else:
+            conn.execute("UPDATE jobs SET state = 'done', lease_expires_at = NULL WHERE id = ?", (job_id,))
+            success = True
         conn.commit()
+        return success
+    finally:
+        conn.close()
+
+
+def is_job_lease_valid(job_id: str, worker_id: str) -> bool:
+    """Check if worker_id currently owns the valid, non-expired lease for job_id."""
+    conn = get_connection()
+    try:
+        now = utc_now()
+        row = conn.execute(
+            "SELECT lease_owner, lease_expires_at FROM jobs WHERE id = ? AND state = 'claimed'",
+            (job_id,),
+        ).fetchone()
+        if not row:
+            return False
+        if row["lease_owner"] != worker_id:
+            return False
+        if row["lease_expires_at"] and row["lease_expires_at"] < now:
+            return False
+        return True
     finally:
         conn.close()
 
@@ -559,6 +602,223 @@ def clear_run_observations(run_id: str) -> None:
         conn.execute("DELETE FROM total_reconciliations WHERE run_id = ?", (run_id,))
         conn.execute("DELETE FROM stage_captures WHERE run_id = ?", (run_id,))
         conn.commit()
+    finally:
+        conn.close()
+
+
+def persist_run_observations_atomically(
+    run_id: str,
+    outcome: str,
+    provider_run_id: Optional[str] = None,
+    provider_status: Optional[str] = None,
+    observed: Optional[Dict[str, Any]] = None,
+    profile_state_verified: bool = False,
+    totals: Optional[Dict[str, Any]] = None,
+    stage_captures: Optional[List[Dict[str, Any]]] = None,
+    charges: Optional[List[Dict[str, Any]]] = None,
+    disclosures: Optional[List[Dict[str, Any]]] = None,
+    addons: Optional[List[Dict[str, Any]]] = None,
+    urgencies: Optional[List[Dict[str, Any]]] = None,
+) -> Tuple[bool, str]:
+    """
+    Atomically clears existing observations for run_id and persists all new observations,
+    stage captures, reconciliation, and run outcome in a SINGLE transaction with BEGIN IMMEDIATE.
+
+    Guarantees:
+    1. Zero observation duplication on retry or lease recovery.
+    2. Atomicity: An exception midway rolls back completely, leaving no partial rows.
+    3. Serialization: BEGIN IMMEDIATE prevents concurrent worker transactions from interleaving.
+    4. Snapshot preservation: Existing snapshots are preserved; stage captures link to valid snapshots.
+    """
+    from ..analysis.normalizer import canonicalize_label
+    from ..analysis.reconciler import reconcile_totals
+
+    stage_captures = stage_captures or []
+    charges = charges or []
+    disclosures = disclosures or []
+    addons = addons or []
+    urgencies = urgencies or []
+
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE;")
+
+        # 1. Atomically clear existing observations for this run
+        conn.execute("DELETE FROM charge_observations WHERE run_id = ?", (run_id,))
+        conn.execute("DELETE FROM disclosure_observations WHERE run_id = ?", (run_id,))
+        conn.execute("DELETE FROM addon_observations WHERE run_id = ?", (run_id,))
+        conn.execute("DELETE FROM urgency_observations WHERE run_id = ?", (run_id,))
+        conn.execute("DELETE FROM total_reconciliations WHERE run_id = ?", (run_id,))
+        conn.execute("DELETE FROM stage_captures WHERE run_id = ?", (run_id,))
+
+        # 2. Reconcile and insert totals if present
+        is_reconciled = False
+        if totals:
+            subtotal_minor = totals.get("subtotal_minor", 0)
+            charges_minor = totals.get("charges_minor", 0)
+            taxes_minor = totals.get("taxes_minor", 0)
+            discounts_minor = totals.get("discounts_minor", 0)
+            final_payable_minor = totals.get("final_payable_minor", 0)
+
+            is_reconciled, _, detail = reconcile_totals(
+                subtotal_minor=subtotal_minor,
+                charges_minor=charges_minor,
+                taxes_minor=taxes_minor,
+                discounts_minor=discounts_minor,
+                final_payable_minor=final_payable_minor,
+            )
+            calculated = detail["calculated_final_payable_minor"]
+            rec_id = f"rec_{uuid.uuid4().hex[:12]}"
+            conn.execute(
+                """
+                INSERT INTO total_reconciliations (
+                    id, run_id, subtotal_minor, charges_minor, taxes_minor, discounts_minor,
+                    final_payable_minor, calculated_payable_minor, is_reconciled
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (rec_id, run_id, subtotal_minor, charges_minor, taxes_minor, discounts_minor, final_payable_minor, calculated, int(is_reconciled)),
+            )
+            if not is_reconciled and outcome == "ok":
+                outcome = "extraction_inconsistent"
+
+        # 3. Update run record
+        now = utc_now()
+        conn.execute(
+            """
+            UPDATE runs
+            SET provider_run_id = coalesce(?, provider_run_id),
+                provider_status = coalesce(?, provider_status),
+                outcome = ?,
+                observed = ?,
+                profile_state_verified = ?,
+                finished_at = ?
+            WHERE id = ?
+            """,
+            (
+                provider_run_id,
+                provider_status,
+                outcome,
+                json.dumps(observed) if observed else None,
+                int(profile_state_verified),
+                now,
+                run_id,
+            ),
+        )
+
+        # 4. Insert Stage Captures
+        for sc in stage_captures:
+            cap_id = f"cap_{uuid.uuid4().hex[:12]}"
+            conn.execute(
+                """
+                INSERT INTO stage_captures (
+                    id, run_id, step_name, step_index, provider_step_id, capture_status, inspection_status, snapshot_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    cap_id,
+                    run_id,
+                    sc.get("step_name", "product"),
+                    sc.get("step_index", 1),
+                    sc.get("provider_step_id"),
+                    sc.get("capture_status", "verified"),
+                    sc.get("inspection_status", "inspected"),
+                    sc.get("snapshot_id"),
+                ),
+            )
+
+        # 5. Insert Charges
+        for idx, c in enumerate(charges):
+            obs_id = f"chg_{uuid.uuid4().hex[:12]}"
+            conn.execute(
+                """
+                INSERT INTO charge_observations (
+                    id, run_id, stage_capture_id, step_index, label, canonical_label, amount_minor, currency, step, mandatory
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    obs_id,
+                    run_id,
+                    c.get("stage_capture_id"),
+                    idx + 1,
+                    c.get("label", ""),
+                    c.get("canonical_label") or canonicalize_label(c.get("label", "")),
+                    int(c.get("amount_minor", 0)),
+                    c.get("currency", "INR"),
+                    c.get("step", "checkout_summary"),
+                    c.get("mandatory", "yes"),
+                ),
+            )
+
+        # 6. Insert Disclosures
+        for d in disclosures:
+            obs_id = f"disc_{uuid.uuid4().hex[:12]}"
+            conn.execute(
+                """
+                INSERT INTO disclosure_observations (
+                    id, run_id, stage_capture_id, charge_label, step, state, visible_text, amount_minor, condition_text
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    obs_id,
+                    run_id,
+                    d.get("stage_capture_id"),
+                    d.get("charge_label", ""),
+                    d.get("step", "checkout_summary"),
+                    d.get("state", "observed"),
+                    d.get("visible_text"),
+                    d.get("amount_minor"),
+                    d.get("condition_text"),
+                ),
+            )
+
+        # 7. Insert Addons
+        for a in addons:
+            obs_id = f"add_{uuid.uuid4().hex[:12]}"
+            conn.execute(
+                """
+                INSERT INTO addon_observations (
+                    id, run_id, stage_capture_id, label, amount_minor, default_selected, user_modified, in_total, step
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    obs_id,
+                    run_id,
+                    a.get("stage_capture_id"),
+                    a.get("label", ""),
+                    a.get("amount_minor", 0),
+                    int(a.get("default_selected", True)),
+                    int(a.get("user_modified", False)),
+                    int(a.get("in_total", True)),
+                    a.get("step", "cart"),
+                ),
+            )
+
+        # 8. Insert Urgencies
+        for u in urgencies:
+            obs_id = f"urg_{uuid.uuid4().hex[:12]}"
+            conn.execute(
+                """
+                INSERT INTO urgency_observations (
+                    id, run_id, stage_capture_id, text, type, claimed_deadline, observed_seconds_remaining, step
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    obs_id,
+                    run_id,
+                    u.get("stage_capture_id"),
+                    u.get("text", ""),
+                    u.get("type", "countdown"),
+                    u.get("claimed_deadline"),
+                    u.get("observed_seconds_remaining"),
+                    u.get("step", "product"),
+                ),
+            )
+
+        conn.commit()
+        return is_reconciled, outcome
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
