@@ -174,16 +174,31 @@ class JobRunner:
 
         # 5. Process Step Screenshots, Redact, and Store Snapshots
         snapshot_map = {}  # step_name / step_id / index -> snapshot_id
+        stage_best_priority = {}  # st_name -> priority int
         for step_idx, step in enumerate(poll_data.get("steps", [])):
             step_action = step.get("action", "") or step.get("name", "") or step.get("description", "")
             step_id = step.get("id", "")
+            act_lower = step_action.lower()
 
-            # Identify step name (product, cart, checkout_summary)
+            # Identify step name (checkout_summary, cart, product)
+            # Evaluate checkout/summary before cart so "proceed from cart to checkout" resolves to checkout_summary
             st_name = "product"
-            if "cart" in step_action.lower():
-                st_name = "cart"
-            elif "checkout" in step_action.lower() or "summary" in step_action.lower() or "pay" in step_action.lower():
+            prio = 1
+            if any(k in act_lower for k in ["checkout", "summary", "review", "pay", "order"]):
                 st_name = "checkout_summary"
+                if any(k in act_lower for k in ["summary", "review", "bill", "total"]):
+                    prio = 2
+            elif "cart" in act_lower or "basket" in act_lower:
+                st_name = "cart"
+                # Distinguish an affirmative cart drawer / page view from an "add to cart" click on product page
+                if any(k in act_lower for k in ["drawer", "view cart", "open cart", "your cart", "cart page", "inspect cart", "in cart"]):
+                    prio = 2
+                elif any(k in act_lower for k in ["add to cart", "add_to_cart", "add item"]):
+                    prio = 1
+            else:
+                st_name = "product"
+                if any(k in act_lower for k in ["product", "item", "pincode", "details", "price"]):
+                    prio = 2
 
             raw_bytes = None
             if step.get("screenshot"):
@@ -204,10 +219,22 @@ class JobRunner:
 
             if raw_bytes:
                 snap_id, sha256_hash, path = redact_and_store_screenshot(raw_bytes, run_id, st_name)
-                snapshot_map[st_name] = snap_id
+                # Map specific identifiers first
                 if step_id:
                     snapshot_map[step_id] = snap_id
                 snapshot_map[f"step_{step_idx + 1}"] = snap_id
+                snapshot_map[f"step_{step_idx}"] = snap_id
+                snapshot_map[step_idx + 1] = snap_id
+                snapshot_map[step_idx] = snap_id
+                if step.get("name"):
+                    snapshot_map[step["name"]] = snap_id
+                if step.get("screenshot_ref"):
+                    snapshot_map[step["screenshot_ref"]] = snap_id
+
+                # Update stage name fallback only if equal or higher priority
+                if st_name not in stage_best_priority or prio >= stage_best_priority[st_name]:
+                    stage_best_priority[st_name] = prio
+                    snapshot_map[st_name] = snap_id
 
         # 6. Parse and Validate Local Contract
         run_outcome = result_dict.get("status", "ok")
@@ -226,6 +253,9 @@ class JobRunner:
         obs_pin = observed.get("pincode")
         if req_pin and obs_pin and req_pin != obs_pin:
             run_outcome = "condition_not_applied"
+
+        # Ensure observation idempotency on retries / lease recovery
+        crud.clear_run_observations(run_id)
 
         # Reconcile Monetary Totals
         is_reconciled = False
@@ -255,10 +285,11 @@ class JobRunner:
         for sc in result_dict.get("stage_captures", []):
             st_name = sc.get("step_name", "product")
             snap_id = (
-                snapshot_map.get(st_name)
+                snapshot_map.get(sc.get("screenshot_ref"))
                 or snapshot_map.get(sc.get("provider_step_id"))
-                or snapshot_map.get(sc.get("screenshot_ref"))
+                or snapshot_map.get(st_name)
                 or snapshot_map.get(f"step_{sc.get('step_index')}")
+                or snapshot_map.get(sc.get("step_index"))
             )
             crud.create_stage_capture(
                 run_id=run_id,
@@ -320,10 +351,11 @@ class JobRunner:
             for sc in result_dict.get("stage_captures", []):
                 sc_copy = dict(sc)
                 sc_copy["snapshot_id"] = (
-                    snapshot_map.get(sc_copy.get("step_name"))
+                    snapshot_map.get(sc_copy.get("screenshot_ref"))
                     or snapshot_map.get(sc_copy.get("provider_step_id"))
-                    or snapshot_map.get(sc_copy.get("screenshot_ref"))
+                    or snapshot_map.get(sc_copy.get("step_name"))
                     or snapshot_map.get(f"step_{sc_copy.get('step_index')}")
+                    or snapshot_map.get(sc_copy.get("step_index"))
                 )
                 merged_stage_captures.append(sc_copy)
 

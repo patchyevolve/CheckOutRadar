@@ -548,6 +548,21 @@ def insert_reconciliation(
         conn.close()
 
 
+def clear_run_observations(run_id: str) -> None:
+    """Idempotently clear existing observations, reconciliations, and stage captures for a run before repopulating."""
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM charge_observations WHERE run_id = ?", (run_id,))
+        conn.execute("DELETE FROM disclosure_observations WHERE run_id = ?", (run_id,))
+        conn.execute("DELETE FROM addon_observations WHERE run_id = ?", (run_id,))
+        conn.execute("DELETE FROM urgency_observations WHERE run_id = ?", (run_id,))
+        conn.execute("DELETE FROM total_reconciliations WHERE run_id = ?", (run_id,))
+        conn.execute("DELETE FROM stage_captures WHERE run_id = ?", (run_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 # -------------------------------------------------------------
 # Diffs & Findings
 # -------------------------------------------------------------
