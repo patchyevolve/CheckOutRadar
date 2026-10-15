@@ -265,10 +265,14 @@ def generate_html_report(
                 tag = "[Screenshot Verified]"
                 tag_bg = "#166534"
                 rationale = "Tax-inclusive GST charges verified in checkout summary."
-            elif amt == 0 and mandatory == "no":
+            elif "delivery" in lbl_lower or "shipping" in lbl_lower:
                 tag = "[Screenshot Verified]"
                 tag_bg = "#166534"
-                rationale = "Optional add-on unchecked / 0-charge verified."
+                rationale = "Free delivery line item confirmed in stage viewport."
+            elif amt == 0:
+                tag = "[Inferred]"
+                tag_bg = "#475569"
+                rationale = "Inferred: absent from payable total; no explicit UI option or disclosure observed in viewport."
             else:
                 tag = "[Screenshot Verified]"
                 tag_bg = "#166534"
@@ -383,9 +387,10 @@ def generate_html_report(
 
     <h2>2. Evidence Contract & Stage Provenance</h2>
     <p style="font-size: 0.9em; color: #64748b;">
-        Checkout Radar enforces an explicit Evidence Contract to distinguish between directly verified pixels, DOM extractions, and out-of-scope boundaries:
+        Checkout Radar enforces an explicit Evidence Contract to distinguish between directly verified pixels, DOM extractions, inferred deductions, and out-of-scope boundaries:
         <span style="background: #166534; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; font-weight: bold;">[Screenshot Verified]</span> Direct pixel confirmation in captured stage viewports &nbsp;|&nbsp;
         <span style="background: #4338ca; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; font-weight: bold;">[DOM Extracted]</span> Elements parsed from merchant DOM / modal drawers &nbsp;|&nbsp;
+        <span style="background: #475569; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; font-weight: bold;">[Inferred]</span> Deductions from payable total absence; no visible UI text &nbsp;|&nbsp;
         <span style="background: #d97706; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; font-weight: bold;">[Uninspected Flow]</span> External gateways / paths outside non-destructive boundary
     </p>
 
