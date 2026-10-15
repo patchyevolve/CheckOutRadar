@@ -147,7 +147,6 @@ def load_ccpa_definitions() -> Dict[str, Any]:
         "/data/ccpa_definitions.json",
         "/app/data/ccpa_definitions.json",
         str(Path(__file__).resolve().parent.parent.parent.parent / "data" / "ccpa_definitions.json"),
-        "/home/daksh/working/checkout-radar/data/ccpa_definitions.json",
     ]
     for c in candidates:
         if c and Path(c).exists():

@@ -54,7 +54,9 @@ def on_startup():
 
 
 # Mount frontend static files and serve dashboard at root
-FRONTEND_DIR = os.getenv("FRONTEND_DIR", "/home/daksh/working/checkout-radar/frontend")
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_DEFAULT_FRONTEND = str(_REPO_ROOT / "frontend") if (_REPO_ROOT / "frontend").exists() else "/app/frontend"
+FRONTEND_DIR = os.getenv("FRONTEND_DIR", _DEFAULT_FRONTEND)
 if os.path.exists(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
@@ -414,7 +416,7 @@ def get_provider_calls(audit_id: str):
 
 @app.get("/health")
 def health_check():
-    mock_mode = os.getenv("MOCK_TINYFISH", "false").lower() in ["true", "1", "yes"]
+    mock_mode = os.getenv("MOCK_TINYFISH", "true").lower() in ["true", "1", "yes"]
     return {
         "status": "healthy",
         "service": "checkout-radar-api",

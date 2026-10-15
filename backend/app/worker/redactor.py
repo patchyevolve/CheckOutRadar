@@ -36,7 +36,6 @@ def get_evidence_dir() -> Path:
         os.getenv("EVIDENCE_DIR"),
         "/app/data/evidence",
         str(Path(__file__).resolve().parent.parent.parent.parent / "data" / "evidence"),
-        "/home/daksh/working/checkout-radar/data/evidence",
     ]
     for c in candidates:
         if c:

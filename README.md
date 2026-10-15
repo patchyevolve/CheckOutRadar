@@ -3,7 +3,7 @@
 > **Outside-In Checkout Flow Auditor & CCPA Dark Pattern Detector**  
 > *AZINHACK 2026 Submission* · Team of 4
 
-[![CI Tests](https://img.shields.io/badge/tests-40%20passed-brightgreen.svg)]()
+[![CI Tests](https://img.shields.io/badge/tests-76%20passed-brightgreen.svg)]()
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)]()
 [![Docker Compose](https://img.shields.io/badge/docker--compose-ready-blue.svg)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)]()
@@ -167,42 +167,152 @@ All audit runs preserve empirical, timestamped evidence:
 
 ---
 
-## 7. Quickstart Guide
+## 7. Judge-Ready Quickstart Guide
 
-### Option A: One-Command Docker Compose (Recommended)
+Checkout Radar features a **one-command, cross-platform launcher** supporting Linux, macOS, and Windows. A fresh checkout runs the full audit pipeline in **deterministic offline mock mode by default**—requiring zero external API keys, zero LLM provider credits, and zero live merchant access.
 
-1. Clone repository and set up environment:
-   ```bash
-   cp .env.example .env
-   # .env comes preconfigured with TINYFISH_API_KEY
-   ```
+### Prerequisites
+- **Docker Engine & Docker Compose** (v2.20+ recommended or Docker Desktop).
+- Git.
 
-2. Start all services:
-   ```bash
-   docker compose up --build
-   ```
+---
 
-3. Open your browser:
-   - **Auditor Dashboard:** [http://localhost:8000](http://localhost:8000)
-   - **Demo Merchant Harness:** [http://localhost:8001](http://localhost:8001)
-   - **Interactive API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+### 7.1 Single Launch Command
 
-### Option B: Local Python Execution
+Clone the repository and run the launcher for your operating system:
 
 ```bash
-# Set up virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r backend/requirements.txt
+# Clone the repository
+git clone https://github.com/your-org/checkout-radar.git
+cd checkout-radar
+```
 
-# Run test suite (44 tests)
-cd backend && pytest -v
+| Operating System | Command | Fallback / Direct CLI |
+|---|---|---|
+| **Linux & macOS** | `./start.sh` | `python3 scripts/launcher.py` |
+| **Windows (CMD / PowerShell)** | `start.cmd` | `python scripts\launcher.py` |
+| **Direct Docker Compose** | `docker compose up --build -d` | `docker compose up` |
 
-# Run evaluation benchmark
-cd .. && python3 evaluation/run_evaluation.py
+#### What the Launcher Does Automatically
+1. **Pre-Flight Diagnostics:** Verifies that Docker is installed, the daemon is active, and Compose is available.
+2. **Zero-Configuration Environment:** If no `.env` file exists, automatically initializes one from `.env.example` with `MOCK_TINYFISH=true`.
+3. **Container Build & Orchestration:** Builds and starts the 3 core services:
+   - `harness`: 5-variant reproducible merchant server.
+   - `api`: FastAPI backend, SSE stream engine, and static dashboard.
+   - `worker`: Durable job daemon with monotonic lease fencing.
+4. **Healthcheck Synchronization:** Polls service health endpoints until all containers report `healthy`.
+5. **Dynamic Port Discovery:** Resolves mapped host ports automatically (handles custom or overridden ports without hardcoding).
+6. **Automatic Browser Launch:** Opens the Auditor Dashboard in your default browser once the service is confirmed ready.
 
-# Run backend API
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --app-dir backend
+---
+
+### 7.2 Service Endpoints
+
+Once initialized, the services are available at:
+
+| Component | Default URL | Description |
+|---|---|---|
+| **Auditor Dashboard** | [http://localhost:8000](http://localhost:8000) | Full visual auditing dashboard, 3-stage screenshot gallery, and diffs. |
+| **Demo Merchant Harness** | [http://localhost:8001](http://localhost:8001) | Controlled e-commerce store exhibiting the 5 behavioral variants. |
+| **Interactive API Docs** | [http://localhost:8000/docs](http://localhost:8000/docs) | Swagger/OpenAPI documentation for all REST endpoints. |
+| **Health Check** | [http://localhost:8000/health](http://localhost:8000/health) | Real-time service status, mock mode indicator, and key detection. |
+
+*(Note: If port 8000 or 8001 is already bound, set `API_PORT` or `HARNESS_PORT` in `.env` or use `./start.sh`, which automatically detects dynamic port bindings).*
+
+---
+
+### 7.3 How to Run a Demonstration Audit (Judge Walkthrough)
+
+1. **Launch an Adversarial Audit (Drip Pricing Positive Control):**
+   - In the **Launch Checkout Audit** card, click the **`2. Late Handling Fee`** preset button (sets URL to `http://harness:8001/variant/late_disclosure`).
+   - Click **`Start Multi-Condition Audit`**.
+   - Watch the real-time **SSE Audit Progress Console** as 4 controlled condition runs execute.
+   - **Observe Outcome:** The **Assessment Banner** turns red (`INDICATORS DETECTED`), flagging a **Drip Pricing** indicator where a mandatory ₹5.00 Handling Fee was concealed until checkout.
+   - **Inspect Evidence Gallery:** Review the 3-stage visual viewports (Product, Cart Drawer, Checkout Summary). Click **`🔍 Full Resolution`** on any card to inspect the lightbox modal showing the full capture and immutable SHA-256 cryptographic digest.
+   - **Condition Run Selector:** Use the dropdown above the gallery to switch between the Reference run and alternate Pincode/Cart Tier variants.
+   - **Inspect Diff Matrix:** Review the `LATE_DISCLOSURE` matched-pair differential evidence card.
+
+2. **Launch a Clean Upfront Audit (Negative Control):**
+   - Click the **`1. Clean Upfront`** preset button (sets URL to `http://harness:8001/variant/clean`).
+   - Click **`Start Multi-Condition Audit`**.
+   - **Observe Outcome:** The Assessment Banner turns green (`VERIFIED CLEAN (UNDER TESTED FLOW)`), confirming zero dark patterns detected under the tested boundary.
+
+3. **Export Standalone Evidence Report:**
+   - Click the **`📄 HTML Evidence Report`** button in the Active Audit card.
+   - Inspect the standalone report featuring CCPA legal citations, SHA-256 cryptographic hashes, and clickable `/evidence/{filename}` screenshot artifacts.
+
+4. **Generate CCPA Grievance Draft:**
+   - Click **`⚖️ CCPA Complaint Draft`** to generate a formatted consumer grievance report ready for filing with consumer protection authorities (labeled Draft Only; never auto-submitted).
+
+---
+
+### 7.4 Stopping the Application
+
+To cleanly tear down running containers:
+
+```bash
+# Linux & macOS
+./stop.sh
+
+# Windows
+stop.cmd
+
+# Or using Docker Compose directly
+docker compose down
+```
+
+---
+
+### 7.5 Troubleshooting & Common Scenarios
+
+- **Docker daemon is not running:**
+  - *Linux:* Run `sudo systemctl start docker` (and optionally `sudo usermod -aG docker $USER`).
+  - *macOS / Windows:* Launch Docker Desktop and wait until the whale icon shows "Engine running".
+- **Port Conflict (Port 8000 or 8001 in use):**
+  - Run with custom ports via environment variables:
+    ```bash
+    API_PORT=8080 HARNESS_PORT=8081 ./start.sh
+    ```
+- **Headless / Remote Server (No GUI / SSH):**
+  - Pass `--no-browser` to suppress automatic browser launching:
+    ```bash
+    ./start.sh --no-browser
+    ```
+- **Inspecting Container Logs:**
+  - View live or tail logs directly:
+    ```bash
+    ./start.sh --logs
+    # or
+    docker compose logs -f api worker
+    ```
+- **Checking Service Status:**
+  ```bash
+  ./start.sh --status
+  # or
+  docker compose ps
+  ```
+
+---
+
+### 7.6 Verification & Test Suites
+
+Checkout Radar includes a comprehensive, 100% reproducible test and verification suite requiring **zero external API calls**:
+
+```bash
+# 1. Local Pytest Suite (76 tests across 13 modules)
+pytest backend/tests/ -v
+
+# 2. Docker Isolated Pytest Suite
+docker compose run --rm api pytest tests/
+
+# 3. Three-Flow Demonstration Verification (Synthetic Positive, Clean Negative, Inconclusive Fail-Closed)
+python3 scripts/verify_demo_flows.py
+
+# 4. Automated Browser Interaction & Lightbox CDP Verification
+python3 scripts/verify_ui_interaction.py
+
+# 5. Dedicated Security & Secret Scanner (59 files + full git history)
+python3 scripts/scan_secrets.py
 ```
 
 ---

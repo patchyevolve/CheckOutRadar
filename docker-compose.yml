@@ -8,6 +8,12 @@ services:
     ports:
       - "127.0.0.1:${HARNESS_PORT:-8001}:8001"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8001/variant/clean >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
 
   # Backend REST API + SSE Progress Stream + Dashboard Static UI
   api:
@@ -23,13 +29,22 @@ services:
       - ./data/ccpa_definitions.json:/data/ccpa_definitions.json:ro
       - ./evaluation:/evaluation:ro
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       - SQLITE_DB_PATH=/app/data/checkout_radar.db
       - EVIDENCE_DIR=/app/data/evidence
       - FRONTEND_DIR=/app/frontend
+      - MOCK_TINYFISH=${MOCK_TINYFISH:-true}
     depends_on:
-      - harness
+      harness:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8000/health >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     restart: unless-stopped
 
   # Durable Job Worker Daemon with Lease Recovery
@@ -44,11 +59,14 @@ services:
       - ./data/ccpa_definitions.json:/data/ccpa_definitions.json:ro
       - ./evaluation:/evaluation:ro
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       - SQLITE_DB_PATH=/app/data/checkout_radar.db
       - EVIDENCE_DIR=/app/data/evidence
       - WORKER_ID=compose_worker_1
+      - MOCK_TINYFISH=${MOCK_TINYFISH:-true}
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     restart: unless-stopped

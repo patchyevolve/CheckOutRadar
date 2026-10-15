@@ -17,7 +17,6 @@ def get_ground_truth_path() -> Path:
         Path(__file__).parent.parent.parent / "evaluation" / "ground_truth.json",
         Path("/evaluation/ground_truth.json"),
         Path("/app/evaluation/ground_truth.json"),
-        Path("/home/daksh/working/checkout-radar/evaluation/ground_truth.json"),
     ]
     for c in candidates:
         if c.exists():

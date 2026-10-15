@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_adapter(url: Optional[str] = None) -> TinyFishAdapter:
-    mock_mode = os.getenv("MOCK_TINYFISH", "false").lower() in ["true", "1", "yes"]
+    mock_mode = os.getenv("MOCK_TINYFISH", "true").lower() in ["true", "1", "yes"]
     api_key = os.getenv("TINYFISH_API_KEY", "")
     is_local = bool(url and any(h in url for h in ["harness", "localhost", "127.0.0.1", "testserver"]))
     if mock_mode or not api_key or is_local:
