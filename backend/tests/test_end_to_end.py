@@ -244,3 +244,116 @@ def test_full_pipeline_inconclusive_blocked_by_login():
     assert "AUDIT INCONCLUSIVE" in draft["draft_text"]
 
 
+def test_full_pipeline_incomplete_provider_run_remains_inconclusive():
+    """
+    Controlled regression test:
+    When a provider run completes with 0 dark pattern indicators, but is missing
+    the required 'checkout_summary' stage (or has 0 stage captures), it must NOT
+    be certified as clean. It MUST evaluate as inconclusive across pipeline assessment,
+    HTML report generation, and complaint drafts.
+    """
+    from app.analysis.detectors import assess_audit_outcome
+
+    audit_id = crud.create_audit(
+        input_url="http://harness:8001/variant/incomplete_flow",
+        merchant="Incomplete Merchant",
+        preset="single",
+    )
+    conditions = expand_matrix(audit_id, preset="single")
+
+    # Mock adapter simulating a run that inspected 'product' but halted before 'checkout_summary'
+    class IncompleteMockAdapter(MockTinyFishClient):
+        def poll_agent_run(self, provider_run_id, audit_id, run_id=None):
+            req_at = "2026-10-15T10:00:00Z"
+            return {
+                "run_id": provider_run_id,
+                "status": "COMPLETED",
+                "goal": "checkout",
+                "created_at": req_at,
+                "finished_at": req_at,
+                "num_of_steps": 2,
+                "result": {
+                    "status": "ok",
+                    "requested": {"session": "fresh", "cart_tier": "above_threshold"},
+                    "observed": {"subtotal_minor": 199900, "currency": "INR"},
+                    "stage_captures": [
+                        {
+                            "step_name": "product",
+                            "step_index": 0,
+                            "capture_status": "verified",
+                            "inspection_status": "inspected",
+                            "snapshot_id": "snap_test_prod",
+                        }
+                    ],
+                    "charges": [],
+                    "disclosures": [],
+                    "totals": {
+                        "subtotal_minor": 199900,
+                        "charges_minor": 0,
+                        "taxes_minor": 0,
+                        "discounts_minor": 0,
+                        "final_payable_minor": 199900,
+                        "currency": "INR",
+                    },
+                },
+                "steps": [],
+            }
+
+    runner = JobRunner(worker_id="incomplete_worker", adapter=IncompleteMockAdapter())
+    while runner.run_one_cycle():
+        pass
+
+    # 1. Zero dark pattern findings were detected by rules
+    findings = crud.get_findings_for_audit(audit_id)
+    assert len(findings) == 0
+
+    audit = crud.get_audit(audit_id)
+    diffs = crud.get_diffs_for_audit(audit_id)
+    calls = crud.get_provider_calls_for_audit(audit_id)
+
+    # 2. Pipeline assessment MUST return status: inconclusive, is_clean: False, is_inconclusive: True
+    runs = []
+    conn = connection.get_connection()
+    try:
+        run_rows = conn.execute(
+            "SELECT r.* FROM runs r JOIN conditions c ON r.condition_id = c.id WHERE c.audit_id = ?",
+            (audit_id,),
+        ).fetchall()
+        for r in run_rows:
+            rd = dict(r)
+            run_id = rd["id"]
+            rd["stage_captures"] = [dict(sc) for sc in conn.execute("SELECT * FROM stage_captures WHERE run_id = ?", (run_id,)).fetchall()]
+            rd["charges"] = [dict(c) for c in conn.execute("SELECT * FROM charge_observations WHERE run_id = ?", (run_id,)).fetchall()]
+            rd["disclosures"] = [dict(d) for d in conn.execute("SELECT * FROM disclosure_observations WHERE run_id = ?", (run_id,)).fetchall()]
+            rd["urgency_indicators"] = [dict(u) for u in conn.execute("SELECT * FROM urgency_observations WHERE run_id = ?", (run_id,)).fetchall()]
+            runs.append(rd)
+    finally:
+        conn.close()
+
+    assessment = assess_audit_outcome(runs=runs, findings=findings, diffs=diffs)
+    assert assessment["status"] == "inconclusive"
+    assert assessment["is_clean"] is False
+    assert assessment["is_inconclusive"] is True
+    assert any("checkout_summary" in reason for reason in assessment["inconclusive_reasons"])
+
+    # 3. HTML report MUST display INCONCLUSIVE AUDIT badge and exclude any clean assertion
+    html = generate_html_report(
+        audit=audit,
+        conditions=conditions,
+        diffs=diffs,
+        findings=findings,
+        provider_calls=calls,
+        runs=runs,
+    )
+    assert "INCONCLUSIVE AUDIT" in html
+    assert "VERIFIED CLEAN" not in html
+    assert "Verified Clean Flow" not in html
+    assert "Inconclusive Flow: Evidence incomplete or obstructed" in html
+    assert "checkout_summary" in html
+
+    # 4. Complaint draft must reflect inconclusive status
+    draft = generate_complaint_draft(audit=audit, findings=findings, diffs=diffs, runs=runs)
+    assert "AUDIT INCONCLUSIVE" in draft["draft_text"]
+
+
+
