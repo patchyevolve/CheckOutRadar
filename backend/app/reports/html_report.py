@@ -190,10 +190,10 @@ def generate_html_report(
             amt = d.get("amount_minor")
             txt = d.get("visible_text") or d.get("condition_text") or ""
 
-            dedup_key = (lbl, step, amt, txt)
-            if dedup_key in seen_contract:
+            norm_key = (str(lbl).lower().strip().replace("_", " "), step)
+            if norm_key in seen_contract:
                 continue
-            seen_contract.add(dedup_key)
+            seen_contract.add(norm_key)
 
             amt_str = f"₹{amt/100:,.2f}" if amt is not None else "-"
             stage_display = {
@@ -244,10 +244,10 @@ def generate_html_report(
             amt = c.get("amount_minor")
             mandatory = c.get("mandatory", "yes")
 
-            dedup_key = (lbl, step, amt, "")
-            if dedup_key in seen_contract:
+            norm_key = (str(lbl).lower().strip().replace("_", " "), step)
+            if norm_key in seen_contract:
                 continue
-            seen_contract.add(dedup_key)
+            seen_contract.add(norm_key)
 
             amt_str = f"₹{amt/100:,.2f}" if amt is not None else "-"
             stage_display = {
@@ -257,7 +257,11 @@ def generate_html_report(
             }.get(step, step.replace("_", " ").title())
 
             lbl_lower = str(lbl).lower()
-            if "tax" in lbl_lower or "gst" in lbl_lower:
+            if "cod" in lbl_lower or "cash on delivery" in lbl_lower:
+                tag = "[DOM Extracted (Unexpanded)]"
+                tag_bg = "#4338ca"
+                rationale = "Disclosed in merchant DOM (&lt;x-drawer id=\"cod-charges\"&gt;); unselected at checkout (prepaid/card active)."
+            elif "tax" in lbl_lower or "gst" in lbl_lower:
                 tag = "[Screenshot Verified]"
                 tag_bg = "#166534"
                 rationale = "Tax-inclusive GST charges verified in checkout summary."

@@ -70,13 +70,13 @@ The Central Consumer Protection Authority (CCPA) /
 National Consumer Helpline (NCH), Department of Consumer Affairs,
 Government of India.
 
-SUBJECT: Notice of Potential Dark Pattern Practices Observed on {merchant} (Audit Ref: {audit_id})
+SUBJECT: Notice of Potential Dark Pattern Candidate Indicators Observed on {merchant} (Audit Ref: {audit_id})
 
 Respected Authority,
 
 I am writing to submit empirical, timestamped evidence regarding checkout transparency practices observed during an audit of the online checkout process on {merchant} ({audit.get('input_url')}) on {date_str}.
 
-In accordance with the Guidelines for Prevention and Regulation of Dark Patterns, 2023, notified by the CCPA under Section 18 of the Consumer Protection Act, 2019, the following potential indicators were identified:
+In accordance with the Guidelines for Prevention and Regulation of Dark Patterns, 2023, notified by the CCPA under Section 18 of the Consumer Protection Act, 2019, the following potential candidate indicators were observed for technical review:
 
 SUMMARY OF EMPIRICAL FINDINGS:
 {findings_text or 'No dark pattern indicators observed during audit.'}
@@ -87,8 +87,8 @@ AUDIT METHODOLOGY & CONTROLS:
 - Monetary figures reconciled in minor units.
 - Matched-pair differential auditing was utilized to isolate independent variables and rule differences from baseline charges.
 
-DECLARATION:
-This document is a technical audit summary prepared for consumer awareness and regulatory review. The submitter notes that these findings reflect potential indicators recorded at the time of observation and requests appropriate review under applicable CCPA guidelines.
+DECLARATION & NON-ADJUDICATIVE NOTICE:
+This document is a technical audit summary prepared for consumer informational purposes and regulatory review. The submitter notes that these findings reflect potential candidate indicators recorded by automated observation and do not constitute a legal finding, judicial ruling, administrative adjudication, or formal determination of statutory non-compliance or illegal practice by the merchant. Any legal determination of an unlawful dark pattern remains solely within the jurisdiction of the CCPA or competent statutory authorities.
 
 Audit Reference: {audit_id}
 Generated on: {audit.get('created_at')}
@@ -99,6 +99,6 @@ Generated on: {audit.get('created_at')}
         "merchant": merchant,
         "is_draft": True,
         "auto_submitted": False,
-        "subject": f"Notice of Potential Dark Pattern Practices on {merchant}",
+        "subject": f"Notice of Potential Dark Pattern Candidate Indicators on {merchant}",
         "draft_text": draft_text.strip(),
     }
