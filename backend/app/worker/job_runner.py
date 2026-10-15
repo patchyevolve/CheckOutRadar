@@ -77,7 +77,7 @@ class JobRunner:
 
         try:
             self._process_job(job)
-            crud.complete_job(job_id, worker_id=self.worker_id)
+            crud.complete_job(job_id, worker_id=self.worker_id, lease_expires_at=job.get("lease_expires_at"))
             self._check_and_finalize_audit(audit_id)
             return True
         except Exception as e:

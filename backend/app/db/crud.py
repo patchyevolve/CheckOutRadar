@@ -257,11 +257,21 @@ def claim_next_job(worker_id: str, lease_duration_seconds: int = 120) -> Optiona
         conn.close()
 
 
-def complete_job(job_id: str, worker_id: Optional[str] = None) -> bool:
-    """Complete a job, verifying lease ownership if worker_id is provided."""
+def complete_job(
+    job_id: str,
+    worker_id: Optional[str] = None,
+    lease_expires_at: Optional[str] = None,
+) -> bool:
+    """Complete a job, verifying lease ownership and fencing timestamp if provided."""
     conn = get_connection()
     try:
-        if worker_id:
+        if worker_id and lease_expires_at:
+            cursor = conn.execute(
+                "UPDATE jobs SET state = 'done', lease_expires_at = NULL WHERE id = ? AND lease_owner = ? AND lease_expires_at = ?",
+                (job_id, worker_id, lease_expires_at),
+            )
+            success = cursor.rowcount > 0
+        elif worker_id:
             cursor = conn.execute(
                 "UPDATE jobs SET state = 'done', lease_expires_at = NULL WHERE id = ? AND lease_owner = ?",
                 (job_id, worker_id),
