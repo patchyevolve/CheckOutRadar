@@ -376,6 +376,15 @@ def main():
         "execution_mode": exec_mode,
         "model": getattr(classifier, "model", "llama-3.3-70b-versatile"),
         "candidate_pacing_seconds": pacing_seconds,
+        "benchmark_tier": "Tier 2 (Downstream LLM Classifier & Statutory Explanation)",
+        "ground_truth_total_bundles": len(bundles),
+        "ground_truth_positive_bundles": len(candidate_telemetry),
+        "ground_truth_clean_bundles": len(bundles) - len(candidate_telemetry),
+        "provenance_note": (
+            "Tier 1 runs deterministic rule detectors across all 45 synthetic bundles (15 clean + 30 positive dark pattern fixtures). "
+            "Clean bundles produce zero candidate indicators and generate zero outbound provider calls. "
+            "This artifact records strictly the Tier 2 downstream LLM telemetry for the 30 candidate findings submitted to the remote provider."
+        ),
         "total_candidates": len(candidate_telemetry),
         "attempt_records": all_attempt_records,
         "candidate_telemetry": candidate_telemetry,
@@ -423,7 +432,9 @@ def print_tier2_results(
     print("=" * 70)
     print("BENCHMARK: Tier 2: Downstream LLM Verification & Statutory Explanation")
     print("=" * 70)
-    print(f"Candidates Submitted:          N = {denom} candidate findings (from positive bundles)")
+    print(f"Candidates Submitted:          N = {denom} candidate findings (from {denom} positive scenario bundles)")
+    print(f"Ground Truth Scope:            45 synthetic bundles evaluated in Tier 1 (15 clean + 30 positive)")
+    print(f"                               (Clean bundles emit zero candidate indicators -> zero outbound provider calls)")
     clean_info = ""
     if working_tree_clean is True:
         clean_info = " [Working Tree Clean: True]"

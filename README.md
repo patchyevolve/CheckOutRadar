@@ -67,7 +67,7 @@ Changing cart quantity moves total value without altering unit prices. Checkout 
 3. **Monetary Reconciliation in Integer Minor Units:** Every extraction is checked against:  
    $$\text{Subtotal} + \text{Charges} + \text{Taxes} - \text{Discounts} = \text{Final Payable}$$  
    If the equation fails, the run outcome is flagged `extraction_inconsistent` and excluded from diffs.
-4. **Append-Only Evidence Store:** Step screenshots are redacted for privacy (PII masking), saved to disk, and verified with an immutable SHA-256 hash.
+4. **Append-Only Evidence Store & Privacy Redaction:** Step screenshots are redacted for privacy (solid bottom-5% mask by default for sticky cookie/footer bars, with optional targeted bounding-box redaction for form fields), saved to disk, and verified with an immutable SHA-256 hash. *Architectural Audit Finding:* Fixed bottom-5% masking protects footers but leaves middle/upper form fields unmasked; targeted coordinate bounding boxes or full OCR pipelines are required for form-level PII.
 
 ---
 
@@ -118,52 +118,45 @@ Note: Reflects deterministic regression conformance on designed test cases; does
 ```
 
 ### Tier 2: Downstream LLM Verification, Semantic Guardrails & Statutory Explanation
-The LLM does not alter detection boundaries; candidate indicators are strictly produced upstream by the deterministic diff engine. The LLM's downstream role is to map candidates to official CCPA Gazette definitions and draft consumer grievances in structured JSON.
+The LLM does not alter detection boundaries; candidate indicators are strictly produced upstream by the deterministic diff engine. Only candidate findings from positive scenario bundles are queued for downstream classification ($N = 30$ candidates; the 15 clean bundles emit zero candidate indicators and zero outbound provider requests).
 
-- **Non-Judicial Semantic Output Guard:** Intercepts and rejects raw LLM outputs containing definitive adjudicative or legalistic declarations (e.g., "merchant is guilty of fraud", "committed an illegal deceptive act", "violated consumer law", "conduct is unlawful", "found culpable"), while shielding legitimate non-judicial disclaimers (e.g., "does not constitute a legal determination that merchant violated consumer law").
-- **Evidence Grounding Validation:**
-  - Fee absence assertions strictly require a `not_observed_verified` disclosure record from upfront stages; unverified or unknown disclosures preserve uncertainty without generating false claims.
-  - Invented monetary amounts not present in candidate items or observations are rejected.
-  - Invented evidence IDs not present in the audit's observation index are rejected.
-- **Bounded Retry & Pre-Validated Deterministic Fallback:** Enforces a maximum of 1 corrective retry before reverting to a pre-validated deterministic fallback template conforming strictly to schema, statutory citations, and non-judicial wording. 100% of persisted findings are guaranteed valid.
-- **Auditable Benchmark Telemetry & Failure Taxonomy:**
-  The benchmark runner (`evaluation/run_evaluation.py`) reports metrics with explicit denominators, retry-aware rate limiting, and 3-tier latency tracking, rigorously separating provider-level throttling/errors from raw model quality gates:
-  - *Retry-Aware Request Pacing & Queue Discipline:* Centralized rate-limiter in `LLMClassifier` enforces a minimum 2.0s spacing across **all** outbound provider requests (both initial candidate submissions and corrective retries), preventing retry bursts from exhausting rate limits. `Retry-After` response headers are parsed with a strict cumulative backoff budget capped at $\le 5.0\text{s}$.
-  - *Remote Provider Coverage & Failure Taxonomy (Denominator = Submitted Candidates, N = 30):*
-    1. *Initial Provider Responses:* Submissions successfully returning raw model responses on first attempt: **21 / 30 (70.0%)** (improved from 40.0% without pacing).
-    2. *Initial Provider Failures / Throttling:* Submissions rate-limited or unavailable: **9 / 30 (30.0%)** (handled via safe deterministic fallback).
-    3. *Corrective Retries Attempted:* Bounded retries triggered strictly by invalid model outputs: **3** (0 retries burned on provider throttling).
-    4. *Retry HTTP Responses Received:* HTTP responses returned from provider on retry: **3 / 3 (100.0%)** (0 provider network/rate-limit failures on retry).
-    5. *Retry Responses Accepted by Guard:* Retries passing validation gates: **1 / 3 (33.3%)**.
-    6. *Retry Responses Rejected by Guard:* Unrecovered validation failures routed to fallback: **2 / 3 (66.7%)**.
-    7. *Successful Provider Responses / Total Attempts:* **24 / 33 (72.7%)** across all initial calls and corrective retries (9 requests rate-limited on initial submission; 0 requests rate-limited on retry).
-  - *First-Pass Raw Model Quality Gates (Denominator = Responses Received, N = 21):*
-    8. *First-Pass Schema Validity:* Valid raw responses conforming to `ClassifiedFinding`: **21 / 21 (100.0%)**.
-    9. *First-Pass Non-Judicial Wording:* Raw responses devoid of adjudicative terms: **18 / 21 (85.7%)** (3 caught and flagged for adjudicative wording or missing indicator framing).
-    10. *Raw Model Category Concordance:* Model independently agreed with candidate category before guards: **21 / 21 (100.0%)**.
-    11. *Raw Model Concept-Keyword Coverage:* Raw response cited CCPA statutory vocabulary before guards: **21 / 21 (100.0%)**.
-    12. *Initial Model Validation Failures:* Model responses rejected by guardrails on first pass: **3 / 21 (14.3%)** (intercepted by runtime guardrails).
-  - *Post-Validation Acceptance & Grounding (Denominator = Submitted Candidates, N = 30):*
-    13. *Deterministic Fallbacks Emitted:* Pre-validated template fallbacks invoked: **11 / 30 (36.7%)** (9 provider rate limits, 2 unrecovered validation failures).
-    14. *Final Accepted Outputs:* Total valid findings accepted into the audit store: **30 / 30 (100.0%)**.
-    15. *Evidence Grounding Rate:* Zero ungrounded absence assertions or invented amounts/IDs: **30 / 30 (100.0%)**.
-    16. *Post-Guard Category Preservation:* Accepted category strictly preserves candidate category as an enforced architectural invariant: **30 / 30 (100.0%)**.
-    17. *Post-Guard Pipeline Concept-Keyword Coverage:* Full pipeline accepted outputs (including validated fallbacks) include statutory Gazette keywords: **30 / 30 (100.0%)**.
-    18. *Verification Method:* Regex search against CCPA 2023 Gazette statutory definition terminology sets (Annex 1.8, 1.2, 1.1). Confirms lexical presence of statutory vocabulary, not judicial semantic correctness.
-  - *Three-Dimensional Latency & Execution Profile:*
-    - **Provider HTTP Latency (Individual Successful Network Calls, N = 24):** Sample size: **24 calls** (21 initial responses + 3 retries, including both retry responses rejected by application-level validation; 0 network failures on retry). Average latency: **$\approx 1,265\text{ ms}$ (estimated)** derived from the prior verified 22-response mean ($1,255.1\text{ ms}$) and typical provider retry durations. Median (p50) and 95th percentile (p95) are marked **Unavailable / Pending** fresh live execution with persisted raw observations (data provenance requirement: raw observations must not be reconstructed or fitted).
-    - **Candidate Processing Latency (End-to-End per Candidate, N = 30):** Avg: **5,914.8 ms**, Median: **6,425.8 ms**, p95: **9,533.1 ms** (includes pacing delays, retry loops, validation, and fallback overhead).
-    - **Batch Evaluation Elapsed Duration:** **177.45 s** (~2.95 min) to process all 30 candidate findings sequentially.
-  - *Methodological Scope & Sample Size Disclosure:*
-    - Provider response coverage (21/30) reflects rate-limiting on the tested endpoint during evaluation. This is an empirical constraint of the tested environment, not a theoretical projection.
-    - Raw model quality metrics are calculated strictly over received responses ($N = 21$), representing an empirical sample under provider limits rather than a universal guarantee. Concordance on received responses does not prove universal 100% model accuracy across all possible prompts.
-    - Concept-keyword coverage measures regex inclusion of Gazette statutory terms, not independent human or judicial assessment of legal correctness.
-    - Post-guard category preservation (30/30) and pipeline concept-keyword coverage (30/30) are architectural invariants enforced by deterministic validators and safe template fallbacks.
-    - **Disk Telemetry Persistence & Empirical Provenance:** Every benchmark execution durably persists attempt-level records (candidate ID, attempt number, HTTP outcome, response-received flag, latency ms, validator outcome, and fallback reason) to `evaluation/last_run_telemetry.json`. All reported metrics are calculated directly from this persisted record set via `calculate_metrics_from_records`, and can be audited or re-rendered anytime without re-execution using `python3 evaluation/run_evaluation.py --from-telemetry evaluation/last_run_telemetry.json`.
+- **Execution Provenance:** Recorded live remote provider run (`openai/gpt-oss-20b` via Groq) against commit `0f2c227` with a clean working tree.
+- **Persisted Telemetry Artifact:** Durably recorded in `evaluation/last_run_telemetry.json`. All reported metrics are calculated directly from this persisted record set via `calculate_metrics_from_records` and can be replayed anytime via `python3 evaluation/run_evaluation.py --from-telemetry evaluation/last_run_telemetry.json`.
+- **HTTP Transport Round-Trips (Denominator = 30 Outbound Network Calls):**
+  1. *Total Outbound Requests:* 30 calls (30 initial submissions; 0 corrective retries triggered).
+  2. *HTTP Responses Received:* **30 / 30 (100.0%)** completed network round-trips returning an HTTP status code.
+     - HTTP 200 OK: **2 / 30 (6.7%)**
+     - HTTP 429 Rate Limit: **28 / 30 (93.3%)**
+  3. *Network Transport Errors:* **0 / 30 (0.0%)** failed before HTTP negotiation (zero connection drops or DNS timeouts).
+- **Model Output Coverage (Denominator = 30 Submitted Candidates):**
+  4. *Initial Model Responses:* **2 / 30 (6.7%)** returned usable model completions on first attempt.
+  5. *Initial HTTP Provider Errors:* **28 / 30 (93.3%)** HTTP 429 rate limit responses (safely routed directly to deterministic template fallbacks).
+  6. *Corrective Retries Attempted:* **0** (max 1 retry; retries are triggered strictly by invalid model responses, not HTTP provider throttling).
+  7. *Total Usable Model Outputs:* **2 / 30 (6.7%)** across all attempts.
+- **First-Pass Raw Model Quality Gates (Denominator = 2 Received Responses):**
+  8. *First-Pass Schema Validity:* **2 / 2 (100.0%)** raw JSON conformed to `ClassifiedFinding`.
+  9. *First-Pass Non-Judicial Wording:* **2 / 2 (100.0%)** avoided adjudicative terminology.
+  10. *Raw Model Category Concordance:* **2 / 2 (100.0%)** model independently agreed with candidate category before guards.
+  11. *Raw Model Concept-Keyword Coverage:* **2 / 2 (100.0%)** cited CCPA statutory vocabulary before guards.
+  12. *Initial Model Validation Failures:* **0 / 2 (0.0%)** rejected by runtime guardrails.
+- **Post-Validation Acceptance & Pipeline Quality (Denominator = 30 Submitted Candidates):**
+  13. *Deterministic Fallbacks Emitted:* **28 / 30 (93.3%)** safe pre-validated template fallbacks invoked (28 HTTP provider errors, 0 unrecovered validation failures).
+  14. *Final Accepted Outputs:* **30 / 30 (100.0%)** verified compliant before persistence (2 model-derived + 28 fallbacks = 30 accepted).
+  15. *Evidence Grounding Rate:* **30 / 30 (100.0%)** zero ungrounded absence claims or invented values.
+  16. *Post-Guard Category Preservation:* **30 / 30 (100.0%)** enforced architectural invariant.
+  17. *Post-Guard Pipeline Concept-Keyword Coverage:* **30 / 30 (100.0%)** full pipeline outputs include statutory Gazette terms.
+- **Three-Dimensional Empirical Latency Profile:**
+  - *Usable Model Response Latency (HTTP 200 completions, N = 2):* Mean: **1,508.1 ms**, Median: **1,508.1 ms**, p95: **1,977.7 ms** (raw samples: `[1977.7, 1038.5] ms`).
+  - *All HTTP Round-Trip Latency (Includes HTTP 429 responses, N = 30):* Mean: **288.5 ms**, Median: **205.2 ms**, p95: **1,038.5 ms**.
+  - *Candidate Processing Latency (End-to-End per Candidate, N = 30):* Mean: **2,395.2 ms**, Median: **2,205.0 ms**, p95: **3,039.1 ms** (includes inter-submission pacing, network calls, and fallback synthesis).
+- **Methodological Scope & Disclosures:**
+  - *Proven Resilience Under Rate-Limiting:* The 100% final output acceptance rate ($30/30$) reflects verified pipeline recovery via safe template fallbacks ($2\text{ model} + 28\text{ fallbacks}$), not 100% remote LLM availability.
+  - *Descriptive Latency Sample:* With $N = 2$ successful model responses under severe upstream rate limits, reported model latency ($1,508.1\text{ ms}$) is a descriptive empirical measurement of this specific run, not an unconstrained baseline.
+  - *Non-Conflation of Historical Runs:* Historical benchmark runs (e.g., 21/30 coverage or 19 model + 11 fallbacks) are distinct historical runs; the current benchmark artifact strictly reflects commit `0f2c227`.
 
 ### Tier 3: Independent Dual-Annotated Real-Site Dataset
 - **Status:** **PENDING** — Scheduled for Day 4 (17 Oct 2026) per Section 13 milestone.
-- **Protocol:** Two human annotators independently audit live Indian e-commerce checkout funnels. Inter-rater reliability (Cohen's Kappa) will be measured and reported prior to model scoring.
+- **Protocol:** Two human annotators independently audit live Indian e-commerce checkout funnels. Inter-rater reliability (Cohen's Kappa) will be measured and reported prior to model scoring. See [docs/REAL_SITE_VALIDATION_PROTOCOL.md](docs/REAL_SITE_VALIDATION_PROTOCOL.md) for the complete non-destructive execution plan and safe stop-before-payment boundary.
 
 ### Evidence & Countdown Timestamp Provenance
 All audit runs preserve empirical, timestamped evidence:

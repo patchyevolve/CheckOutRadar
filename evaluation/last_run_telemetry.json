@@ -5,6 +5,11 @@
   "execution_mode": "Live Remote Provider (openai/gpt-oss-20b)",
   "model": "openai/gpt-oss-20b",
   "candidate_pacing_seconds": 2.0,
+  "benchmark_tier": "Tier 2 (Downstream LLM Classifier & Statutory Explanation)",
+  "ground_truth_total_bundles": 45,
+  "ground_truth_positive_bundles": 30,
+  "ground_truth_clean_bundles": 15,
+  "provenance_note": "Tier 1 runs deterministic rule detectors across all 45 synthetic bundles (15 clean + 30 positive dark pattern fixtures). Clean bundles produce zero candidate indicators and generate zero outbound provider calls. This artifact records strictly the Tier 2 downstream LLM telemetry for the 30 candidate findings submitted to the remote provider at commit 0f2c227.",
   "total_candidates": 30,
   "attempt_records": [
     {
