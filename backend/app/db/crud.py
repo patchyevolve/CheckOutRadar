@@ -12,6 +12,11 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+class StaleLeaseError(Exception):
+    """Raised when a worker attempts to complete a job or persist observations under an expired or superseded lease."""
+    pass
+
+
 # -------------------------------------------------------------
 # Audits, Conditions, Runs
 # -------------------------------------------------------------
@@ -227,19 +232,21 @@ def claim_next_job(worker_id: str, lease_duration_seconds: int = 120) -> Optiona
             return None
 
         job_data = dict(row)
+        new_generation = (job_data.get("lease_generation") or 0) + 1
         cursor.execute(
             """
             UPDATE jobs
             SET state = 'claimed',
                 lease_owner = ?,
-                lease_expires_at = ?
+                lease_expires_at = ?,
+                lease_generation = ?
             WHERE id = ? AND (
                 state = 'queued'
                 OR (state = 'claimed' AND lease_expires_at IS NOT NULL AND lease_expires_at < ?)
                 OR state = 'retry_wait'
             )
             """,
-            (worker_id, new_lease_expiry, job_data["id"], now),
+            (worker_id, new_lease_expiry, new_generation, job_data["id"], now),
         )
         if cursor.rowcount == 0:
             conn.commit()
@@ -248,6 +255,7 @@ def claim_next_job(worker_id: str, lease_duration_seconds: int = 120) -> Optiona
         conn.commit()
         job_data["lease_owner"] = worker_id
         job_data["lease_expires_at"] = new_lease_expiry
+        job_data["lease_generation"] = new_generation
         job_data["requested"] = json.loads(job_data["requested"])
         return job_data
     except Exception:
@@ -261,25 +269,25 @@ def complete_job(
     job_id: str,
     worker_id: Optional[str] = None,
     lease_expires_at: Optional[str] = None,
+    lease_generation: Optional[int] = None,
 ) -> bool:
-    """Complete a job, verifying lease ownership and fencing timestamp if provided."""
+    """Complete a job, verifying lease ownership, fencing timestamp, and lease generation if provided."""
     conn = get_connection()
     try:
-        if worker_id and lease_expires_at:
-            cursor = conn.execute(
-                "UPDATE jobs SET state = 'done', lease_expires_at = NULL WHERE id = ? AND lease_owner = ? AND lease_expires_at = ?",
-                (job_id, worker_id, lease_expires_at),
-            )
-            success = cursor.rowcount > 0
-        elif worker_id:
-            cursor = conn.execute(
-                "UPDATE jobs SET state = 'done', lease_expires_at = NULL WHERE id = ? AND lease_owner = ?",
-                (job_id, worker_id),
-            )
-            success = cursor.rowcount > 0
-        else:
-            conn.execute("UPDATE jobs SET state = 'done', lease_expires_at = NULL WHERE id = ?", (job_id,))
-            success = True
+        query = "UPDATE jobs SET state = 'done', lease_expires_at = NULL WHERE id = ?"
+        params: List[Any] = [job_id]
+        if worker_id:
+            query += " AND lease_owner = ?"
+            params.append(worker_id)
+        if lease_generation is not None:
+            query += " AND lease_generation = ?"
+            params.append(lease_generation)
+        if lease_expires_at:
+            query += " AND lease_expires_at = ?"
+            params.append(lease_expires_at)
+
+        cursor = conn.execute(query, params)
+        success = cursor.rowcount > 0
         conn.commit()
         return success
     finally:
@@ -629,6 +637,10 @@ def persist_run_observations_atomically(
     disclosures: Optional[List[Dict[str, Any]]] = None,
     addons: Optional[List[Dict[str, Any]]] = None,
     urgencies: Optional[List[Dict[str, Any]]] = None,
+    job_id: Optional[str] = None,
+    worker_id: Optional[str] = None,
+    lease_expires_at: Optional[str] = None,
+    lease_generation: Optional[int] = None,
 ) -> Tuple[bool, str]:
     """
     Atomically clears existing observations for run_id and persists all new observations,
@@ -639,6 +651,8 @@ def persist_run_observations_atomically(
     2. Atomicity: An exception midway rolls back completely, leaving no partial rows.
     3. Serialization: BEGIN IMMEDIATE prevents concurrent worker transactions from interleaving.
     4. Snapshot preservation: Existing snapshots are preserved; stage captures link to valid snapshots.
+    5. Fencing protection: Validates that the worker still holds the active lease and generation,
+       preventing stale/evicted workers from overwriting newer observations.
     """
     from ..analysis.normalizer import canonicalize_label
     from ..analysis.reconciler import reconcile_totals
@@ -652,6 +666,32 @@ def persist_run_observations_atomically(
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE;")
+
+        # 0. Fencing validation: prevent stale/expired worker from overwriting observations
+        if job_id and worker_id:
+            now_iso = utc_now()
+            job_row = conn.execute(
+                "SELECT id, state, lease_owner, lease_expires_at, lease_generation FROM jobs WHERE id = ?",
+                (job_id,),
+            ).fetchone()
+            if not job_row:
+                raise ValueError(f"Job {job_id} not found")
+            if job_row["state"] != "claimed" or job_row["lease_owner"] != worker_id:
+                raise StaleLeaseError(
+                    f"Job {job_id} is no longer claimed by worker '{worker_id}' (state='{job_row['state']}', owner='{job_row['lease_owner']}')"
+                )
+            if lease_generation is not None and job_row["lease_generation"] != lease_generation:
+                raise StaleLeaseError(
+                    f"Job {job_id} generation {job_row['lease_generation']} does not match expected generation {lease_generation}"
+                )
+            if lease_expires_at is not None and job_row["lease_expires_at"] != lease_expires_at:
+                raise StaleLeaseError(
+                    f"Job {job_id} lease expiry {job_row['lease_expires_at']} does not match expected {lease_expires_at}"
+                )
+            if job_row["lease_expires_at"] and job_row["lease_expires_at"] < now_iso:
+                raise StaleLeaseError(
+                    f"Job {job_id} lease expired at {job_row['lease_expires_at']} (current time: {now_iso})"
+                )
 
         # 1. Atomically clear existing observations for this run
         conn.execute("DELETE FROM charge_observations WHERE run_id = ?", (run_id,))

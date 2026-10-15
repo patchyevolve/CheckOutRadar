@@ -658,3 +658,85 @@ def test_snapshot_references_remain_valid_and_unaltered_after_recovery():
         disk_sha = hashlib.sha256(file_path.read_bytes()).hexdigest()
         assert disk_sha == s["sha256"]
 
+
+def test_stale_worker_with_superseded_generation_cannot_persist_observations_or_overwrite_newer_results():
+    """
+    Fencing Token & Stale Worker Protection:
+    1. A monotonic `lease_generation` fencing token is incremented on every claim.
+    2. A worker holding an expired lease or superseded generation cannot persist observations via
+       `persist_run_observations_atomically` (raises StaleLeaseError and rolls back).
+    3. Observations written by the new generation owner are preserved and NOT overwritten.
+    4. Stale worker's `complete_job` call is rejected.
+    """
+    audit_id = crud.create_audit(input_url="http://test.com/fencing", merchant="Fencing Store", preset="quick")
+    cond_id = crud.create_condition(
+        audit_id=audit_id,
+        condition_key="fencing_key",
+        requested={"session": "fresh", "cart_tier": "above_threshold"},
+    )
+    run_id = crud.create_run(condition_id=cond_id, requested={"session": "fresh", "cart_tier": "above_threshold"})
+    job_id = crud.enqueue_job(run_id=run_id)
+
+    # 1. Worker 1 claims the job -> generation 1
+    w1_claim = crud.claim_next_job(worker_id="worker_1", lease_duration_seconds=60)
+    assert w1_claim is not None
+    assert w1_claim["lease_owner"] == "worker_1"
+    assert w1_claim["lease_generation"] == 1
+    w1_expiry = w1_claim["lease_expires_at"]
+
+    # 2. Simulate lease expiration for Worker 1
+    conn = connection.get_connection()
+    past_time = (datetime.now(timezone.utc) - timedelta(seconds=10)).isoformat()
+    conn.execute("UPDATE jobs SET lease_expires_at = ? WHERE id = ?", (past_time, job_id))
+    conn.commit()
+    conn.close()
+
+    # 3. Worker 2 claims the job -> generation 2
+    w2_claim = crud.claim_next_job(worker_id="worker_2", lease_duration_seconds=60)
+    assert w2_claim is not None
+    assert w2_claim["lease_owner"] == "worker_2"
+    assert w2_claim["lease_generation"] == 2
+    w2_expiry = w2_claim["lease_expires_at"]
+
+    # 4. Worker 2 persists valid observations and completes job
+    crud.persist_run_observations_atomically(
+        run_id=run_id,
+        outcome="ok",
+        totals={"subtotal_minor": 10000, "charges_minor": 500, "final_payable_minor": 10500},
+        charges=[{"label": "Valid Fee", "amount_minor": 500, "step": "cart", "mandatory": "yes"}],
+        job_id=job_id,
+        worker_id="worker_2",
+        lease_expires_at=w2_expiry,
+        lease_generation=2,
+    )
+    w2_completed = crud.complete_job(job_id, worker_id="worker_2", lease_expires_at=w2_expiry, lease_generation=2)
+    assert w2_completed is True
+
+    # 5. Worker 1 wakes up (delayed) and attempts to persist observations with generation 1
+    with pytest.raises(crud.StaleLeaseError) as exc_info:
+        crud.persist_run_observations_atomically(
+            run_id=run_id,
+            outcome="ok",
+            totals={"subtotal_minor": 99900, "charges_minor": 9900, "final_payable_minor": 109800},
+            charges=[{"label": "Stale Fee Overwrite", "amount_minor": 9900, "step": "cart", "mandatory": "yes"}],
+            job_id=job_id,
+            worker_id="worker_1",
+            lease_expires_at=w1_expiry,
+            lease_generation=1,
+        )
+    assert "generation" in str(exc_info.value).lower() or "no longer claimed" in str(exc_info.value).lower()
+
+    # Worker 1 completion also fails
+    w1_completed = crud.complete_job(job_id, worker_id="worker_1", lease_expires_at=w1_expiry, lease_generation=1)
+    assert w1_completed is False
+
+    # 6. Verify that Worker 2's observations were NOT overwritten by Worker 1
+    conn = connection.get_connection()
+    try:
+        charges = conn.execute("SELECT label, amount_minor FROM charge_observations WHERE run_id = ?", (run_id,)).fetchall()
+        assert len(charges) == 1
+        assert charges[0]["label"] == "Valid Fee"
+        assert charges[0]["amount_minor"] == 500
+    finally:
+        conn.close()
+

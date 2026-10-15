@@ -166,10 +166,17 @@ def generate_html_report(
                 "checkout_summary": "Checkout Summary / Final Review",
             }.get(step, step.replace("_", " ").title())
 
+            from pathlib import Path
+            snap_display = f'<span style="font-family: monospace; font-size: 0.9em; color: #0284c7;">{snap_id}</span>'
+            if snap_id in snap_lookup and snap_lookup[snap_id].get("artifact_path"):
+                art_path = snap_lookup[snap_id]["artifact_path"]
+                fname = Path(art_path).name
+                snap_display = f'<a href="./{fname}" target="_blank" style="font-family: monospace; font-size: 0.9em; color: #0284c7; text-decoration: underline; font-weight: 600;" title="Click to view full screenshot artifact">{snap_id}</a>'
+
             stage_captures_rows += f"""
             <tr style="border-bottom: 1px solid #e2e8f0; font-size: 0.85em;">
                 <td style="padding: 10px 12px; font-weight: 600;">{stage_display}</td>
-                <td style="padding: 10px 12px; font-family: monospace; font-size: 0.9em; color: #0284c7;">{snap_id}</td>
+                <td style="padding: 10px 12px;">{snap_display}</td>
                 <td style="padding: 10px 12px; font-family: monospace; font-size: 0.8em; word-break: break-all; color: #475569;">{sha256_display}</td>
                 <td style="padding: 10px 12px;">
                     <span style="background: {cap_badge_color}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; font-weight: bold; text-transform: uppercase;">{cap_status}</span>

@@ -77,9 +77,20 @@ class JobRunner:
 
         try:
             self._process_job(job)
-            crud.complete_job(job_id, worker_id=self.worker_id, lease_expires_at=job.get("lease_expires_at"))
+            completed = crud.complete_job(
+                job_id,
+                worker_id=self.worker_id,
+                lease_expires_at=job.get("lease_expires_at"),
+                lease_generation=job.get("lease_generation"),
+            )
+            if not completed:
+                logger.warning(f"Job {job_id} completion failed: lease was lost or superseded.")
+                return False
             self._check_and_finalize_audit(audit_id)
             return True
+        except crud.StaleLeaseError as e:
+            logger.warning(f"Job {job_id} rejected due to stale lease: {e}")
+            return False
         except Exception as e:
             logger.exception(f"Job {job_id} failed: {e}")
             crud.fail_or_retry_job(job_id, error_message=str(e), max_retries=2)
@@ -282,6 +293,10 @@ class JobRunner:
             disclosures=disclosures,
             addons=addons,
             urgencies=urgencies,
+            job_id=job_id,
+            worker_id=self.worker_id,
+            lease_expires_at=job.get("lease_expires_at"),
+            lease_generation=job.get("lease_generation"),
         )
 
         # 8. Diff Engine & Finding Generation (Only if outcome == 'ok')

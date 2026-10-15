@@ -194,11 +194,14 @@ def run_stress_test(num_workers: int = 4, num_jobs: int = 12):
 
         conn = connection.get_connection()
         try:
-            # 1. Verify Job States
-            jobs = conn.execute("SELECT id, state, retries, lease_owner FROM jobs").fetchall()
+            # 1. Verify Job States & Monotonic Fencing Tokens
+            jobs = conn.execute("SELECT id, state, retries, lease_owner, lease_generation FROM jobs").fetchall()
             done_count = sum(1 for j in jobs if j["state"] == "done")
             print(f"[1] Jobs Finished: {done_count}/{num_jobs}")
             assert done_count == num_jobs, f"Expected {num_jobs} done jobs, got {done_count}"
+            for j in jobs:
+                assert j["lease_generation"] >= 1, f"Job {j['id']} lease_generation is {j['lease_generation']}, expected >= 1"
+            print(f"[+] All {num_jobs} jobs verified with valid monotonic lease_generation fencing tokens.")
 
             # 2. Strict Observation Idempotency: Exactly 1x canonical records per run
             chg_count = conn.execute("SELECT count(*) FROM charge_observations").fetchone()[0]

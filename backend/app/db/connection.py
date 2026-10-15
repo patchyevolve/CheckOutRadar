@@ -35,6 +35,9 @@ def init_db():
         cols = [c["name"] for c in conn.execute("PRAGMA table_info(findings)").fetchall()]
         if "raw_observations" not in cols:
             conn.execute("ALTER TABLE findings ADD COLUMN raw_observations TEXT DEFAULT NULL;")
+        job_cols = [c["name"] for c in conn.execute("PRAGMA table_info(jobs)").fetchall()]
+        if "lease_generation" not in job_cols:
+            conn.execute("ALTER TABLE jobs ADD COLUMN lease_generation INTEGER NOT NULL DEFAULT 0;")
         conn.commit()
     finally:
         conn.close()

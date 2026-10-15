@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     state TEXT NOT NULL DEFAULT 'queued', -- queued, claimed, done, retry_wait, dead
     lease_owner TEXT DEFAULT NULL,
     lease_expires_at TIMESTAMP DEFAULT NULL,
+    lease_generation INTEGER NOT NULL DEFAULT 0,
     last_error TEXT DEFAULT NULL,
     retries INTEGER NOT NULL DEFAULT 0
 );
