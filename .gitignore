@@ -14,8 +14,10 @@ docker-compose.override.yml
 *.db-shm
 *.db-journal
 
-# Evidence binaries (keep placeholder or directory)
+# Evidence binaries & generated run outputs (keep placeholder or directory)
 data/evidence/*.jpg
+data/evidence/*.html
+data/evidence/*.json
 !data/evidence/.gitkeep
 
 # Pytest & caches

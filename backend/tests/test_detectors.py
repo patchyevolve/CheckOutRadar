@@ -287,4 +287,18 @@ def test_assess_audit_outcome_distinctions():
     assert res_single_urg["status"] == "inconclusive"
     assert any("second observation was not performed" in r for r in res_single_urg["inconclusive_reasons"])
 
+    # 6. Inconclusive: Zero stage captures recorded
+    res_zero_stages = assess_audit_outcome(
+        runs=[
+            {
+                "id": "r1",
+                "outcome": "ok",
+                "stage_captures": [],
+            }
+        ],
+        findings=[],
+    )
+    assert res_zero_stages["status"] == "inconclusive"
+    assert any("zero stage captures" in r for r in res_zero_stages["inconclusive_reasons"])
+
 

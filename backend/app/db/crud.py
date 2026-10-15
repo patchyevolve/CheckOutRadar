@@ -256,8 +256,9 @@ def complete_job(job_id: str):
 def fail_or_retry_job(job_id: str, error_message: str, max_retries: int = 2):
     conn = get_connection()
     try:
-        row = conn.execute("SELECT retries FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        row = conn.execute("SELECT run_id, retries FROM jobs WHERE id = ?", (job_id,)).fetchone()
         retries = row["retries"] if row else 0
+        run_id = row["run_id"] if row else None
         if retries < max_retries:
             conn.execute(
                 """
@@ -281,6 +282,16 @@ def fail_or_retry_job(job_id: str, error_message: str, max_retries: int = 2):
                 """,
                 (error_message, job_id),
             )
+            if run_id:
+                conn.execute(
+                    """
+                    UPDATE runs
+                    SET outcome = 'failed',
+                        provider_status = 'FAILED'
+                    WHERE id = ?
+                    """,
+                    (run_id,),
+                )
         conn.commit()
     finally:
         conn.close()
@@ -510,8 +521,15 @@ def insert_reconciliation(
     discounts_minor: int,
     final_payable_minor: int,
 ) -> bool:
-    calculated = subtotal_minor + charges_minor + taxes_minor - discounts_minor
-    is_reconciled = (calculated == final_payable_minor)
+    from ..analysis.reconciler import reconcile_totals
+    is_reconciled, _, detail = reconcile_totals(
+        subtotal_minor=subtotal_minor,
+        charges_minor=charges_minor,
+        taxes_minor=taxes_minor,
+        discounts_minor=discounts_minor,
+        final_payable_minor=final_payable_minor,
+    )
+    calculated = detail["calculated_final_payable_minor"]
     rec_id = f"rec_{uuid.uuid4().hex[:12]}"
     conn = get_connection()
     try:

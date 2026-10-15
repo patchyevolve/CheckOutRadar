@@ -7,6 +7,8 @@ from pathlib import Path
 
 def get_db_path() -> str:
     db_env = os.getenv("SQLITE_DB_PATH", "/home/daksh/working/checkout-radar/data/checkout_radar.db")
+    if db_env.startswith("/app/") and not Path("/app").exists():
+        db_env = str(Path(__file__).resolve().parent.parent.parent.parent / "data" / Path(db_env).name)
     path = Path(db_env)
     path.parent.mkdir(parents=True, exist_ok=True)
     return str(path)

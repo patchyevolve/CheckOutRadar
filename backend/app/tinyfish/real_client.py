@@ -10,6 +10,36 @@ from .adapter import TinyFishAdapter
 from ..db import crud
 
 
+import socket
+
+STATIC_HOSTS = {
+    "agent.tinyfish.ai": "54.219.125.104",
+    "api.search.tinyfish.ai": "65.9.130.55",
+    "api.fetch.tinyfish.ai": "18.66.147.90",
+}
+
+_dns_patched = False
+def _ensure_resilient_dns():
+    global _dns_patched
+    if not _dns_patched:
+        orig_getaddrinfo = socket.getaddrinfo
+        def resilient_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+            if host in STATIC_HOSTS:
+                return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (STATIC_HOSTS[host], port))]
+            try:
+                return orig_getaddrinfo(host, port, family, type, proto, flags)
+            except socket.gaierror:
+                try:
+                    ip = socket.gethostbyname(host)
+                    return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (ip, port))]
+                except Exception:
+                    raise
+        socket.getaddrinfo = resilient_getaddrinfo
+        _dns_patched = True
+
+_ensure_resilient_dns()
+
+
 class RealTinyFishClient(TinyFishAdapter):
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("TINYFISH_API_KEY", "")
@@ -178,7 +208,7 @@ class RealTinyFishClient(TinyFishAdapter):
             method="GET",
         )
         try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
+            with urllib.request.urlopen(req, timeout=35) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 crud.log_provider_call(
                     audit_id=audit_id,

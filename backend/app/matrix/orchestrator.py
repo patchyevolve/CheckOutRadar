@@ -71,6 +71,13 @@ def expand_matrix(
                     key = f"pin:{p}|sess:{s}|cart:{ct}"
                     req = {"pincode": p, "session": s, "cart_tier": ct, "recipe_family_id": recipe["recipe_family_id"]}
                     conditions_to_create.append((key, req, is_ref))
+    elif preset.lower() == "single":
+        # Single bounded reference run (1 run):
+        conditions_to_create.append(
+            (f"pin:{PINCODE_A}|sess:fresh|cart:above_threshold",
+             {"pincode": PINCODE_A, "session": "fresh", "cart_tier": "above_threshold", "recipe_family_id": recipe["recipe_family_id"]},
+             True)
+        )
     else:
         # Quick preset (4 runs):
         # 1. Reference: Pincode A, fresh, above

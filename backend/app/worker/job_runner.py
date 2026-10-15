@@ -83,6 +83,7 @@ class JobRunner:
         except Exception as e:
             logger.exception(f"Job {job_id} failed: {e}")
             crud.fail_or_retry_job(job_id, error_message=str(e), max_retries=2)
+            self._check_and_finalize_audit(audit_id)
             return True
 
     def _process_job(self, job: Dict[str, Any]):
@@ -143,14 +144,27 @@ class JobRunner:
                 profile_state_verified=is_returning,
             )
 
-        # 4. Poll for run completion (with bounded wait)
+        # 4. Poll for run completion (with bounded wait and transient error resilience)
         poll_data = None
-        for _ in range(30):
-            poll_data = adapter.poll_agent_run(provider_run_id, audit_id=audit_id, run_id=run_id)
+        max_polls = int(os.getenv("TINYFISH_MAX_POLLS", "60"))
+        poll_interval = int(os.getenv("TINYFISH_POLL_INTERVAL", "5"))
+        consecutive_poll_errors = 0
+        for _ in range(max_polls):
+            try:
+                poll_data = adapter.poll_agent_run(provider_run_id, audit_id=audit_id, run_id=run_id)
+                consecutive_poll_errors = 0
+            except Exception as pe:
+                consecutive_poll_errors += 1
+                logger.warning(f"Transient error polling {provider_run_id} ({consecutive_poll_errors}/5): {pe}")
+                if consecutive_poll_errors >= 5:
+                    raise
+                time.sleep(poll_interval)
+                continue
+
             prov_status = poll_data.get("status", "PENDING")
             if prov_status in ["COMPLETED", "FAILED", "CANCELLED"]:
                 break
-            time.sleep(3)
+            time.sleep(poll_interval)
 
         if not poll_data or poll_data.get("status") not in ["COMPLETED", "FAILED", "CANCELLED"]:
             raise TimeoutError(f"Provider run {provider_run_id} timed out polling")
@@ -159,9 +173,9 @@ class JobRunner:
         result_dict = poll_data.get("result") or {}
 
         # 5. Process Step Screenshots, Redact, and Store Snapshots
-        snapshot_map = {}  # step_name -> snapshot_id
-        for step in poll_data.get("steps", []):
-            step_action = step.get("action", "")
+        snapshot_map = {}  # step_name / step_id / index -> snapshot_id
+        for step_idx, step in enumerate(poll_data.get("steps", [])):
+            step_action = step.get("action", "") or step.get("name", "") or step.get("description", "")
             step_id = step.get("id", "")
 
             # Identify step name (product, cart, checkout_summary)
@@ -191,6 +205,9 @@ class JobRunner:
             if raw_bytes:
                 snap_id, sha256_hash, path = redact_and_store_screenshot(raw_bytes, run_id, st_name)
                 snapshot_map[st_name] = snap_id
+                if step_id:
+                    snapshot_map[step_id] = snap_id
+                snapshot_map[f"step_{step_idx + 1}"] = snap_id
 
         # 6. Parse and Validate Local Contract
         run_outcome = result_dict.get("status", "ok")
@@ -237,6 +254,12 @@ class JobRunner:
         # 7. Persist Stage Captures & Observations
         for sc in result_dict.get("stage_captures", []):
             st_name = sc.get("step_name", "product")
+            snap_id = (
+                snapshot_map.get(st_name)
+                or snapshot_map.get(sc.get("provider_step_id"))
+                or snapshot_map.get(sc.get("screenshot_ref"))
+                or snapshot_map.get(f"step_{sc.get('step_index')}")
+            )
             crud.create_stage_capture(
                 run_id=run_id,
                 step_name=st_name,
@@ -244,7 +267,7 @@ class JobRunner:
                 provider_step_id=sc.get("provider_step_id"),
                 capture_status=sc.get("capture_status", "verified"),
                 inspection_status=sc.get("inspection_status", "inspected"),
-                snapshot_id=snapshot_map.get(st_name),
+                snapshot_id=snap_id,
             )
 
         for idx, c in enumerate(charges):
@@ -296,7 +319,12 @@ class JobRunner:
             merged_stage_captures = []
             for sc in result_dict.get("stage_captures", []):
                 sc_copy = dict(sc)
-                sc_copy["snapshot_id"] = snapshot_map.get(sc_copy.get("step_name"))
+                sc_copy["snapshot_id"] = (
+                    snapshot_map.get(sc_copy.get("step_name"))
+                    or snapshot_map.get(sc_copy.get("provider_step_id"))
+                    or snapshot_map.get(sc_copy.get("screenshot_ref"))
+                    or snapshot_map.get(f"step_{sc_copy.get('step_index')}")
+                )
                 merged_stage_captures.append(sc_copy)
 
             current_bundle = {

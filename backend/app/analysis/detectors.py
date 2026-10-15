@@ -391,6 +391,10 @@ def assess_audit_outcome(
 
             # Check stage captures completeness
             stage_caps = r.get("stage_captures", [])
+            if not stage_caps:
+                inconclusive_reasons.append(
+                    f"Run {r_id} has zero stage captures (checkout flow stages were not captured or inspected)."
+                )
             for sc in stage_caps:
                 st_name = sc.get("step_name", "step")
                 cap_st = sc.get("capture_status", "verified")

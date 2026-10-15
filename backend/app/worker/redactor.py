@@ -40,9 +40,14 @@ def get_evidence_dir() -> Path:
     ]
     for c in candidates:
         if c:
-            p = Path(c)
-            p.mkdir(parents=True, exist_ok=True)
-            return p
+            if c.startswith("/app/") and not Path("/app").exists():
+                continue
+            try:
+                p = Path(c)
+                p.mkdir(parents=True, exist_ok=True)
+                return p
+            except (PermissionError, FileNotFoundError, OSError):
+                continue
     p = Path("data/evidence")
     p.mkdir(parents=True, exist_ok=True)
     return p
