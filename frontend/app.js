@@ -1,9 +1,32 @@
-// Checkout Radar Dashboard Client Application
+// Checkout Radar Dashboard Client Application — Forensic Workspace
 
 let currentAuditId = null;
 let eventSource = null;
 let currentAuditRuns = [];
 let selectedRunId = null;
+let activeTab = "evidence";
+
+// Filter & Search State
+let currentSeverityFilter = "all";
+let currentFindingSearch = "";
+let rawFindings = [];
+let rawDiffs = [];
+
+// Provider Calls Pagination State
+let rawCalls = [];
+let callsPage = 1;
+const callsPageSize = 10;
+let callsSearch = "";
+
+// History Pagination State
+let rawAudits = [];
+let historyPage = 1;
+const historyPageSize = 10;
+let historySearch = "";
+
+let homeHistoryPage = 1;
+const homeHistoryPageSize = 10;
+let homeHistorySearch = "";
 
 document.addEventListener("DOMContentLoaded", () => {
     checkHealth();
@@ -13,17 +36,90 @@ document.addEventListener("DOMContentLoaded", () => {
     const qAuditId = urlParams.get("audit_id");
     if (qAuditId) {
         selectAudit(qAuditId, "Loading Audit...");
+    } else {
+        // Expand launcher on initial page load if no audit is active
+        toggleLauncher(true);
     }
 
     document.getElementById("audit-form").addEventListener("submit", async (e) => {
         e.preventDefault();
         await launchAudit();
     });
+
+    // Close modals on Escape key or outside click
+    window.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+            closeScreenshotModal();
+            closeComplaintModal();
+        }
+    });
+
+    const modalList = document.querySelectorAll(".modal");
+    modalList.forEach(m => {
+        m.addEventListener("click", (e) => {
+            if (e.target === m) {
+                closeScreenshotModal();
+                closeComplaintModal();
+            }
+        });
+    });
 });
+
+// -------------------------------------------------------------
+// Launcher Collapse & Expand
+// -------------------------------------------------------------
+
+function toggleLauncher(forceState) {
+    const section = document.getElementById("launch-section");
+    const summary = document.getElementById("launch-summary-text");
+    const toggleBtn = document.getElementById("launch-toggle-btn");
+    const btnNav = document.getElementById("btn-toggle-launcher");
+
+    const isCollapsed = (forceState !== undefined) ? !forceState : !section.classList.contains("launch-collapsed");
+
+    if (isCollapsed) {
+        section.classList.add("launch-collapsed");
+        if (summary) summary.innerText = "Click to expand configuration drawer and run new test matrix.";
+        if (toggleBtn) toggleBtn.innerText = "▼";
+        if (btnNav) btnNav.innerText = "+ New Audit";
+    } else {
+        section.classList.remove("launch-collapsed");
+        if (summary) summary.innerText = "Run automated checkout flows across controlled condition matrices (Location, Session, Cart Tier, Time) using TinyFish web agents.";
+        if (toggleBtn) toggleBtn.innerText = "▲";
+        if (btnNav) btnNav.innerText = "▲ Collapse Form";
+    }
+}
 
 function setTarget(url, name) {
     document.getElementById("input-url").value = url;
 }
+
+// -------------------------------------------------------------
+// Tab Switching
+// -------------------------------------------------------------
+
+function switchTab(tabKey) {
+    activeTab = tabKey;
+    const tabButtons = document.querySelectorAll(".tab-btn");
+    tabButtons.forEach(btn => {
+        btn.classList.remove("active");
+    });
+
+    const tabPanes = document.querySelectorAll(".tab-pane");
+    tabPanes.forEach(pane => {
+        pane.classList.add("hidden");
+    });
+
+    const activeBtn = document.getElementById(`tab-btn-${tabKey}`);
+    const activePane = document.getElementById(`pane-${tabKey}`);
+
+    if (activeBtn) activeBtn.classList.add("active");
+    if (activePane) activePane.classList.remove("hidden");
+}
+
+// -------------------------------------------------------------
+// System Health
+// -------------------------------------------------------------
 
 async function checkHealth() {
     try {
@@ -44,6 +140,10 @@ async function checkHealth() {
     }
 }
 
+// -------------------------------------------------------------
+// Audit Launch
+// -------------------------------------------------------------
+
 async function launchAudit() {
     const inputUrl = document.getElementById("input-url").value;
     const preset = document.getElementById("preset-select").value;
@@ -63,13 +163,25 @@ async function launchAudit() {
         selectedRunId = null;
         currentAuditRuns = [];
 
+        // Collapse launcher to give prime space to investigation
+        toggleLauncher(false);
+
         // Switch view to active audit
         document.getElementById("active-audit-section").classList.remove("hidden");
+        document.getElementById("home-history-section").classList.add("hidden");
         document.getElementById("active-merchant").innerText = data.merchant;
         document.getElementById("active-audit-id").innerText = data.id;
-        document.getElementById("progress-count").innerText = `0 / ${data.conditions_count}`;
+        document.getElementById("active-target-url").innerText = inputUrl;
+        document.getElementById("active-preset-badge").innerText = `${preset.toUpperCase()} PRESET`;
+        document.getElementById("progress-count").innerText = `0 / ${data.conditions_count} runs`;
         document.getElementById("progress-bar").style.width = "5%";
+        document.getElementById("progress-label").innerText = "Executing automated agent runs...";
 
+        // Open live console accordion
+        const consoleDetails = document.getElementById("console-details");
+        if (consoleDetails) consoleDetails.open = true;
+
+        switchTab("evidence");
         connectEventStream(data.id);
         loadPastAudits();
     } catch (err) {
@@ -80,6 +192,10 @@ async function launchAudit() {
     }
 }
 
+// -------------------------------------------------------------
+// Server-Sent Events (SSE) Streaming
+// -------------------------------------------------------------
+
 function connectEventStream(auditId) {
     if (eventSource) {
         eventSource.close();
@@ -88,6 +204,8 @@ function connectEventStream(auditId) {
     const consoleBox = document.getElementById("console-box");
     consoleBox.innerHTML = "";
     appendConsole(`📡 Subscribing to live SSE stream for ${auditId}...`);
+    document.getElementById("console-status-pill").innerText = "Streaming";
+    document.getElementById("console-status-pill").style.color = "#38bdf8";
 
     eventSource = new EventSource(`/audits/${auditId}/stream`);
 
@@ -117,15 +235,28 @@ function connectEventStream(auditId) {
         appendConsole(`🏁 Audit Complete! All conditions executed, diffed, and evaluated.`);
         document.getElementById("progress-bar").style.width = "100%";
         document.getElementById("progress-label").innerText = "Audit Completed";
+        document.getElementById("console-status-pill").innerText = "Complete";
+        document.getElementById("console-status-pill").style.color = "#10b981";
+
+        // Auto-collapse console once finished so evidence is clear
+        setTimeout(() => {
+            const consoleDetails = document.getElementById("console-details");
+            if (consoleDetails && !consoleDetails.classList.contains("user-opened")) {
+                consoleDetails.open = false;
+            }
+        }, 1500);
+
         refreshAuditData(auditId);
     });
 
     eventSource.addEventListener("complete", () => {
         eventSource.close();
+        document.getElementById("console-status-pill").innerText = "Closed";
+        document.getElementById("console-status-pill").style.color = "#94a3b8";
     });
 
     eventSource.onerror = () => {
-        // Fallback polling if SSE disconnects
+        document.getElementById("console-status-pill").innerText = "Idle";
         setTimeout(() => refreshAuditData(auditId), 3000);
     };
 }
@@ -139,6 +270,10 @@ function appendConsole(text) {
     box.appendChild(line);
     box.scrollTop = box.scrollHeight;
 }
+
+// -------------------------------------------------------------
+// Audit Data Refresh & Rendering
+// -------------------------------------------------------------
 
 async function refreshAuditData(auditId) {
     try {
@@ -155,205 +290,151 @@ async function refreshAuditData(auditId) {
         const callsData = await callsResp.json();
 
         currentAuditRuns = det.runs || [];
+        rawFindings = findsData.findings || [];
+        rawDiffs = diffsData.diffs || [];
+        rawCalls = callsData.provider_calls || [];
 
         if (det.audit && det.audit.merchant) {
             document.getElementById("active-merchant").innerText = det.audit.merchant;
+            if (det.audit.input_url) {
+                document.getElementById("active-target-url").innerText = det.audit.input_url;
+            }
+            if (det.audit.preset) {
+                document.getElementById("active-preset-badge").innerText = `${det.audit.preset.toUpperCase()} PRESET`;
+            }
         }
 
         // Update progress
-        const totalConds = det.conditions ? det.conditions.length : 1;
+        const totalConds = det.conditions ? det.conditions.length : (currentAuditRuns.length || 1);
         const compRuns = currentAuditRuns.filter(r => r.finished_at).length;
         const pct = Math.min(100, Math.round((compRuns / totalConds) * 100));
         document.getElementById("progress-bar").style.width = `${pct}%`;
         document.getElementById("progress-count").innerText = `${compRuns} / ${totalConds} runs`;
 
+        // Update Tab Badges
+        document.getElementById("tab-pill-evidence").innerText = "3";
+        document.getElementById("tab-pill-findings").innerText = String(rawFindings.length);
+        document.getElementById("tab-pill-calls").innerText = String(rawCalls.length);
+
+        // Render Core Components
+        renderExecutiveScorecard(det, rawFindings, rawDiffs, currentAuditRuns);
         renderAssessmentBanner(det.assessment);
         renderEvidenceGallery(currentAuditRuns, selectedRunId);
-        renderFindings(findsData.findings || []);
-        renderDiffs(diffsData.diffs || []);
-        renderCalls(callsData.provider_calls || []);
+        filterAndRenderFindings();
+        renderDiffs(rawDiffs);
+        renderCalls();
     } catch (e) {
         console.error("Refresh error:", e);
     }
 }
 
-function renderFindings(findings) {
-    const list = document.getElementById("findings-list");
-    document.getElementById("findings-count-pill").innerText = `${findings.length} Found`;
+// -------------------------------------------------------------
+// Executive Scorecard Hero Rendering (4 KPIs)
+// -------------------------------------------------------------
 
-    if (!findings.length) {
-        list.innerHTML = `<div class="empty-state">No dark pattern indicators detected in this flow.</div>`;
-        return;
+function renderExecutiveScorecard(det, findings, diffs, runs) {
+    const assessment = det.assessment || {};
+    const isClean = Boolean(assessment.is_clean === true && assessment.status === "clean");
+    const isInconclusive = Boolean(assessment.is_inconclusive === true || assessment.status === "inconclusive");
+    const hasIndicators = Boolean(
+        assessment.status === "potential_indicators_detected" || 
+        assessment.status === "indicators_detected" || 
+        (assessment.findings_count > 0 && !isInconclusive)
+    );
+
+    // KPI 1: Assessment Verdict
+    const badgeEl = document.getElementById("kpi-assessment-badge");
+    const subEl = document.getElementById("kpi-assessment-sub");
+
+    badgeEl.className = "kpi-badge";
+    if (isClean) {
+        badgeEl.classList.add("badge-clean");
+        badgeEl.innerText = "VERIFIED CLEAN";
+        subEl.innerText = "Fail-closed observed boundary";
+    } else if (hasIndicators) {
+        badgeEl.classList.add("badge-indicators");
+        badgeEl.innerText = "INDICATORS DETECTED";
+        subEl.innerText = `${findings.length} dark pattern indicators`;
+    } else {
+        badgeEl.classList.add("badge-inconclusive");
+        badgeEl.innerText = "INCONCLUSIVE AUDIT";
+        subEl.innerText = "Missing / obstructed flow";
     }
 
-    list.innerHTML = findings.map(f => `
-        <div class="finding-item">
-            <div class="finding-item-header">
-                <span class="finding-cat">${f.category.replace('_', ' ')}</span>
-                <span class="finding-badge">${f.severity.toUpperCase()} (${Math.round(f.confidence * 100)}%)</span>
-            </div>
-            <div class="finding-expl">${f.explanation}</div>
-            ${f.heuristic_note ? `<div class="finding-heuristic">ℹ️ ${f.heuristic_note}</div>` : ''}
-        </div>
-    `).join("");
-}
+    // KPI 2: Pricing Disclosures & Drip Impact
+    const priceValEl = document.getElementById("kpi-price-val");
+    const priceSubEl = document.getElementById("kpi-price-sub");
 
-function renderDiffs(diffs) {
-    const list = document.getElementById("diffs-list");
-    document.getElementById("diffs-count-pill").innerText = `${diffs.length} Diffs`;
-
-    if (!diffs.length) {
-        list.innerHTML = `<div class="empty-state">No variances detected across tested pairs.</div>`;
-        return;
-    }
-
-    list.innerHTML = diffs.map(d => {
-        let desc = "";
-        const det = d.detail || {};
-        if (d.type === "PRICE_VARIANCE") {
-            desc = `${det.canonical_label}: ₹${det.amount_a_minor / 100} vs ₹${det.amount_b_minor / 100} across ${det.dimension}`;
-        } else if (d.type === "LATE_DISCLOSURE") {
-            desc = `${det.label} (₹${det.amount_minor / 100}) first observed at ${det.observed_disclosure_stage}, absent on ${det.expected_stage}`;
-        } else if (d.type === "SMALL_CART_RULE") {
-            desc = `Cart Policy: ${det.label} (₹${det.amount_minor / 100}) applied only below threshold.`;
-        } else if (d.type === "TEMPORAL_DRIFT") {
-            desc = `${det.canonical_label} changed from ₹${det.amount_t0_minor / 100} to ₹${det.amount_t1_minor / 100} across observations`;
-        } else {
-            desc = JSON.stringify(det);
+    let dripFeeMinor = 0;
+    let lateLabel = "";
+    diffs.forEach(d => {
+        if (d.type === "LATE_DISCLOSURE" && d.detail && d.detail.amount_minor) {
+            dripFeeMinor = Math.max(dripFeeMinor, d.detail.amount_minor);
+            lateLabel = d.detail.label || "Drip Fee";
         }
+    });
 
-        return `
-            <div class="diff-item">
-                <div class="diff-type">${d.type}</div>
-                <div class="diff-desc">${desc}</div>
-                <small style="color: #64748b; font-family: monospace;">Match: ${d.matching_key}</small>
-            </div>
-        `;
-    }).join("");
-}
-
-function renderCalls(calls) {
-    const tbody = document.getElementById("calls-tbody");
-    if (!calls.length) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #94a3b8;">No calls recorded.</td></tr>`;
-        return;
+    if (dripFeeMinor > 0) {
+        priceValEl.innerText = `+₹${(dripFeeMinor / 100).toFixed(2)}`;
+        priceValEl.style.color = "#f87171";
+        priceSubEl.innerText = `${lateLabel} added at checkout`;
+    } else if (isClean) {
+        priceValEl.innerText = `₹0.00 Net Drip`;
+        priceValEl.style.color = "#34d399";
+        priceSubEl.innerText = "Upfront price matched across flow";
+    } else if (isInconclusive) {
+        priceValEl.innerText = `Unverified`;
+        priceValEl.style.color = "#fbbf24";
+        priceSubEl.innerText = "Checkout summary not inspected";
+    } else {
+        priceValEl.innerText = `₹0.00 Net Drip`;
+        priceValEl.style.color = "#93c5fd";
+        priceSubEl.innerText = "No unexpected fees disclosed";
     }
 
-    tbody.innerHTML = calls.map(c => `
-        <tr>
-            <td>${(c.requested_at || "").substring(11, 19)}</td>
-            <td style="font-weight: 600; color: #60a5fa;">${c.operation}</td>
-            <td style="color: ${c.response_status === 200 || c.response_status === 201 ? '#10b981' : '#ef4444'}">${c.response_status || 'ERR'}</td>
-            <td>${c.result_usable ? '✓ Yes' : '✗ No'}</td>
-            <td style="font-family: monospace; font-size: 0.8em;">${c.provider_request_id || '-'}</td>
-        </tr>
-    `).join("");
-}
+    // KPI 3: CCPA Dark Pattern Indicators
+    const indValEl = document.getElementById("kpi-indicators-val");
+    const indSubEl = document.getElementById("kpi-indicators-sub");
 
-async function loadPastAudits() {
-    try {
-        const resp = await fetch("/audits");
-        const audits = await resp.json();
-        const list = document.getElementById("audits-history-list");
-        if (!audits.length) {
-            list.innerHTML = `<div style="color: #94a3b8; font-size: 0.85em;">No previous audits recorded.</div>`;
-            return;
-        }
+    const highCount = findings.filter(f => (f.severity || "").toLowerCase() === "high").length;
+    const medCount = findings.filter(f => (f.severity || "").toLowerCase() === "medium").length;
+    const lowCount = findings.filter(f => (f.severity || "").toLowerCase() === "low").length;
 
-        list.innerHTML = `
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Merchant</th>
-                        <th>Preset</th>
-                        <th>Status</th>
-                        <th>Findings</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${audits.map(a => `
-                        <tr>
-                            <td>${(a.created_at || '').substring(0, 16).replace('T', ' ')}</td>
-                            <td><strong>${a.merchant}</strong></td>
-                            <td>${(a.preset || 'quick').toUpperCase()}</td>
-                            <td><span style="color: ${a.status === 'complete' ? '#10b981' : '#f59e0b'}">${a.status}</span></td>
-                            <td><strong>${a.findings_count}</strong></td>
-                            <td>
-                                <button class="btn-chip" onclick="selectAudit('${a.id}', '${a.merchant}')">View Audit &rarr;</button>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        `;
-    } catch (e) {
-        console.error("Failed to load past audits:", e);
+    indValEl.innerText = `${findings.length} Flagged`;
+    if (findings.length > 0) {
+        indValEl.style.color = "#f87171";
+        indSubEl.innerText = `${highCount} High, ${medCount} Med, ${lowCount} Low`;
+    } else {
+        indValEl.style.color = "#34d399";
+        indSubEl.innerText = "0 Violations under tested conditions";
     }
-}
 
-function selectAudit(auditId, merchant) {
-    currentAuditId = auditId;
-    selectedRunId = null;
-    currentAuditRuns = [];
-    document.getElementById("active-audit-section").classList.remove("hidden");
-    if (merchant) {
-        document.getElementById("active-merchant").innerText = merchant;
-    }
-    document.getElementById("active-audit-id").innerText = auditId;
-    try {
-        const u = new URL(window.location);
-        u.searchParams.set("audit_id", auditId);
-        window.history.replaceState({}, "", u);
-    } catch (e) {}
-    connectEventStream(auditId);
-    refreshAuditData(auditId);
-    window.scrollTo({ top: 300, behavior: "smooth" });
-}
+    // KPI 4: Evidence Integrity Score
+    const integValEl = document.getElementById("kpi-integrity-val");
+    const integSubEl = document.getElementById("kpi-integrity-sub");
 
-function openReport() {
-    if (!currentAuditId) return;
-    window.open(`/audits/${currentAuditId}/report`, "_blank");
-}
+    const refRun = runs.find(r => r.is_reference) || runs[0];
+    const stageCaps = refRun ? (refRun.stage_captures || []) : [];
+    const verifiedCaps = stageCaps.filter(c => c.capture_status === "verified");
 
-async function openComplaintModal() {
-    if (!currentAuditId) return;
-    try {
-        const resp = await fetch(`/audits/${currentAuditId}/complaint-draft`, { method: "POST" });
-        const data = await resp.json();
-        document.getElementById("complaint-text").value = data.draft_text;
-        document.getElementById("complaint-modal").classList.remove("hidden");
-    } catch (e) {
-        alert("Failed to generate draft: " + e.message);
-    }
-}
-
-function closeComplaintModal() {
-    document.getElementById("complaint-modal").classList.add("hidden");
-}
-
-function copyComplaintText() {
-    const txt = document.getElementById("complaint-text");
-    txt.select();
-    document.execCommand("copy");
-    alert("Complaint draft copied to clipboard!");
-}
-
-async function triggerReobserve() {
-    if (!currentAuditId) return;
-    try {
-        appendConsole("⏱️ Spawning manual temporal re-observation...");
-        const resp = await fetch(`/audits/${currentAuditId}/reobserve`, { method: "POST" });
-        const data = await resp.json();
-        appendConsole(`▶️ New observation attempt enqueued (ID: ${data.new_run_id}). Waiting for completion...`);
-    } catch (e) {
-        alert("Failed to trigger re-observation: " + e.message);
+    if (verifiedCaps.length === 3) {
+        integValEl.innerText = "100% Verified";
+        integValEl.style.color = "#34d399";
+        integSubEl.innerText = "3 / 3 Stages SHA-256 Hashed";
+    } else if (verifiedCaps.length > 0) {
+        const pctInteg = Math.round((verifiedCaps.length / 3) * 100);
+        integValEl.innerText = `${pctInteg}% Incomplete`;
+        integValEl.style.color = "#fbbf24";
+        integSubEl.innerText = `${verifiedCaps.length} of 3 Required Stages Verified`;
+    } else {
+        integValEl.innerText = "0% Captured";
+        integValEl.style.color = "#94a3b8";
+        integSubEl.innerText = "Awaiting stage captures";
     }
 }
 
 // -------------------------------------------------------------
-// Assessment Banner Rendering
+// Assessment Status Banner
 // -------------------------------------------------------------
 
 function renderAssessmentBanner(assessment) {
@@ -375,8 +456,6 @@ function renderAssessmentBanner(assessment) {
 
     badge.className = "assessment-status-badge";
 
-    // Strictly enforce backend assessment contract:
-    // Never label VERIFIED CLEAN without explicit is_clean boolean flag and clean status.
     const isClean = Boolean(assessment.is_clean === true && assessment.status === "clean");
     const isInconclusive = Boolean(assessment.is_inconclusive === true || assessment.status === "inconclusive");
     const hasIndicators = Boolean(
@@ -404,7 +483,6 @@ function renderAssessmentBanner(assessment) {
         summary.innerText = assessment.summary || "Technical checkout audit findings flagged candidate dark patterns matching CCPA 2023 regulations.";
         reasonsContainer.classList.add("hidden");
     } else {
-        // Conservative fail-closed default: missing findings alone NEVER equals clean
         banner.classList.add("assessment-inconclusive");
         badge.classList.add("badge-inconclusive");
         badge.innerText = "INCONCLUSIVE AUDIT";
@@ -424,7 +502,7 @@ function renderAssessmentBanner(assessment) {
 }
 
 // -------------------------------------------------------------
-// Evidence Gallery Rendering (3 Stages)
+// Evidence Gallery (3-Stage Viewports)
 // -------------------------------------------------------------
 
 function renderEvidenceGallery(runs, targetRunId) {
@@ -433,7 +511,6 @@ function renderEvidenceGallery(runs, targetRunId) {
         return;
     }
 
-    // Determine target run: if specified, use it; else prefer reference run, else first run
     let activeRun = null;
     if (targetRunId) {
         activeRun = runs.find(r => r.id === targetRunId);
@@ -443,7 +520,6 @@ function renderEvidenceGallery(runs, targetRunId) {
     }
     selectedRunId = activeRun ? activeRun.id : null;
 
-    // Handle run selector dropdown if multiple runs
     const selContainer = document.getElementById("run-selector-container");
     const dropdown = document.getElementById("gallery-run-select");
     if (runs.length > 1) {
@@ -468,7 +544,6 @@ function renderEvidenceGallery(runs, targetRunId) {
     const stageCaps = activeRun ? (activeRun.stage_captures || []) : [];
 
     stages.forEach(st => {
-        // Resolve stage capture record
         const sc = stageCaps.find(c => {
             const sName = (c.step_name || "").toLowerCase();
             if (st.key === "product") return sName === "product" || sName.includes("prod");
@@ -527,7 +602,6 @@ function renderEvidenceGallery(runs, targetRunId) {
 
             timeMeta.innerText = timeStr;
         } else {
-            // Stage was not captured in this run
             badge.className = "stage-status-badge badge-stage-missing";
             badge.innerText = "NOT CAPTURED";
             imgContainer.innerHTML = `<div class="stage-empty-state">⚠️ Stage was not captured in this audit run</div>`;
@@ -567,7 +641,410 @@ function onGalleryRunChanged() {
 }
 
 // -------------------------------------------------------------
-// Full-Resolution Screenshot Lightbox
+// Interactive Findings Filtering & Rendering
+// -------------------------------------------------------------
+
+function setSeverityFilter(sev) {
+    currentSeverityFilter = sev;
+    document.querySelectorAll(".btn-filter").forEach(b => {
+        if (b.getAttribute("data-severity") === sev) {
+            b.classList.add("active");
+        } else {
+            b.classList.remove("active");
+        }
+    });
+    filterAndRenderFindings();
+}
+
+function onSearchFindings() {
+    currentFindingSearch = (document.getElementById("finding-search-input").value || "").toLowerCase().trim();
+    filterAndRenderFindings();
+}
+
+function filterAndRenderFindings() {
+    const list = document.getElementById("findings-list");
+    let filtered = rawFindings;
+
+    if (currentSeverityFilter !== "all") {
+        filtered = filtered.filter(f => (f.severity || "").toLowerCase() === currentSeverityFilter);
+    }
+
+    if (currentFindingSearch) {
+        filtered = filtered.filter(f => {
+            const cat = (f.category || "").toLowerCase();
+            const expl = (f.explanation || "").toLowerCase();
+            const heu = (f.heuristic_note || "").toLowerCase();
+            return cat.includes(currentFindingSearch) || expl.includes(currentFindingSearch) || heu.includes(currentFindingSearch);
+        });
+    }
+
+    document.getElementById("findings-count-pill").innerText = `${filtered.length} of ${rawFindings.length} Found`;
+
+    if (!filtered.length) {
+        if (!rawFindings.length) {
+            list.innerHTML = `<div class="empty-state">No dark pattern indicators detected in this flow.</div>`;
+        } else {
+            list.innerHTML = `<div class="empty-state">No indicators match current filter criteria.</div>`;
+        }
+        return;
+    }
+
+    list.innerHTML = filtered.map(f => `
+        <div class="finding-item">
+            <div class="finding-item-header">
+                <span class="finding-cat">${escapeHtml((f.category || "").replace(/_/g, " "))}</span>
+                <span class="finding-badge">${escapeHtml((f.severity || "").toUpperCase())} (${Math.round((f.confidence || 0) * 100)}%)</span>
+            </div>
+            <div class="finding-expl">${escapeHtml(f.explanation || "")}</div>
+            ${f.heuristic_note ? `<div class="finding-heuristic">ℹ️ ${escapeHtml(f.heuristic_note)}</div>` : ""}
+        </div>
+    `).join("");
+}
+
+// -------------------------------------------------------------
+// Matched-Pair Differential Matrix Rendering
+// -------------------------------------------------------------
+
+function renderDiffs(diffs) {
+    const list = document.getElementById("diffs-list");
+    document.getElementById("diffs-count-pill").innerText = `${diffs.length} Diffs`;
+
+    if (!diffs.length) {
+        list.innerHTML = `<div class="empty-state">No variances detected across tested pairs.</div>`;
+        return;
+    }
+
+    list.innerHTML = diffs.map(d => {
+        let desc = "";
+        const det = d.detail || {};
+        if (d.type === "PRICE_VARIANCE") {
+            desc = `${det.canonical_label}: ₹${det.amount_a_minor / 100} vs ₹${det.amount_b_minor / 100} across ${det.dimension}`;
+        } else if (d.type === "LATE_DISCLOSURE") {
+            desc = `${det.label} (₹${det.amount_minor / 100}) first observed at ${det.observed_disclosure_stage}, absent on ${det.expected_stage}`;
+        } else if (d.type === "SMALL_CART_RULE") {
+            desc = `Cart Policy: ${det.label} (₹${det.amount_minor / 100}) applied only below threshold.`;
+        } else if (d.type === "TEMPORAL_DRIFT") {
+            desc = `${det.canonical_label} changed from ₹${det.amount_t0_minor / 100} to ₹${det.amount_t1_minor / 100} across observations`;
+        } else {
+            desc = JSON.stringify(det);
+        }
+
+        return `
+            <div class="diff-item">
+                <div class="diff-type">${escapeHtml(d.type)}</div>
+                <div class="diff-desc">${escapeHtml(desc)}</div>
+                <small style="color: #64748b; font-family: ui-monospace, SFMono-Regular, monospace;">Match: ${escapeHtml(d.matching_key || "-")}</small>
+            </div>
+        `;
+    }).join("");
+}
+
+// -------------------------------------------------------------
+// Provider Calls Pagination & Search
+// -------------------------------------------------------------
+
+function onSearchCalls() {
+    callsSearch = (document.getElementById("calls-search-input").value || "").toLowerCase().trim();
+    callsPage = 1;
+    renderCalls();
+}
+
+function changeCallsPage(delta) {
+    callsPage += delta;
+    renderCalls();
+}
+
+function renderCalls() {
+    const tbody = document.getElementById("calls-tbody");
+    let filtered = rawCalls;
+
+    if (callsSearch) {
+        filtered = filtered.filter(c => {
+            const op = (c.operation || "").toLowerCase();
+            const stat = String(c.response_status || "");
+            const reqId = (c.provider_request_id || "").toLowerCase();
+            return op.includes(callsSearch) || stat.includes(callsSearch) || reqId.includes(callsSearch);
+        });
+    }
+
+    const total = filtered.length;
+    const maxPage = Math.max(1, Math.ceil(total / callsPageSize));
+    if (callsPage > maxPage) callsPage = maxPage;
+    if (callsPage < 1) callsPage = 1;
+
+    const startIdx = (callsPage - 1) * callsPageSize;
+    const pageItems = filtered.slice(startIdx, startIdx + callsPageSize);
+
+    if (!pageItems.length) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #94a3b8; padding: 20px;">No calls recorded.</td></tr>`;
+    } else {
+        tbody.innerHTML = pageItems.map(c => `
+            <tr>
+                <td>${(c.requested_at || "").substring(11, 19)}</td>
+                <td style="font-weight: 600; color: #60a5fa;">${escapeHtml(c.operation)}</td>
+                <td style="color: ${c.response_status === 200 || c.response_status === 201 ? '#10b981' : '#ef4444'}">${c.response_status || 'ERR'}</td>
+                <td>${c.result_usable ? '✓ Yes' : '✗ No'}</td>
+                <td style="font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.85em;">${escapeHtml(c.provider_request_id || '-')}</td>
+            </tr>
+        `).join("");
+    }
+
+    // Update pagination controls
+    const prevBtn = document.getElementById("btn-calls-prev");
+    const nextBtn = document.getElementById("btn-calls-next");
+    const pageInfo = document.getElementById("calls-page-info");
+
+    if (prevBtn) prevBtn.disabled = (callsPage <= 1);
+    if (nextBtn) nextBtn.disabled = (callsPage >= maxPage);
+    if (pageInfo) pageInfo.innerText = `Page ${callsPage} of ${maxPage} (${total} total calls)`;
+}
+
+// -------------------------------------------------------------
+// Previous Audits History (Tab 4 & Home View)
+// -------------------------------------------------------------
+
+async function loadPastAudits() {
+    try {
+        const resp = await fetch("/audits");
+        rawAudits = await resp.json();
+        document.getElementById("tab-pill-history").innerText = String(rawAudits.length);
+
+        renderHistoryTable();
+        renderHomeHistoryTable();
+    } catch (e) {
+        console.error("Failed to load past audits:", e);
+    }
+}
+
+function onSearchHistory() {
+    historySearch = (document.getElementById("history-search-input").value || "").toLowerCase().trim();
+    historyPage = 1;
+    renderHistoryTable();
+}
+
+function changeHistoryPage(delta) {
+    historyPage += delta;
+    renderHistoryTable();
+}
+
+function renderHistoryTable() {
+    const list = document.getElementById("audits-history-list");
+    let filtered = rawAudits;
+
+    if (historySearch) {
+        filtered = filtered.filter(a => {
+            const m = (a.merchant || "").toLowerCase();
+            const id = (a.id || "").toLowerCase();
+            return m.includes(historySearch) || id.includes(historySearch);
+        });
+    }
+
+    const total = filtered.length;
+    const maxPage = Math.max(1, Math.ceil(total / historyPageSize));
+    if (historyPage > maxPage) historyPage = maxPage;
+    if (historyPage < 1) historyPage = 1;
+
+    const startIdx = (historyPage - 1) * historyPageSize;
+    const pageItems = filtered.slice(startIdx, startIdx + historyPageSize);
+
+    if (!pageItems.length) {
+        list.innerHTML = `<div class="empty-state">No audits match search criteria.</div>`;
+    } else {
+        list.innerHTML = `
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date / Time</th>
+                            <th>Merchant</th>
+                            <th>Preset</th>
+                            <th>Status</th>
+                            <th>Findings</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${pageItems.map(a => `
+                            <tr>
+                                <td>${(a.created_at || '').substring(0, 16).replace('T', ' ')}</td>
+                                <td><strong>${escapeHtml(a.merchant)}</strong></td>
+                                <td><span class="badge badge-outline">${escapeHtml((a.preset || 'quick').toUpperCase())}</span></td>
+                                <td><span style="color: ${a.status === 'complete' ? '#10b981' : '#f59e0b'}; font-weight: 600;">${escapeHtml(a.status)}</span></td>
+                                <td><strong>${a.findings_count}</strong></td>
+                                <td>
+                                    <button type="button" class="btn-chip" onclick="selectAudit('${a.id}', '${escapeHtml(a.merchant)}')">Inspect Audit &rarr;</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    const prevBtn = document.getElementById("btn-history-prev");
+    const nextBtn = document.getElementById("btn-history-next");
+    const pageInfo = document.getElementById("history-page-info");
+
+    if (prevBtn) prevBtn.disabled = (historyPage <= 1);
+    if (nextBtn) nextBtn.disabled = (historyPage >= maxPage);
+    if (pageInfo) pageInfo.innerText = `Page ${historyPage} of ${maxPage} (${total} total audits)`;
+}
+
+function onSearchHomeHistory() {
+    homeHistorySearch = (document.getElementById("home-history-search").value || "").toLowerCase().trim();
+    homeHistoryPage = 1;
+    renderHomeHistoryTable();
+}
+
+function changeHomeHistoryPage(delta) {
+    homeHistoryPage += delta;
+    renderHomeHistoryTable();
+}
+
+function renderHomeHistoryTable() {
+    const list = document.getElementById("home-audits-list");
+    let filtered = rawAudits;
+
+    if (homeHistorySearch) {
+        filtered = filtered.filter(a => {
+            const m = (a.merchant || "").toLowerCase();
+            const id = (a.id || "").toLowerCase();
+            return m.includes(homeHistorySearch) || id.includes(homeHistorySearch);
+        });
+    }
+
+    const total = filtered.length;
+    const maxPage = Math.max(1, Math.ceil(total / homeHistoryPageSize));
+    if (homeHistoryPage > maxPage) homeHistoryPage = maxPage;
+    if (homeHistoryPage < 1) homeHistoryPage = 1;
+
+    const startIdx = (homeHistoryPage - 1) * homeHistoryPageSize;
+    const pageItems = filtered.slice(startIdx, startIdx + homeHistoryPageSize);
+
+    if (!pageItems.length) {
+        list.innerHTML = `<div class="empty-state">No audits recorded.</div>`;
+    } else {
+        list.innerHTML = `
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date / Time</th>
+                            <th>Merchant</th>
+                            <th>Preset</th>
+                            <th>Status</th>
+                            <th>Findings</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${pageItems.map(a => `
+                            <tr>
+                                <td>${(a.created_at || '').substring(0, 16).replace('T', ' ')}</td>
+                                <td><strong>${escapeHtml(a.merchant)}</strong></td>
+                                <td><span class="badge badge-outline">${escapeHtml((a.preset || 'quick').toUpperCase())}</span></td>
+                                <td><span style="color: ${a.status === 'complete' ? '#10b981' : '#f59e0b'}; font-weight: 600;">${escapeHtml(a.status)}</span></td>
+                                <td><strong>${a.findings_count}</strong></td>
+                                <td>
+                                    <button type="button" class="btn-chip" onclick="selectAudit('${a.id}', '${escapeHtml(a.merchant)}')">Inspect Audit &rarr;</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    const prevBtn = document.getElementById("btn-home-history-prev");
+    const nextBtn = document.getElementById("btn-home-history-next");
+    const pageInfo = document.getElementById("home-history-page-info");
+
+    if (prevBtn) prevBtn.disabled = (homeHistoryPage <= 1);
+    if (nextBtn) nextBtn.disabled = (homeHistoryPage >= maxPage);
+    if (pageInfo) pageInfo.innerText = `Page ${homeHistoryPage} of ${maxPage} (${total} total audits)`;
+}
+
+// -------------------------------------------------------------
+// Audit Selection
+// -------------------------------------------------------------
+
+function selectAudit(auditId, merchant) {
+    currentAuditId = auditId;
+    selectedRunId = null;
+    currentAuditRuns = [];
+
+    // Collapse launcher when inspecting an audit
+    toggleLauncher(false);
+
+    document.getElementById("active-audit-section").classList.remove("hidden");
+    document.getElementById("home-history-section").classList.add("hidden");
+
+    if (merchant) {
+        document.getElementById("active-merchant").innerText = merchant;
+    }
+    document.getElementById("active-audit-id").innerText = auditId;
+
+    try {
+        const u = new URL(window.location);
+        u.searchParams.set("audit_id", auditId);
+        window.history.replaceState({}, "", u);
+    } catch (e) {}
+
+    connectEventStream(auditId);
+    refreshAuditData(auditId);
+    switchTab("evidence");
+
+    window.scrollTo({ top: 120, behavior: "smooth" });
+}
+
+// -------------------------------------------------------------
+// Actions: Report, Complaint, Re-observe
+// -------------------------------------------------------------
+
+function openReport() {
+    if (!currentAuditId) return;
+    window.open(`/audits/${currentAuditId}/report`, "_blank");
+}
+
+async function openComplaintModal() {
+    if (!currentAuditId) return;
+    try {
+        const resp = await fetch(`/audits/${currentAuditId}/complaint-draft`, { method: "POST" });
+        const data = await resp.json();
+        document.getElementById("complaint-text").value = data.draft_text;
+        document.getElementById("complaint-modal").classList.remove("hidden");
+    } catch (e) {
+        alert("Failed to generate draft: " + e.message);
+    }
+}
+
+function closeComplaintModal() {
+    document.getElementById("complaint-modal").classList.add("hidden");
+}
+
+function copyComplaintText() {
+    const txt = document.getElementById("complaint-text");
+    txt.select();
+    document.execCommand("copy");
+    alert("Complaint draft copied to clipboard!");
+}
+
+async function triggerReobserve() {
+    if (!currentAuditId) return;
+    try {
+        appendConsole("⏱️ Spawning manual temporal re-observation...");
+        const resp = await fetch(`/audits/${currentAuditId}/reobserve`, { method: "POST" });
+        const data = await resp.json();
+        appendConsole(`▶️ New observation attempt enqueued (ID: ${data.new_run_id}). Waiting for completion...`);
+    } catch (e) {
+        alert("Failed to trigger re-observation: " + e.message);
+    }
+}
+
+// -------------------------------------------------------------
+// Lightbox Modal
 // -------------------------------------------------------------
 
 function openScreenshotModal(imgUrl, stageTitle, snapId, sha256) {
@@ -585,6 +1062,10 @@ function closeScreenshotModal() {
     modal.classList.add("hidden");
     document.getElementById("modal-img").src = "";
 }
+
+// -------------------------------------------------------------
+// Utilities
+// -------------------------------------------------------------
 
 function formatTimestamp(isoStr) {
     if (!isoStr) return "-";
