@@ -90,8 +90,11 @@ function toggleLauncher(forceState) {
     }
 }
 
+let currentTargetMerchant = null;
+
 function setTarget(url, name) {
     document.getElementById("input-url").value = url;
+    currentTargetMerchant = name || null;
 }
 
 // -------------------------------------------------------------
@@ -153,10 +156,15 @@ async function launchAudit() {
     btnSubmit.innerText = "Launching Matrix...";
 
     try {
+        const reqBody = { input_url: inputUrl, preset: preset };
+        if (currentTargetMerchant) {
+            reqBody.merchant = currentTargetMerchant;
+        }
+
         const resp = await fetch("/audits", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ input_url: inputUrl, preset: preset })
+            body: JSON.stringify(reqBody)
         });
         const data = await resp.json();
         currentAuditId = data.id;
@@ -350,15 +358,15 @@ function renderExecutiveScorecard(det, findings, diffs, runs) {
     if (isClean) {
         badgeEl.classList.add("badge-clean");
         badgeEl.innerText = "VERIFIED CLEAN";
-        subEl.innerText = "Fail-closed observed boundary";
+        subEl.innerText = "Observed flow clean; not gateway certified";
     } else if (hasIndicators) {
         badgeEl.classList.add("badge-indicators");
         badgeEl.innerText = "INDICATORS DETECTED";
-        subEl.innerText = `${findings.length} dark pattern indicators`;
+        subEl.innerText = `${findings.length} empirical candidate indicator(s)`;
     } else {
         badgeEl.classList.add("badge-inconclusive");
         badgeEl.innerText = "INCONCLUSIVE AUDIT";
-        subEl.innerText = "Missing / obstructed flow";
+        subEl.innerText = "Journey incomplete; clean status denied";
     }
 
     // KPI 2: Pricing Disclosures & Drip Impact
@@ -375,21 +383,21 @@ function renderExecutiveScorecard(det, findings, diffs, runs) {
     });
 
     if (dripFeeMinor > 0) {
-        priceValEl.innerText = `+₹${(dripFeeMinor / 100).toFixed(2)}`;
+        priceValEl.innerText = `+₹${(dripFeeMinor / 100).toFixed(2)} Drip Fee`;
         priceValEl.style.color = "#f87171";
-        priceSubEl.innerText = `${lateLabel} added at checkout`;
+        priceSubEl.innerText = `${lateLabel} disclosed at checkout summary`;
     } else if (isClean) {
-        priceValEl.innerText = `₹0.00 Net Drip`;
+        priceValEl.innerText = `₹0.00 Variance`;
         priceValEl.style.color = "#34d399";
-        priceSubEl.innerText = "Upfront price matched across flow";
+        priceSubEl.innerText = "Listed price matched checkout payable";
     } else if (isInconclusive) {
-        priceValEl.innerText = `Unverified`;
+        priceValEl.innerText = `Uninspected`;
         priceValEl.style.color = "#fbbf24";
-        priceSubEl.innerText = "Checkout summary not inspected";
+        priceSubEl.innerText = "Checkout payable stage not reached";
     } else {
-        priceValEl.innerText = `₹0.00 Net Drip`;
+        priceValEl.innerText = `₹0.00 Variance`;
         priceValEl.style.color = "#93c5fd";
-        priceSubEl.innerText = "No unexpected fees disclosed";
+        priceSubEl.innerText = "No unexpected charges observed";
     }
 
     // KPI 3: CCPA Dark Pattern Indicators
@@ -403,7 +411,7 @@ function renderExecutiveScorecard(det, findings, diffs, runs) {
     indValEl.innerText = `${findings.length} Flagged`;
     if (findings.length > 0) {
         indValEl.style.color = "#f87171";
-        indSubEl.innerText = `${highCount} High, ${medCount} Med, ${lowCount} Low`;
+        indSubEl.innerText = `${highCount} High, ${medCount} Med, ${lowCount} Low (Non-adjudicative)`;
     } else {
         indValEl.style.color = "#34d399";
         indSubEl.innerText = "0 Violations under tested conditions";
@@ -418,16 +426,15 @@ function renderExecutiveScorecard(det, findings, diffs, runs) {
     const verifiedCaps = stageCaps.filter(c => c.capture_status === "verified");
 
     if (verifiedCaps.length === 3) {
-        integValEl.innerText = "100% Verified";
+        integValEl.innerText = "3 / 3 Stages Hashed";
         integValEl.style.color = "#34d399";
-        integSubEl.innerText = "3 / 3 Stages SHA-256 Hashed";
+        integSubEl.innerText = "Cryptographic SHA-256 chain of custody";
     } else if (verifiedCaps.length > 0) {
-        const pctInteg = Math.round((verifiedCaps.length / 3) * 100);
-        integValEl.innerText = `${pctInteg}% Incomplete`;
+        integValEl.innerText = `${verifiedCaps.length} / 3 Stages Captured`;
         integValEl.style.color = "#fbbf24";
-        integSubEl.innerText = `${verifiedCaps.length} of 3 Required Stages Verified`;
+        integSubEl.innerText = "Incomplete stage observation pipeline";
     } else {
-        integValEl.innerText = "0% Captured";
+        integValEl.innerText = "0 / 3 Captured";
         integValEl.style.color = "#94a3b8";
         integSubEl.innerText = "Awaiting stage captures";
     }
@@ -864,18 +871,24 @@ function renderHistoryTable() {
                         </tr>
                     </thead>
                     <tbody>
-                        ${pageItems.map(a => `
-                            <tr>
-                                <td>${(a.created_at || '').substring(0, 16).replace('T', ' ')}</td>
-                                <td><strong>${escapeHtml(a.merchant)}</strong></td>
-                                <td><span class="badge badge-outline">${escapeHtml((a.preset || 'quick').toUpperCase())}</span></td>
-                                <td><span style="color: ${a.status === 'complete' ? '#10b981' : '#f59e0b'}; font-weight: 600;">${escapeHtml(a.status)}</span></td>
-                                <td><strong>${a.findings_count}</strong></td>
-                                <td>
-                                    <button type="button" class="btn-chip" onclick="selectAudit('${a.id}', '${escapeHtml(a.merchant)}')">Inspect Audit &rarr;</button>
-                                </td>
-                            </tr>
-                        `).join('')}
+                        ${pageItems.map(a => {
+                            const isLive = (a.merchant || "").toLowerCase().includes("headphone") || (a.input_url || "").toLowerCase().includes("headphonezone");
+                            const provBadge = isLive 
+                                ? `<span class="badge-tag-live">LIVE MERCHANT</span>` 
+                                : `<span class="badge-tag-synthetic">SYNTHETIC HARNESS</span>`;
+                            return `
+                                <tr>
+                                    <td>${(a.created_at || '').substring(0, 16).replace('T', ' ')}</td>
+                                    <td><strong>${escapeHtml(a.merchant)}</strong> ${provBadge}</td>
+                                    <td><span class="badge badge-outline">${escapeHtml((a.preset || 'quick').toUpperCase())}</span></td>
+                                    <td><span style="color: ${a.status === 'complete' ? '#10b981' : '#f59e0b'}; font-weight: 600;">${escapeHtml(a.status)}</span></td>
+                                    <td><strong>${a.findings_count}</strong></td>
+                                    <td>
+                                        <button type="button" class="btn-chip" onclick="selectAudit('${a.id}', '${escapeHtml(a.merchant)}')">Inspect Audit &rarr;</button>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
                     </tbody>
                 </table>
             </div>
@@ -939,18 +952,24 @@ function renderHomeHistoryTable() {
                         </tr>
                     </thead>
                     <tbody>
-                        ${pageItems.map(a => `
-                            <tr>
-                                <td>${(a.created_at || '').substring(0, 16).replace('T', ' ')}</td>
-                                <td><strong>${escapeHtml(a.merchant)}</strong></td>
-                                <td><span class="badge badge-outline">${escapeHtml((a.preset || 'quick').toUpperCase())}</span></td>
-                                <td><span style="color: ${a.status === 'complete' ? '#10b981' : '#f59e0b'}; font-weight: 600;">${escapeHtml(a.status)}</span></td>
-                                <td><strong>${a.findings_count}</strong></td>
-                                <td>
-                                    <button type="button" class="btn-chip" onclick="selectAudit('${a.id}', '${escapeHtml(a.merchant)}')">Inspect Audit &rarr;</button>
-                                </td>
-                            </tr>
-                        `).join('')}
+                        ${pageItems.map(a => {
+                            const isLive = (a.merchant || "").toLowerCase().includes("headphone") || (a.input_url || "").toLowerCase().includes("headphonezone");
+                            const provBadge = isLive 
+                                ? `<span class="badge-tag-live">LIVE MERCHANT</span>` 
+                                : `<span class="badge-tag-synthetic">SYNTHETIC HARNESS</span>`;
+                            return `
+                                <tr>
+                                    <td>${(a.created_at || '').substring(0, 16).replace('T', ' ')}</td>
+                                    <td><strong>${escapeHtml(a.merchant)}</strong> ${provBadge}</td>
+                                    <td><span class="badge badge-outline">${escapeHtml((a.preset || 'quick').toUpperCase())}</span></td>
+                                    <td><span style="color: ${a.status === 'complete' ? '#10b981' : '#f59e0b'}; font-weight: 600;">${escapeHtml(a.status)}</span></td>
+                                    <td><strong>${a.findings_count}</strong></td>
+                                    <td>
+                                        <button type="button" class="btn-chip" onclick="selectAudit('${a.id}', '${escapeHtml(a.merchant)}')">Inspect Audit &rarr;</button>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
                     </tbody>
                 </table>
             </div>
@@ -974,6 +993,21 @@ function selectAudit(auditId, merchant) {
     currentAuditId = auditId;
     selectedRunId = null;
     currentAuditRuns = [];
+
+    // Reset pagination and search filters when switching audit
+    callsPage = 1;
+    callsSearch = "";
+    const callsSearchInput = document.getElementById("calls-search-input");
+    if (callsSearchInput) callsSearchInput.value = "";
+
+    currentSeverityFilter = "all";
+    currentFindingSearch = "";
+    const findingSearchInput = document.getElementById("finding-search-input");
+    if (findingSearchInput) findingSearchInput.value = "";
+    document.querySelectorAll(".btn-filter").forEach(b => {
+        if (b.getAttribute("data-severity") === "all") b.classList.add("active");
+        else b.classList.remove("active");
+    });
 
     // Collapse launcher when inspecting an audit
     toggleLauncher(false);

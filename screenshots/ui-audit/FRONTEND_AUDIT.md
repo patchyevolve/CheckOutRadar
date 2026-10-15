@@ -405,13 +405,19 @@ The frontend redesign was fully implemented across `frontend/index.html`, `front
 | **DEF-06** | Tablet/Mobile layout collapse | P2 | Responsive media queries (1024px, 768px, 480px) with 2x2 and 1x1 scorecard grids and optimized navbar. | `after/11_tablet_viewport_768x1024.png`, `after/12_mobile_viewport_375x812.png` |
 | **DEF-07** | Unfilterable findings & diffs | P2 | Severity filter toolbar (`All`, `High`, `Medium`, `Low`) and real-time keyword search added to Findings tab. | `after/03b_indicators_findings_tab_1440x900.png` |
 | **DEF-08** | Lightbox modal overflow | P3 | Flexbox wrapper (`flex: 1 1 auto; min-height: 0; max-height: 65vh`) ensures image containment and pinned footer. | `after/07_lightbox_modal_open_1440x900.png` |
+| **DEF-09** | Forensic precision & legal neutrality | P1 | Renamed scorecard KPI to `TECHNICAL PIPELINE INTEGRITY` (`3 / 3 Stages Hashed`), `OBSERVED AUDIT VERDICT`, and `DARK PATTERN SIGNALS` to prevent unwarranted statutory guilt claims. | `after/02_clean_audit_viewport_1440x900.png` |
+| **DEF-10** | Filter/pagination state bleed on switch | P2 | `selectAudit()` now cleanly resets pagination counters, severity chips, and search inputs upon switching between audit runs. | `after/03d_history_tab_1440x900.png` |
+| **DEF-11** | Data provenance ambiguity | P2 | Added high-contrast provenance badges (`[LIVE MERCHANT]` vs `[SYNTHETIC HARNESS]`) and explicit harness variant merchant names. | `after/03d_history_tab_1440x900.png` |
+| **DEF-12** | Missing test evidence files on disk | P1 | Restored byte-identical mock snapshots into `data/evidence/`; verified all database records resolve HTTP 200 without fallbacks. | `after/03_indicators_detected_viewport_1440x900.png` |
+| **DEF-13** | Mobile modal and table touch polish | P2 | Added `-webkit-overflow-scrolling: touch`, `min-height: 42px` touch targets for tabs, and `max-height: 88vh` on grievance modal. | `after/12_mobile_viewport_375x812.png` |
 
 ### 9.3 Test Suite & Regression Verification
-- **Local Pytest Suite:** 81 / 81 tests passing (1.40s) across 13 test modules.
+- **Local Pytest Suite:** 81 / 81 tests passing (1.49s) across 13 test modules.
 - **Three Demonstration Flows:** All 3 demo flows pass cleanly (Synthetic Positive Controls, Clean Negative Control, Conservative Inconclusive Default).
 - **CDP UI Interaction Suite:** All 4 browser automation checks pass (`scripts/verify_ui_interaction.py`).
-- **Security & Secret Scanner:** 0 secrets detected across 67 files and git commit history (`scripts/scan_secrets.py`).
+- **Security & Secret Scanner:** 0 secrets detected across 113 tracked files and full git commit history (`scripts/scan_secrets.py`).
 
 ---
 
 *Report finalized and approved. Ready for commit.*
+

@@ -127,10 +127,28 @@ def run_worker_drain():
 def submit_audit(req: CreateAuditRequest, background_tasks: BackgroundTasks):
     merchant = req.merchant
     if not merchant:
-        # Extract host as default merchant
+        # Extract host or map synthetic harness variants to explicit descriptive names
         import urllib.parse
         parsed = urllib.parse.urlparse(req.input_url)
-        merchant = parsed.netloc or "Demo Merchant"
+        path = (parsed.path or "").lower()
+        netloc = (parsed.netloc or "").lower()
+        if "harness" in netloc or "localhost" in netloc or "127.0.0.1" in netloc:
+            if "clean" in path:
+                merchant = "Demo Harness (Clean Upfront)"
+            elif "late" in path:
+                merchant = "Demo Harness (Drip Pricing / Late Fee)"
+            elif "addon" in path or "countdown" in path:
+                merchant = "Demo Harness (Basket Sneak + Urgency)"
+            elif "upfront" in path:
+                merchant = "Demo Harness (Upfront Convenience)"
+            elif "threshold" in path:
+                merchant = "Demo Harness (Cart Threshold Policy)"
+            else:
+                merchant = "Demo Harness (Synthetic Variant)"
+        elif "headphonezone" in netloc:
+            merchant = "Headphone Zone (Live Merchant)"
+        else:
+            merchant = parsed.netloc or "Demo Merchant"
 
     recipe_dict = req.cart_recipe.dict() if req.cart_recipe else None
 
