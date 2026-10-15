@@ -449,7 +449,7 @@ def assess_audit_outcome(
     return {
         "status": "clean",
         "findings_count": 0,
-        "summary": "Verified clean checkout flow: All required stages were captured and inspected; 0 potential dark pattern indicators detected.",
+        "summary": "Verified clean checkout flow under tested condition: All required stages were captured and inspected; 0 potential dark pattern indicators detected within observed flow boundary. Does not certify uninspected payment gateways, payment methods, or alternate conditions.",
         "inconclusive_reasons": [],
         "is_clean": True,
         "is_inconclusive": False,
