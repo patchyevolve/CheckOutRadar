@@ -22,16 +22,30 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 IS_HOST_ENV = (REPO_ROOT / "start.sh").exists()
 
 
-def test_default_mock_mode_when_env_unconfigured(monkeypatch):
+def test_default_mock_mode_when_env_unconfigured(tmp_path, monkeypatch):
     """When no MOCK_TINYFISH or TINYFISH_API_KEY is provided, job_runner safely defaults to MockTinyFishClient."""
+    test_db = tmp_path / "test_fresh.db"
+    monkeypatch.setenv("SQLITE_DB_PATH", str(test_db))
+    from app.db import connection
+    from app.services.settings_service import get_settings_manager
+    connection.init_db()
+    mgr = get_settings_manager()
+    mgr._memory_overrides.clear()
     monkeypatch.delenv("MOCK_TINYFISH", raising=False)
     monkeypatch.delenv("TINYFISH_API_KEY", raising=False)
     adapter = get_adapter()
     assert isinstance(adapter, MockTinyFishClient), "Expected MockTinyFishClient by default"
 
 
-def test_health_endpoint_reports_mock_mode_default(monkeypatch):
+def test_health_endpoint_reports_mock_mode_default(tmp_path, monkeypatch):
     """Health check reports healthy and mock_mode True when MOCK_TINYFISH is unset."""
+    test_db = tmp_path / "test_fresh.db"
+    monkeypatch.setenv("SQLITE_DB_PATH", str(test_db))
+    from app.db import connection
+    from app.services.settings_service import get_settings_manager
+    connection.init_db()
+    mgr = get_settings_manager()
+    mgr._memory_overrides.clear()
     monkeypatch.delenv("MOCK_TINYFISH", raising=False)
     monkeypatch.delenv("TINYFISH_API_KEY", raising=False)
     client = TestClient(app)

@@ -18,7 +18,7 @@ Principles:
 """
 
 from typing import Dict, Any, List, Optional, Tuple
-from .normalizer import canonicalize_label, STAGE_INDEX_MAP, derive_first_seen_steps
+from .normalizer import canonicalize_label, STAGE_INDEX_MAP, STAGE_ORDER, derive_first_seen_steps
 
 
 def is_matched_pair(

@@ -26,6 +26,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./frontend:/app/frontend
+      - ./backend/app:/app/app
       - ./data/ccpa_definitions.json:/data/ccpa_definitions.json:ro
       - ./evaluation:/evaluation:ro
     env_file:
@@ -56,6 +57,7 @@ services:
     command: ["python3", "-m", "app.worker.daemon"]
     volumes:
       - ./data:/app/data
+      - ./backend/app:/app/app
       - ./data/ccpa_definitions.json:/data/ccpa_definitions.json:ro
       - ./evaluation:/evaluation:ro
     env_file:

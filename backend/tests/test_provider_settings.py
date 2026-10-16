@@ -22,6 +22,7 @@ from app.services.settings_service import (
 )
 from app.analysis.classifier import LLMClassifier
 from app.worker.job_runner import get_adapter
+from app.db import connection
 from app.tinyfish.mock_client import MockTinyFishClient
 
 
@@ -31,12 +32,17 @@ def client():
 
 
 @pytest.fixture(autouse=True)
-def clean_settings(monkeypatch):
-    """Ensure each test starts with pristine environment and reset settings."""
+def clean_settings(tmp_path, monkeypatch):
+    """Ensure each test starts with pristine environment and reset settings in an isolated DB."""
+    test_db = tmp_path / "test_settings.db"
+    monkeypatch.setenv("SQLITE_DB_PATH", str(test_db))
+    connection.init_db()
+
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("TINYFISH_API_KEY", raising=False)
     monkeypatch.setenv("MOCK_TINYFISH", "true")
     mgr = get_settings_manager()
+    mgr._memory_overrides.clear()
     mgr.delete_setting("llm_api_key")
     mgr.delete_setting("tinyfish_api_key")
     mgr.delete_setting("llm_base_url")
@@ -44,8 +50,7 @@ def clean_settings(monkeypatch):
     mgr.delete_setting("mock_tinyfish")
     mgr.delete_setting("llm_pacing_seconds")
     yield mgr
-    mgr.delete_setting("llm_api_key")
-    mgr.delete_setting("tinyfish_api_key")
+    mgr._memory_overrides.clear()
 
 
 def test_mask_secret_helper():

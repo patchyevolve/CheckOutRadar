@@ -69,7 +69,7 @@ class JobRunner:
 
     def run_one_cycle(self) -> bool:
         """Claim and execute one job if available. Returns True if a job was processed."""
-        job = crud.claim_next_job(worker_id=self.worker_id, lease_duration_seconds=180)
+        job = crud.claim_next_job(worker_id=self.worker_id, lease_duration_seconds=600)
         if not job:
             return False
 
@@ -159,7 +159,7 @@ class JobRunner:
 
         # 4. Poll for run completion (with bounded wait and transient error resilience)
         poll_data = None
-        max_polls = int(os.getenv("TINYFISH_MAX_POLLS", "60"))
+        max_polls = int(os.getenv("TINYFISH_MAX_POLLS", "120"))
         poll_interval = int(os.getenv("TINYFISH_POLL_INTERVAL", "5"))
         consecutive_poll_errors = 0
         for _ in range(max_polls):
@@ -173,6 +173,11 @@ class JobRunner:
                     raise
                 time.sleep(poll_interval)
                 continue
+
+            # Heartbeat lease while actively waiting
+            new_expiry = crud.heartbeat_job_lease(job_id, self.worker_id, extend_seconds=300)
+            if new_expiry:
+                job["lease_expires_at"] = new_expiry
 
             prov_status = poll_data.get("status", "PENDING")
             if prov_status in ["COMPLETED", "FAILED", "CANCELLED"]:

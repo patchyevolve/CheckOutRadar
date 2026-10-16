@@ -314,6 +314,23 @@ def is_job_lease_valid(job_id: str, worker_id: str) -> bool:
         conn.close()
 
 
+def heartbeat_job_lease(job_id: str, worker_id: str, extend_seconds: int = 300) -> Optional[str]:
+    """Extend the lease expiry for a claimed job while the worker is actively executing/polling."""
+    conn = get_connection()
+    try:
+        new_expiry = (datetime.now(timezone.utc) + timedelta(seconds=extend_seconds)).isoformat()
+        cursor = conn.execute(
+            "UPDATE jobs SET lease_expires_at = ? WHERE id = ? AND state = 'claimed' AND lease_owner = ?",
+            (new_expiry, job_id, worker_id),
+        )
+        conn.commit()
+        if cursor.rowcount > 0:
+            return new_expiry
+        return None
+    finally:
+        conn.close()
+
+
 def fail_or_retry_job(job_id: str, error_message: str, max_retries: int = 2):
     conn = get_connection()
     try:
