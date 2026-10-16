@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .db import crud, connection
@@ -61,9 +61,28 @@ if os.path.exists(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
     @app.get("/", response_class=HTMLResponse)
-    def serve_dashboard():
-        index_file = os.path.join(FRONTEND_DIR, "index.html")
-        with open(index_file, "r", encoding="utf-8") as f:
+    def serve_landing(audit_id: Optional[str] = None):
+        """
+        Serve Product Landing Page at root.
+        Preserves backward compatibility: if audit_id query parameter is present,
+        redirects to /auditor?audit_id=...
+        """
+        if audit_id:
+            return RedirectResponse(url=f"/auditor?audit_id={audit_id}", status_code=307)
+        landing_file = os.path.join(FRONTEND_DIR, "index.html")
+        with open(landing_file, "r", encoding="utf-8") as f:
+            return f.read()
+
+    @app.get("/auditor", response_class=HTMLResponse)
+    def serve_auditor(audit_id: Optional[str] = None):
+        """
+        Serve Forensic Auditor Investigation Workspace.
+        """
+        auditor_file = os.path.join(FRONTEND_DIR, "auditor.html")
+        if not os.path.exists(auditor_file):
+            # Fallback if auditor.html doesn't exist
+            auditor_file = os.path.join(FRONTEND_DIR, "index.html")
+        with open(auditor_file, "r", encoding="utf-8") as f:
             return f.read()
 
 

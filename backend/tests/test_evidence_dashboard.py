@@ -313,3 +313,31 @@ def test_html_report_uses_valid_evidence_urls(client_and_evidence_dir):
 
     assert 'href="/evidence/' in html
     assert 'href="./' not in html
+
+
+def test_landing_page_serves_html(client_and_evidence_dir):
+    """Verify / serves the landing page with status 200."""
+    client, _ = client_and_evidence_dir
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "Outside-In Differential Checkout Transparency" in resp.text
+    assert "The Problem" in resp.text
+    assert "The Five-Stage Outside-In Auditing Workflow" in resp.text
+
+
+def test_landing_page_redirects_with_audit_id(client_and_evidence_dir):
+    """Verify /?audit_id=xyz redirects to /auditor?audit_id=xyz with 307 Temporary Redirect."""
+    client, _ = client_and_evidence_dir
+    resp = client.get("/?audit_id=aud_test123", follow_redirects=False)
+    assert resp.status_code == 307
+    assert resp.headers["location"] == "/auditor?audit_id=aud_test123"
+
+
+def test_auditor_page_serves_workspace(client_and_evidence_dir):
+    """Verify /auditor serves the investigation workspace with status 200."""
+    client, _ = client_and_evidence_dir
+    resp = client.get("/auditor")
+    assert resp.status_code == 200
+    assert "Launch Checkout Audit" in resp.text
+    assert "Overview" in resp.text
+

@@ -3,495 +3,469 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Checkout Radar — Outside-in E-Commerce Flow Auditor</title>
+    <title>Checkout Radar — Outside-In Differential Checkout Transparency & Dark Pattern Auditor</title>
     <link rel="stylesheet" href="/static/styles.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📡</text></svg>">
+    <link rel="stylesheet" href="/static/landing.css">
 </head>
-<body>
-    <header class="navbar">
-        <div class="nav-brand">
-            <span class="logo-icon">📡</span>
-            <div>
-                <h1>Checkout Radar</h1>
-                <span class="tagline">Outside-in Differential Checkout Transparency & Dark Pattern Auditor</span>
+<body class="landing-body">
+
+    <!-- Top Navigation Bar -->
+    <header class="landing-nav">
+        <div class="landing-nav-inner">
+            <a href="/" class="landing-brand">
+                <span style="font-size: 1.6em;">📡</span>
+                <div>
+                    <h1>Checkout Radar</h1>
+                    <span class="landing-brand-tagline">Outside-in Differential Checkout Transparency & Dark Pattern Auditor</span>
+                </div>
+            </a>
+            <nav class="landing-nav-links">
+                <a href="#problem">The Problem</a>
+                <a href="#workflow">5-Stage Workflow</a>
+                <a href="#capabilities">Capabilities</a>
+                <a href="#assessments">Assessment States</a>
+                <a href="#limitations">Scope & Boundaries</a>
+                <a href="/docs" target="_blank">API Docs</a>
+            </nav>
+            <div class="landing-nav-actions">
+                <a href="/auditor?audit_id=aud_b29153cee0b1" class="btn-outline-landing">Try Demo</a>
+                <a href="/auditor" class="btn-primary-glow">Open Auditor &rarr;</a>
             </div>
-        </div>
-        <div class="nav-badges">
-            <button type="button" class="btn btn-sm btn-outline-accent" id="btn-toggle-launcher" onclick="toggleLauncher()">+ New Audit</button>
-            <span class="badge badge-accent">AZINHACK 2026</span>
-            <span class="badge badge-outline" id="backend-status">Connecting...</span>
         </div>
     </header>
 
-    <main class="container">
-        <!-- Section 1: Submit New Audit (Collapsible Drawer / Panel) -->
-        <section class="card launch-card" id="launch-section">
-            <div class="launch-header" onclick="toggleLauncher()">
-                <div class="launch-header-left">
-                    <span class="launch-icon">🚀</span>
-                    <div>
-                        <h2>Launch Checkout Audit</h2>
-                        <span class="launch-summary" id="launch-summary-text">Run automated checkout flows across controlled condition matrices (Location, Session, Cart Tier, Time) using TinyFish web agents.</span>
-                    </div>
-                </div>
-                <button type="button" class="btn-icon" id="launch-toggle-btn" aria-label="Toggle Launch Form">▲</button>
-            </div>
-
-            <div id="launch-body" class="launch-body">
-                <form id="audit-form">
-                    <div class="form-group">
-                        <label for="input-url">Target Merchant Checkout URL</label>
-                        <input type="text" id="input-url" placeholder="http://harness:8001/variant/late_disclosure" value="http://harness:8001/variant/late_disclosure" required>
-                    </div>
-
-                    <div class="quick-targets">
-                        <span class="quick-label">Demo Presets:</span>
-                        <button type="button" class="btn-chip" onclick="setTarget('http://harness:8001/variant/clean', 'Demo Store (Clean)')">1. Clean Upfront</button>
-                        <button type="button" class="btn-chip" onclick="setTarget('http://harness:8001/variant/late_disclosure', 'Demo Store (Drip Pricing)')">2. Late Handling Fee</button>
-                        <button type="button" class="btn-chip" onclick="setTarget('http://harness:8001/variant/addon_countdown', 'Demo Store (Sneak + Timer)')">3. Add-on + Countdown</button>
-                        <button type="button" class="btn-chip" onclick="setTarget('http://harness:8001/variant/upfront_fee', 'Demo Store (Upfront Fee)')">4. Upfront Convenience</button>
-                        <button type="button" class="btn-chip" onclick="setTarget('http://harness:8001/variant/legitimate_threshold', 'Demo Store (Threshold)')">5. Cart Threshold Policy</button>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="preset-select">Matrix Preset</label>
-                            <select id="preset-select">
-                                <option value="quick" selected>Quick Preset (4 runs: Reference + Pincode B + Pincode C + Cart Below)</option>
-                                <option value="full">Full Preset (12 runs: 3 Pincodes x 2 Sessions x 2 Cart Tiers)</option>
-                            </select>
-                        </div>
-                        <div class="form-group submit-col">
-                            <button type="submit" class="btn btn-primary" id="btn-submit">
-                                <span>Start Multi-Condition Audit</span>
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </section>
-
-        <!-- Section 2: Active Audit Dashboard -->
-        <section id="active-audit-section" class="active-section hidden">
-            <!-- Active Audit Header Card -->
-            <div class="card audit-header-card">
-                <div class="audit-meta">
-                    <div class="meta-title-group">
-                        <div class="meta-subtags">
-                            <span class="label-tiny">ACTIVE FORENSIC AUDIT</span>
-                            <span class="badge badge-preset" id="active-preset-badge">QUICK PRESET</span>
-                        </div>
-                        <h2 id="active-merchant">Demo Merchant</h2>
-                        <div class="audit-id-row">
-                            <span class="mono-id" id="active-audit-id">AUD-XXXXX</span>
-                            <span class="meta-divider">•</span>
-                            <span class="meta-url-text" id="active-target-url">http://harness:8001/variant/...</span>
-                        </div>
-                    </div>
-                    <div class="header-actions">
-                        <button class="btn btn-secondary" onclick="openReport()">📄 HTML Evidence Report</button>
-                        <button class="btn btn-secondary" onclick="openComplaintModal()">⚖️ CCPA Complaint Draft</button>
-                        <button class="btn btn-secondary" onclick="triggerReobserve()">⏱️ Re-Observe (Temporal Diff)</button>
-                    </div>
+    <main>
+        <!-- Hero Section -->
+        <section class="hero-section">
+            <div class="landing-container">
+                <div class="hero-pill-badge">
+                    <span class="pulse-dot"></span>
+                    <span>AZINHACK 2026 Submission · India CCPA 2023 Gazette Aligned</span>
                 </div>
 
-                <!-- Execution Progress Indicator -->
-                <div class="progress-container">
-                    <div class="progress-bar-bg">
-                        <div class="progress-bar-fill" id="progress-bar" style="width: 0%;"></div>
-                    </div>
-                    <div class="progress-text">
-                        <span id="progress-label">Audit Completed</span>
-                        <span id="progress-count">0 / 4 runs</span>
-                    </div>
+                <h1 class="hero-title">
+                    Outside-In Auditing for Hidden Checkout Fees and Dark Patterns
+                </h1>
+
+                <p class="hero-subtitle">
+                    Indian e-commerce funnels frequently conceal mandatory charges until the final payment step. Checkout Radar executes controlled, differential checkout journeys using <strong>TinyFish</strong> web agents to capture immutable, screenshot-backed proof of drip pricing, basket sneaking, and false urgency.
+                </p>
+
+                <div class="hero-cta-group">
+                    <a href="/auditor" class="btn-primary-glow" style="padding: 12px 24px; font-size: 1.0em;">
+                        ⚡ Open Investigation Workspace
+                    </a>
+                    <a href="/auditor?audit_id=aud_b29153cee0b1" class="btn-outline-landing" style="padding: 12px 22px; font-size: 1.0em;">
+                        🎧 Try Headphone Zone Demo
+                    </a>
+                    <a href="/docs" target="_blank" class="btn-outline-landing" style="padding: 12px 18px; font-size: 1.0em;">
+                        📖 Interactive API Docs
+                    </a>
                 </div>
 
-                <!-- Collapsible Live Stream Console Box -->
-                <details class="console-accordion" id="console-details">
-                    <summary class="console-summary">
-                        <span class="console-summary-title">📡 Live Agent Event Stream</span>
-                        <span class="console-status-pill" id="console-status-pill">Active</span>
-                    </summary>
-                    <div class="console-box" id="console-box">
-                        <div class="console-line">📡 Ready.</div>
+                <!-- Hero Highlights Strip -->
+                <div class="hero-metrics-strip">
+                    <div class="hero-metric-item">
+                        <div class="hero-metric-num">4</div>
+                        <div class="hero-metric-label">Matrix Conditions Tested</div>
                     </div>
-                </details>
-            </div>
-
-            <!-- Executive Scorecard Hero Strip (4 KPI Metric Cards) -->
-            <div class="scorecard-grid" id="scorecard-strip">
-                <div class="scorecard-card" id="kpi-card-assessment">
-                    <div class="kpi-label">OBSERVED AUDIT VERDICT</div>
-                    <div class="kpi-val-row">
-                        <span class="kpi-badge badge-clean" id="kpi-assessment-badge">VERIFIED CLEAN</span>
+                    <div class="hero-metric-item">
+                        <div class="hero-metric-num">3 Stages</div>
+                        <div class="hero-metric-label">Product · Cart · Checkout</div>
                     </div>
-                    <div class="kpi-sub" id="kpi-assessment-sub">Observed flow clean; not gateway certified</div>
-                </div>
-
-                <div class="scorecard-card" id="kpi-card-price">
-                    <div class="kpi-label">PRICING VARIANCE & DRIP</div>
-                    <div class="kpi-val mono" id="kpi-price-val">₹0.00 Variance</div>
-                    <div class="kpi-sub" id="kpi-price-sub">Listed price matched checkout payable</div>
-                </div>
-
-                <div class="scorecard-card" id="kpi-card-indicators">
-                    <div class="kpi-label">DARK PATTERN SIGNALS</div>
-                    <div class="kpi-val" id="kpi-indicators-val">0 Flagged</div>
-                    <div class="kpi-sub" id="kpi-indicators-sub">Empirical technical signals (non-adjudicative)</div>
-                </div>
-
-                <div class="scorecard-card" id="kpi-card-integrity">
-                    <div class="kpi-label">TECHNICAL PIPELINE INTEGRITY</div>
-                    <div class="kpi-val" id="kpi-integrity-val">3 / 3 Stages Hashed</div>
-                    <div class="kpi-sub" id="kpi-integrity-sub">Cryptographic SHA-256 chain of custody</div>
-                </div>
-            </div>
-
-            <!-- Assessment Status Banner -->
-            <div id="assessment-banner" class="assessment-banner hidden">
-                <div class="assessment-header">
-                    <div class="assessment-badge-group">
-                        <span class="assessment-status-badge" id="assessment-badge">ASSESSMENT</span>
-                        <h3 class="assessment-title" id="assessment-title">Evaluating Audit Journey...</h3>
+                    <div class="hero-metric-item">
+                        <div class="hero-metric-num">SHA-256</div>
+                        <div class="hero-metric-label">Cryptographic Custody Chain</div>
                     </div>
-                    <span class="assessment-count-tag" id="assessment-count-tag">0 Indicators</span>
-                </div>
-                <div class="assessment-summary" id="assessment-summary"></div>
-                <div id="assessment-reasons-container" class="assessment-reasons hidden">
-                    <span class="reasons-heading">Inconclusive Factors / Missing Observations:</span>
-                    <ul id="assessment-reasons-list"></ul>
-                </div>
-                <div class="assessment-disclaimer" id="assessment-disclaimer">
-                    <small>ℹ️ <strong>Scope & Limitations:</strong> Assessment applies strictly to the observed automated journey under tested conditions. Does not certify uninspected third-party payment gateways, unselected payment options (e.g. COD fees), or alternate browsing environments.</small>
-                </div>
-            </div>
-
-            <!-- Tabbed Investigation Navigation -->
-            <div class="tabs-nav" id="audit-tabs">
-                <button type="button" class="tab-btn active" id="tab-btn-evidence" onclick="switchTab('evidence')">
-                    📸 Journey Evidence <span class="tab-pill" id="tab-pill-evidence">3</span>
-                </button>
-                <button type="button" class="tab-btn" id="tab-btn-findings" onclick="switchTab('findings')">
-                    🚨 Dark Pattern Findings & Diffs <span class="tab-pill" id="tab-pill-findings">0</span>
-                </button>
-                <button type="button" class="tab-btn" id="tab-btn-integrity" onclick="switchTab('integrity')">
-                    🔬 Technical Trail & Calls <span class="tab-pill" id="tab-pill-calls">0</span>
-                </button>
-                <button type="button" class="tab-btn" id="tab-btn-history" onclick="switchTab('history')">
-                    📜 Audit History <span class="tab-pill" id="tab-pill-history">0</span>
-                </button>
-            </div>
-
-            <!-- TAB PANE 1: Journey Evidence Gallery -->
-            <div class="tab-pane active" id="pane-evidence">
-                <section class="card evidence-gallery-card" id="evidence-gallery-section">
-                    <div class="section-title-row">
-                        <div>
-                            <h3>📸 Visual Checkout Viewports</h3>
-                            <p class="subtitle" style="margin-bottom: 0;">Verified visual audit snapshots across the three critical checkout stages.</p>
-                        </div>
-                        <div id="run-selector-container" class="run-selector-container hidden">
-                            <label for="gallery-run-select">Condition Run:</label>
-                            <select id="gallery-run-select" class="run-select-dropdown" onchange="onGalleryRunChanged()"></select>
-                        </div>
-                    </div>
-
-                    <div class="gallery-grid" id="gallery-cards-grid">
-                        <!-- Card 1: Product Page -->
-                        <div class="gallery-card" id="card-stage-product">
-                            <div class="gallery-card-header">
-                                <div class="stage-tag-group">
-                                    <span class="stage-step-num">Stage 1</span>
-                                    <span class="stage-name">Product Page</span>
-                                </div>
-                                <span class="stage-status-badge" id="badge-stage-product">WAITING</span>
-                            </div>
-                            <div class="gallery-img-container" id="img-container-product">
-                                <div class="stage-empty-state">No viewport captured yet</div>
-                            </div>
-                            <div class="gallery-card-meta">
-                                <div class="meta-row">
-                                    <span class="meta-label">Stage Execution:</span>
-                                    <span class="meta-value" id="meta-exec-product">-</span>
-                                </div>
-                                <div class="meta-row">
-                                    <span class="meta-label">Visual Capture:</span>
-                                    <span class="meta-value" id="meta-visual-product">-</span>
-                                </div>
-                                <div class="meta-row">
-                                    <span class="meta-label">Snapshot ID:</span>
-                                    <span class="meta-value mono" id="meta-snap-product">-</span>
-                                </div>
-                                <div class="meta-row">
-                                    <span class="meta-label">Pipeline Integrity:</span>
-                                    <span class="meta-value mono hash-truncate" id="meta-hash-product" title="-">-</span>
-                                </div>
-                                <div class="meta-row">
-                                    <span class="meta-label">Captured:</span>
-                                    <span class="meta-value" id="meta-time-product">-</span>
-                                </div>
-                            </div>
-                            <div class="gallery-card-footer" id="footer-stage-product">
-                                <span class="text-disabled">Awaiting capture</span>
-                            </div>
-                        </div>
-
-                        <!-- Card 2: Cart Drawer / Page -->
-                        <div class="gallery-card" id="card-stage-cart">
-                            <div class="gallery-card-header">
-                                <div class="stage-tag-group">
-                                    <span class="stage-step-num">Stage 2</span>
-                                    <span class="stage-name">Cart Drawer / Page</span>
-                                </div>
-                                <span class="stage-status-badge" id="badge-stage-cart">WAITING</span>
-                            </div>
-                            <div class="gallery-img-container" id="img-container-cart">
-                                <div class="stage-empty-state">No viewport captured yet</div>
-                            </div>
-                            <div class="gallery-card-meta">
-                                <div class="meta-row">
-                                    <span class="meta-label">Stage Execution:</span>
-                                    <span class="meta-value" id="meta-exec-cart">-</span>
-                                </div>
-                                <div class="meta-row">
-                                    <span class="meta-label">Visual Capture:</span>
-                                    <span class="meta-value" id="meta-visual-cart">-</span>
-                                </div>
-                                <div class="meta-row">
-                                    <span class="meta-label">Snapshot ID:</span>
-                                    <span class="meta-value mono" id="meta-snap-cart">-</span>
-                                </div>
-                                <div class="meta-row">
-                                    <span class="meta-label">Pipeline Integrity:</span>
-                                    <span class="meta-value mono hash-truncate" id="meta-hash-cart" title="-">-</span>
-                                </div>
-                                <div class="meta-row">
-                                    <span class="meta-label">Captured:</span>
-                                    <span class="meta-value" id="meta-time-cart">-</span>
-                                </div>
-                            </div>
-                            <div class="gallery-card-footer" id="footer-stage-cart">
-                                <span class="text-disabled">Awaiting capture</span>
-                            </div>
-                        </div>
-
-                        <!-- Card 3: Checkout Summary -->
-                        <div class="gallery-card" id="card-stage-checkout_summary">
-                            <div class="gallery-card-header">
-                                <div class="stage-tag-group">
-                                    <span class="stage-step-num">Stage 3</span>
-                                    <span class="stage-name">Checkout Summary</span>
-                                </div>
-                                <span class="stage-status-badge" id="badge-stage-checkout_summary">WAITING</span>
-                            </div>
-                            <div class="gallery-img-container" id="img-container-checkout_summary">
-                                <div class="stage-empty-state">No viewport captured yet</div>
-                            </div>
-                            <div class="gallery-card-meta">
-                                <div class="meta-row">
-                                    <span class="meta-label">Stage Execution:</span>
-                                    <span class="meta-value" id="meta-exec-checkout_summary">-</span>
-                                </div>
-                                <div class="meta-row">
-                                    <span class="meta-label">Visual Capture:</span>
-                                    <span class="meta-value" id="meta-visual-checkout_summary">-</span>
-                                </div>
-                                <div class="meta-row">
-                                    <span class="meta-label">Snapshot ID:</span>
-                                    <span class="meta-value mono" id="meta-snap-checkout_summary">-</span>
-                                </div>
-                                <div class="meta-row">
-                                    <span class="meta-label">Pipeline Integrity:</span>
-                                    <span class="meta-value mono hash-truncate" id="meta-hash-checkout_summary" title="-">-</span>
-                                </div>
-                                <div class="meta-row">
-                                    <span class="meta-label">Captured:</span>
-                                    <span class="meta-value" id="meta-time-checkout_summary">-</span>
-                                </div>
-                            </div>
-                            <div class="gallery-card-footer" id="footer-stage-checkout_summary">
-                                <span class="text-disabled">Awaiting capture</span>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            </div>
-
-            <!-- TAB PANE 2: Findings & Diffs -->
-            <div class="tab-pane hidden" id="pane-findings">
-                <!-- Filter & Search Toolbar -->
-                <div class="card toolbar-card">
-                    <div class="filter-toolbar">
-                        <div class="filter-group">
-                            <span class="filter-label">Severity:</span>
-                            <button type="button" class="btn-filter active" data-severity="all" onclick="setSeverityFilter('all')">All</button>
-                            <button type="button" class="btn-filter" data-severity="high" onclick="setSeverityFilter('high')">High</button>
-                            <button type="button" class="btn-filter" data-severity="medium" onclick="setSeverityFilter('medium')">Medium</button>
-                            <button type="button" class="btn-filter" data-severity="low" onclick="setSeverityFilter('low')">Low</button>
-                        </div>
-                        <div class="search-group">
-                            <input type="text" id="finding-search-input" placeholder="🔍 Search indicators or CCPA rules..." oninput="onSearchFindings()">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Two-column view: Findings & Diff Matrix -->
-                <div class="two-col-grid">
-                    <!-- Column 1: Findings -->
-                    <div class="col">
-                        <div class="card">
-                            <div class="section-title-row">
-                                <h3>🚨 CCPA 2023 Dark Pattern Indicators</h3>
-                                <span class="pill-count" id="findings-count-pill">0 Found</span>
-                            </div>
-                            <p class="subtitle">Evidence-backed candidate indicators mapped to official CCPA 2023 guidelines.</p>
-                            <div id="findings-list" class="findings-list">
-                                <div class="empty-state">No findings flagged yet. Waiting for run completion...</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Column 2: Condition Matrix & Matched-Pair Diffs -->
-                    <div class="col">
-                        <div class="card">
-                            <div class="section-title-row">
-                                <h3>🔍 Matched-Pair Differential Matrix</h3>
-                                <span class="pill-count" id="diffs-count-pill">0 Diffs</span>
-                            </div>
-                            <p class="subtitle">Controlled diffs across Location, Session, Cart Tier, and Temporal Drift.</p>
-                            <div id="diffs-list" class="diffs-list">
-                                <div class="empty-state">Diff engine waiting for run pairs...</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- TAB PANE 3: Technical Trail & Provider Integrity -->
-            <div class="tab-pane hidden" id="pane-integrity">
-                <div class="card provider-calls-card">
-                    <div class="section-title-row">
-                        <div>
-                            <h3>🔍 TinyFish Provider Calls & Integrity Trail</h3>
-                            <p class="subtitle" style="margin-bottom: 0;">Audited record of all Search, Fetch, Agent Submit, Agent Poll, and Screenshot operations in execution path.</p>
-                        </div>
-                        <div class="search-group">
-                            <input type="text" id="calls-search-input" placeholder="Filter calls..." oninput="onSearchCalls()" style="padding: 6px 10px; font-size: 0.8em;">
-                        </div>
-                    </div>
-                    <div class="table-responsive" style="margin-top: 14px;">
-                        <table class="data-table" id="calls-table">
-                            <thead>
-                                <tr>
-                                    <th>Timestamp</th>
-                                    <th>Operation</th>
-                                    <th>HTTP Status</th>
-                                    <th>Usable</th>
-                                    <th>Provider Request ID</th>
-                                </tr>
-                            </thead>
-                            <tbody id="calls-tbody">
-                                <tr><td colspan="5" style="text-align: center; color: #94a3b8;">No calls recorded.</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <!-- Calls Pagination Bar -->
-                    <div class="pagination-bar" id="calls-pagination">
-                        <button type="button" class="btn-page" id="btn-calls-prev" onclick="changeCallsPage(-1)" disabled>&larr; Previous</button>
-                        <span class="page-info" id="calls-page-info">Page 1 of 1</span>
-                        <button type="button" class="btn-page" id="btn-calls-next" onclick="changeCallsPage(1)" disabled>Next &rarr;</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- TAB PANE 4: Audit History Inside Tab -->
-            <div class="tab-pane hidden" id="pane-history">
-                <div class="card past-audits-card">
-                    <div class="section-title-row">
-                        <div>
-                            <h3>📜 Previous Audits History</h3>
-                            <p class="subtitle" style="margin-bottom: 0;">Complete historical database of audited checkouts and forensic snapshots.</p>
-                        </div>
-                        <div class="search-group">
-                            <input type="text" id="history-search-input" placeholder="Search merchant or ID..." oninput="onSearchHistory()" style="padding: 6px 10px; font-size: 0.8em;">
-                        </div>
-                    </div>
-                    <div id="audits-history-list" class="audits-history-list" style="margin-top: 14px;">
-                        <div class="loading-state">Loading audit history...</div>
-                    </div>
-                    <div class="pagination-bar" id="history-pagination">
-                        <button type="button" class="btn-page" id="btn-history-prev" onclick="changeHistoryPage(-1)" disabled>&larr; Previous</button>
-                        <span class="page-info" id="history-page-info">Page 1 of 1</span>
-                        <button type="button" class="btn-page" id="btn-history-next" onclick="changeHistoryPage(1)" disabled>Next &rarr;</button>
+                    <div class="hero-metric-item">
+                        <div class="hero-metric-num">0 API Keys</div>
+                        <div class="hero-metric-label">Deterministic Offline Demo</div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Section 3: Standalone Past Audits (Visible when no active audit is loaded) -->
-        <section class="card past-audits-card" id="home-history-section">
-            <div class="section-title-row">
-                <div>
-                    <h3>📜 Previous Audits History</h3>
-                    <p class="subtitle" style="margin-bottom: 0;">Select any past audit below to inspect its evidence viewports and dark pattern indicators.</p>
+        <!-- Section 1: The Problem -->
+        <section class="section" id="problem">
+            <div class="landing-container">
+                <div class="section-header">
+                    <span class="section-tag">Regulatory & Consumer Context</span>
+                    <h2 class="section-title">The Hidden Cost of Deceptive Checkout Funnels</h2>
+                    <p class="section-desc">
+                        On November 30, 2023, India's Central Consumer Protection Authority (CCPA) notified the Guidelines for Prevention and Regulation of Dark Patterns. Despite regulatory mandates, fee concealment remains pervasive.
+                    </p>
                 </div>
-                <div class="search-group">
-                    <input type="text" id="home-history-search" placeholder="Search merchant or ID..." oninput="onSearchHomeHistory()" style="padding: 6px 10px; font-size: 0.8em;">
+
+                <div class="problem-grid">
+                    <div class="problem-card">
+                        <span class="problem-icon">💸</span>
+                        <h3 class="problem-title">Late-Stage Fee Inflation (Drip Pricing)</h3>
+                        <p class="problem-text">
+                            Platform fees, handling charges, surge pricing, and convenience levies routinely appear only on the final checkout screen, after consumers have already invested time entering address and delivery credentials.
+                        </p>
+                    </div>
+
+                    <div class="problem-card">
+                        <span class="problem-icon">🛒</span>
+                        <h3 class="problem-title">Pre-Ticked Add-ons (Basket Sneaking)</h3>
+                        <p class="problem-text">
+                            Optional services like transit guarantees, extended warranties, and tip donations are selected by default at cart, forcing consumers to affirmatively uncheck boxes to avoid unintended charges.
+                        </p>
+                    </div>
+
+                    <div class="problem-card">
+                        <span class="problem-icon">⏳</span>
+                        <h3 class="problem-title">Artificial Urgency & Time Pressure</h3>
+                        <p class="problem-text">
+                            Deceptive countdown timers claim prices or inventory are expiring within minutes, yet reset automatically upon page refresh or across sessions without genuine inventory depletion.
+                        </p>
+                    </div>
                 </div>
             </div>
-            <div id="home-audits-list" class="audits-history-list" style="margin-top: 14px;">
-                <div class="loading-state">Loading audit history...</div>
+        </section>
+
+        <!-- Section 2: Five-Stage Outside-In Workflow -->
+        <section class="section" id="workflow">
+            <div class="landing-container">
+                <div class="section-header">
+                    <span class="section-tag">Execution Pipeline</span>
+                    <h2 class="section-title">The Five-Stage Outside-In Auditing Workflow</h2>
+                    <p class="section-desc">
+                        Checkout Radar audits merchant checkouts strictly from the outside in, operating identically to an autonomous consumer browser session across controlled permutations.
+                    </p>
+                </div>
+
+                <div class="workflow-stack">
+                    <!-- Stage 1 -->
+                    <div class="workflow-card">
+                        <div class="workflow-step-badge">STAGE 01</div>
+                        <div class="workflow-content">
+                            <div class="workflow-title-row">
+                                <h3 class="workflow-title">Target & Merchant Discovery</h3>
+                                <span class="workflow-tech-tag">TinyFish Search API</span>
+                            </div>
+                            <p class="workflow-desc">
+                                Discovers official merchant checkout funnels, canonical product URLs, and policy documentation endpoints automatically, avoiding hardcoded navigation paths.
+                            </p>
+                            <div class="workflow-meta-chips">
+                                <span class="workflow-chip"><strong>Input:</strong> Merchant Query / Domain</span>
+                                <span class="workflow-chip"><strong>Output:</strong> Verified Funnel & Policy URLs</span>
+                                <span class="workflow-chip"><strong>Audit Log:</strong> <code>provider_calls (operation: search)</code></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stage 2 -->
+                    <div class="workflow-card">
+                        <div class="workflow-step-badge">STAGE 02</div>
+                        <div class="workflow-content">
+                            <div class="workflow-title-row">
+                                <h3 class="workflow-title">Policy & Fee Threshold Extraction</h3>
+                                <span class="workflow-tech-tag">TinyFish Fetch API + TTL Cache</span>
+                            </div>
+                            <p class="workflow-desc">
+                                Crawls terms of service, shipping policies, and refund rules. Caches policy clauses with TTL to distinguish legitimate small-cart thresholds from hidden fees without redundant network calls.
+                            </p>
+                            <div class="workflow-meta-chips">
+                                <span class="workflow-chip"><strong>Input:</strong> Policy URLs</span>
+                                <span class="workflow-chip"><strong>Output:</strong> Free Shipping Thresholds & Flat Fee Clauses</span>
+                                <span class="workflow-chip"><strong>Safeguard:</strong> ETag / Cache-Control validation</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stage 3 -->
+                    <div class="workflow-card">
+                        <div class="workflow-step-badge">STAGE 03</div>
+                        <div class="workflow-content">
+                            <div class="workflow-title-row">
+                                <h3 class="workflow-title">Multi-Condition Web Agent Navigation</h3>
+                                <span class="workflow-tech-tag">TinyFish Lite Web Agent</span>
+                            </div>
+                            <p class="workflow-desc">
+                                Launches durable, lease-fenced browser agent runs across an expanded condition matrix: Tier-1 vs Tier-2 Pincodes, Fresh vs Returning Profiles, Above vs Below Cart Thresholds, and Temporal Re-observations.
+                            </p>
+                            <div class="workflow-meta-chips">
+                                <span class="workflow-chip"><strong>Input:</strong> Cart Recipe Family + Matrix Permutations</span>
+                                <span class="workflow-chip"><strong>Captured Stages:</strong> Product Page · Cart Drawer · Checkout Summary</span>
+                                <span class="workflow-chip"><strong>Durable Worker:</strong> Lease generation fencing</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stage 4 -->
+                    <div class="workflow-card">
+                        <div class="workflow-step-badge">STAGE 04</div>
+                        <div class="workflow-content">
+                            <div class="workflow-title-row">
+                                <h3 class="workflow-title">Deterministic Matched-Pair Differential Engine</h3>
+                                <span class="workflow-tech-tag">5-Rule Diff Engine</span>
+                            </div>
+                            <p class="workflow-desc">
+                                Compares condition runs that differ in <em>exactly one requested variable</em> while holding all others fixed. Separates cart recipe quantities from unit prices to ensure legitimate quantity changes never trigger false price alarms.
+                            </p>
+                            <div class="workflow-meta-chips">
+                                <span class="workflow-chip"><strong>Diff Rules:</strong> Price Variance · Late Disclosure · Small Cart Policy · Temporal Drift · Addon Detection</span>
+                                <span class="workflow-chip"><strong>Invariance:</strong> Strict recipe family separation</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stage 5 -->
+                    <div class="workflow-card">
+                        <div class="workflow-step-badge">STAGE 05</div>
+                        <div class="workflow-content">
+                            <div class="workflow-title-row">
+                                <h3 class="workflow-title">Evidence Pipeline & Cryptographic Chain of Custody</h3>
+                                <span class="workflow-tech-tag">Redactor + SHA-256 Hasher + CCPA Mapper</span>
+                            </div>
+                            <p class="workflow-desc">
+                                Applies privacy redaction masks to viewport captures, computes cryptographic SHA-256 digests, normalizes currency to minor units (paise), and formats verifiable HTML reports and NCH grievance petitions.
+                            </p>
+                            <div class="workflow-meta-chips">
+                                <span class="workflow-chip"><strong>Custody:</strong> Immutable SHA-256 digest on every viewport</span>
+                                <span class="workflow-chip"><strong>Outputs:</strong> Scorecard · Evidence Gallery · CCPA Grievance Draft · HTML Report</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="pagination-bar" id="home-history-pagination">
-                <button type="button" class="btn-page" id="btn-home-history-prev" onclick="changeHomeHistoryPage(-1)" disabled>&larr; Previous</button>
-                <span class="page-info" id="home-history-page-info">Page 1 of 1</span>
-                <button type="button" class="btn-page" id="btn-home-history-next" onclick="changeHomeHistoryPage(1)" disabled>Next &rarr;</button>
+        </section>
+
+        <!-- Section 3: Core Capabilities & Detectors -->
+        <section class="section" id="capabilities">
+            <div class="landing-container">
+                <div class="section-header">
+                    <span class="section-tag">Auditing Engine</span>
+                    <h2 class="section-title">Core Detectors & Technical Capabilities</h2>
+                    <p class="section-desc">
+                        Every flagged indicator is evidence-backed, mathematically isolated through matched controls, and mapped directly to official CCPA 2023 Gazette definitions.
+                    </p>
+                </div>
+
+                <div class="capabilities-grid">
+                    <div class="cap-card">
+                        <span class="cap-tag">CCPA Rule 2(f)</span>
+                        <h3 class="cap-title">Drip Pricing Detector</h3>
+                        <p class="cap-desc">
+                            Flags mandatory charges (handling, platform, convenience fees) first presented at checkout summary while verified absent on upfront product disclosures.
+                        </p>
+                        <div class="cap-footer">Confidence: 90% · Negative Capture Verified</div>
+                    </div>
+
+                    <div class="cap-card">
+                        <span class="cap-tag">CCPA Rule 2(b)</span>
+                        <h3 class="cap-title">Basket Sneaking Detector</h3>
+                        <p class="cap-desc">
+                            Identifies pre-selected add-ons, transit insurance, or donation options injected into cart totals without affirmative user opt-in action.
+                        </p>
+                        <div class="cap-footer">Confidence: 95% · Pre-checked DOM Inspection</div>
+                    </div>
+
+                    <div class="cap-card">
+                        <span class="cap-tag">CCPA Rule 2(d)</span>
+                        <h3 class="cap-title">False Urgency Detector</h3>
+                        <p class="cap-desc">
+                            Conducts controlled same-page countdown checks. Flags deceptive timers that restart or jump backward while holding user session and page state fixed.
+                        </p>
+                        <div class="cap-footer">Confidence: 95% · Elapsed Clock Validation</div>
+                    </div>
+
+                    <div class="cap-card">
+                        <span class="cap-tag">Differential Audit</span>
+                        <h3 class="cap-title">Matched-Pair Condition Matrix</h3>
+                        <p class="cap-desc">
+                            Isolates geographic price discrimination across delivery pincodes (Tier-1 vs Tier-2/3) and session-based pricing drift (fresh vs returning cookies).
+                        </p>
+                        <div class="cap-footer">Controls: Location · Session · Cart · Time</div>
+                    </div>
+
+                    <div class="cap-card">
+                        <span class="cap-tag">Consumer Action</span>
+                        <h3 class="cap-title">NCH & CCPA Complaint Drafts</h3>
+                        <p class="cap-desc">
+                            Auto-generates structured grievance draft petitions formatted specifically for submission to the National Consumer Helpline (NCH) or CCPA portal.
+                        </p>
+                        <div class="cap-footer">Never auto-submitted · User-controlled</div>
+                    </div>
+
+                    <div class="cap-card">
+                        <span class="cap-tag">Integrity & Export</span>
+                        <h3 class="cap-title">Verifiable HTML Evidence Reports</h3>
+                        <p class="cap-desc">
+                            Exports self-contained audit dossiers containing timestamped viewport thumbnails, SHA-256 hashes, DOM extracted charges, and regulatory mappings.
+                        </p>
+                        <div class="cap-footer">Safe /evidence/ links · Path-traversal proof</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Assessment States Showcase -->
+        <section class="section" id="assessments">
+            <div class="landing-container">
+                <div class="section-header">
+                    <span class="section-tag">Verifiable Verdicts</span>
+                    <h2 class="section-title">Strict, Fail-Closed Assessment Outcomes</h2>
+                    <p class="section-desc">
+                        Checkout Radar enforces strict boundaries between verified clean flows, flagged technical indicators, and incomplete journeys.
+                    </p>
+                </div>
+
+                <div class="assessment-grid">
+                    <!-- Clean State -->
+                    <div class="state-card clean">
+                        <span class="state-badge clean">Verified Clean (Under Tested Flow)</span>
+                        <h3 class="state-title">Clean Upfront Pricing</h3>
+                        <p class="state-desc">
+                            All required checkout stages (Product, Cart, Checkout Summary) were successfully captured and inspected, and zero dark pattern indicators were detected.
+                        </p>
+                        <ul class="state-criteria-list">
+                            <li>All 3 checkout stages captured & SHA-256 hashed</li>
+                            <li>0 unexplained pricing variances across matrix runs</li>
+                            <li>No covert fees or pre-ticked add-ons present</li>
+                            <li>Strictly bounded: does not certify uninspected gateways</li>
+                        </ul>
+                    </div>
+
+                    <!-- Indicators Detected State -->
+                    <div class="state-card indicators">
+                        <span class="state-badge indicators">Indicators Detected</span>
+                        <h3 class="state-title">Potential Deceptive Practices</h3>
+                        <p class="state-desc">
+                            One or more candidate dark pattern indicators were confirmed by empirical evidence (e.g. late handling fee, sneak add-on, resetting timer).
+                        </p>
+                        <ul class="state-criteria-list">
+                            <li>Specific matched-pair diff identified</li>
+                            <li>Verified negative capture at upfront stage</li>
+                            <li>Traceable finding ID & cryptographic evidence link</li>
+                            <li>Explicit non-adjudicative heuristic notice</li>
+                        </ul>
+                    </div>
+
+                    <!-- Inconclusive State -->
+                    <div class="state-card inconclusive">
+                        <span class="state-badge inconclusive">Inconclusive Audit</span>
+                        <h3 class="state-title">Incomplete / Obstructed Flow</h3>
+                        <p class="state-desc">
+                            Fail-closed default. If any required stage is obstructed by captchas, authentication walls, or network timeouts, clean status is denied.
+                        </p>
+                        <ul class="state-criteria-list">
+                            <li>Missing required observation stage(s)</li>
+                            <li>Clean verdict is strictly denied</li>
+                            <li>Lists specific inconclusive blocking factors</li>
+                            <li>Complaint draft marked AUDIT INCONCLUSIVE</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 5: Scope & Limitations Box -->
+        <section class="section" id="limitations">
+            <div class="landing-container">
+                <div class="limitations-banner">
+                    <div class="limitations-header">
+                        <span style="font-size: 1.5em;">⚖️</span>
+                        <h3>Explicit Scope, Boundaries & Legal Neutrality</h3>
+                    </div>
+                    <p style="color: var(--text-secondary); font-size: 0.88em; margin: 0 0 16px; line-height: 1.5;">
+                        To protect audit integrity and prevent unwarranted claims of statutory guilt, Checkout Radar maintains rigorous technical boundaries:
+                    </p>
+                    <div class="limitations-grid">
+                        <div class="limitation-item">
+                            <h4>Non-Adjudicative Technical Indicators</h4>
+                            <p>Findings serve as technical empirical checkout audit evidence for researchers, journalists, and consumer advocates. They do not constitute formal judicial determinations or statutory adjudication.</p>
+                        </div>
+                        <div class="limitation-item">
+                            <h4>Observed Automated Flow Boundary</h4>
+                            <p>Audits certify only the observed automated journey under tested parameters. Uninspected third-party payment gateways (UPI, netbanking, card OTP screens) and unselected options (e.g. COD fees) are explicit scope boundaries.</p>
+                        </div>
+                        <div class="limitation-item">
+                            <h4>Privacy Redaction Boundary</h4>
+                            <p>Form inputs (credit card numbers, CVVs, passwords) render in upper/middle screen areas and require coordinate-based masks. Automated default redaction masks bottom 5% utility bars.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 6: Interactive Demo Showcase -->
+        <section class="section" id="demos">
+            <div class="landing-container">
+                <div class="section-header">
+                    <span class="section-tag">Interactive Verification</span>
+                    <h2 class="section-title">Explore Pre-Verified Audit Demonstrations</h2>
+                    <p class="section-desc">
+                        Inspect real e-commerce store captures or test controlled synthetic harness variants with zero external API dependencies.
+                    </p>
+                </div>
+
+                <div class="demos-grid">
+                    <!-- Demo 1: Real Store -->
+                    <div class="demo-card">
+                        <span class="demo-type-pill live">Live Merchant Capture</span>
+                        <h3 class="demo-title">Headphone Zone</h3>
+                        <p class="demo-desc">
+                            Real 1280×720 viewport captures of product page, cart drawer, and Shopify checkout summary. Shows verified clean upfront pricing with ₹0.00 variance and ₹99 COD disclosure.
+                        </p>
+                        <a href="/auditor?audit_id=aud_b29153cee0b1" class="btn-primary-glow demo-btn">
+                            Inspect Live Audit &rarr;
+                        </a>
+                    </div>
+
+                    <!-- Demo 2: Drip Pricing -->
+                    <div class="demo-card">
+                        <span class="demo-type-pill synthetic">Synthetic Positive Control</span>
+                        <h3 class="demo-title">Drip Pricing (Late Fee)</h3>
+                        <p class="demo-desc">
+                            Controlled test harness demonstrating late-stage handling fee (+₹5.00) hidden on product page and revealed only at checkout summary. Flags CCPA Rule 2(f).
+                        </p>
+                        <a href="/auditor?audit_id=aud_4d476bc71e63" class="btn-outline-landing demo-btn">
+                            Inspect Drip Indicator &rarr;
+                        </a>
+                    </div>
+
+                    <!-- Demo 3: Inconclusive Default -->
+                    <div class="demo-card">
+                        <span class="demo-type-pill synthetic">Failure Mode Control</span>
+                        <h3 class="demo-title">Inconclusive Default</h3>
+                        <p class="demo-desc">
+                            Simulates an obstructed checkout journey where the checkout summary was blocked. Demonstrates fail-closed denial of clean verdict and audit transparency.
+                        </p>
+                        <a href="/auditor?audit_id=aud_f0946ab48e50" class="btn-outline-landing demo-btn">
+                            Inspect Inconclusive Flow &rarr;
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Launch Custom Audit Callout -->
+                <div style="text-align: center; margin-top: 40px;">
+                    <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                        Ready to audit a custom checkout funnel or test multiple conditions?
+                    </p>
+                    <a href="/auditor" class="btn-primary-glow" style="padding: 12px 28px;">
+                        🚀 Launch New Custom Audit in Workspace
+                    </a>
+                </div>
             </div>
         </section>
     </main>
 
-    <!-- Complaint Draft Modal -->
-    <div id="complaint-modal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>⚖️ CCPA Dark Pattern Grievance Draft</h3>
-                <button class="btn-close" onclick="closeComplaintModal()">&times;</button>
+    <!-- Footer -->
+    <footer class="landing-footer">
+        <div class="landing-footer-inner">
+            <div>
+                <strong>Checkout Radar</strong> — Outside-in Differential Checkout Transparency Auditor<br>
+                <small style="color: #64748b;">AZINHACK 2026 Submission · Built with FastAPI, SQLite WAL, and TinyFish</small>
             </div>
-            <p class="modal-notice"><strong>Draft Only:</strong> Formatted for submission to the National Consumer Helpline (NCH) or CCPA. Never automatically submitted.</p>
-            <textarea id="complaint-text" readonly rows="16"></textarea>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="copyComplaintText()">📋 Copy Text to Clipboard</button>
-                <button class="btn btn-primary" onclick="closeComplaintModal()">Done</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Full-Resolution Screenshot Lightbox Modal -->
-    <div id="screenshot-modal" class="modal hidden">
-        <div class="modal-content modal-image-content">
-            <div class="modal-header">
-                <div>
-                    <h3 id="modal-stage-title" style="margin-bottom: 2px;">Stage Viewport Screenshot</h3>
-                    <span class="mono-id" id="modal-snap-id">snap_id</span>
-                </div>
-                <button class="btn-close" onclick="closeScreenshotModal()">&times;</button>
-            </div>
-            <div class="modal-image-wrapper">
-                <img id="modal-img" src="" alt="Full-resolution audit viewport" />
-            </div>
-            <div class="modal-image-footer">
-                <div class="modal-hash-container">
-                    <span class="meta-label">Cryptographic SHA-256 Digest:</span>
-                    <span class="meta-value mono" id="modal-hash-val">-</span>
-                </div>
-                <div class="modal-actions">
-                    <a id="modal-raw-link" href="#" target="_blank" class="btn btn-secondary">🔗 Open Original Artifact</a>
-                    <button class="btn btn-primary" onclick="closeScreenshotModal()">Close</button>
-                </div>
+            <div class="landing-footer-links">
+                <a href="/auditor">Auditor Workspace</a>
+                <a href="/docs" target="_blank">Interactive API Docs</a>
+                <a href="/health" target="_blank">Health Status</a>
             </div>
         </div>
-    </div>
+    </footer>
 
-    <script src="/static/app.js"></script>
 </body>
 </html>
