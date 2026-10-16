@@ -3,7 +3,7 @@
 > **Outside-In Checkout Flow Auditor & CCPA Dark Pattern Detector**  
 > *AZINHACK 2026 Submission* · Team of 4
 
-[![CI Tests](https://img.shields.io/badge/tests-76%20passed-brightgreen.svg)]()
+[![CI Tests](https://img.shields.io/badge/tests-85%20passed-brightgreen.svg)]()
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)]()
 [![Docker Compose](https://img.shields.io/badge/docker--compose-ready-blue.svg)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)]()
@@ -212,7 +212,8 @@ Once initialized, the services are available at:
 
 | Component | Default URL | Description |
 |---|---|---|
-| **Auditor Dashboard** | [http://localhost:8000](http://localhost:8000) | Full visual auditing dashboard, 3-stage screenshot gallery, and diffs. |
+| **Product Landing Page** | [http://localhost:8000](http://localhost:8000) | Overview, CCPA regulatory background, detector capabilities, and one-click demo audit launcher cards. |
+| **Auditor Investigation Workspace** | [http://localhost:8000/auditor](http://localhost:8000/auditor) | Full forensic auditing dashboard: executive scorecard, 3-stage visual evidence gallery, diffs, findings, technical timeline, and matrix selector. |
 | **Demo Merchant Harness** | [http://localhost:8001](http://localhost:8001) | Controlled e-commerce store exhibiting the 5 behavioral variants. |
 | **Interactive API Docs** | [http://localhost:8000/docs](http://localhost:8000/docs) | Swagger/OpenAPI documentation for all REST endpoints. |
 | **Health Check** | [http://localhost:8000/health](http://localhost:8000/health) | Real-time service status, mock mode indicator, and key detection. |
@@ -223,26 +224,33 @@ Once initialized, the services are available at:
 
 ### 7.3 How to Run a Demonstration Audit (Judge Walkthrough)
 
-1. **Launch an Adversarial Audit (Drip Pricing Positive Control):**
-   - In the **Launch Checkout Audit** card, click the **`2. Late Handling Fee`** preset button (sets URL to `http://harness:8001/variant/late_disclosure`).
-   - Click **`Start Multi-Condition Audit`**.
-   - Watch the real-time **SSE Audit Progress Console** as 4 controlled condition runs execute.
-   - **Observe Outcome:** The **Assessment Banner** turns red (`INDICATORS DETECTED`), flagging a **Drip Pricing** indicator where a mandatory ₹5.00 Handling Fee was concealed until checkout.
-   - **Inspect Evidence Gallery:** Review the 3-stage visual viewports (Product, Cart Drawer, Checkout Summary). Click **`🔍 Full Resolution`** on any card to inspect the lightbox modal showing the full capture and immutable SHA-256 cryptographic digest.
-   - **Condition Run Selector:** Use the dropdown above the gallery to switch between the Reference run and alternate Pincode/Cart Tier variants.
-   - **Inspect Diff Matrix:** Review the `LATE_DISCLOSURE` matched-pair differential evidence card.
+Judges can explore Checkout Radar immediately using either the pre-seeded demonstration audits on the **Product Landing Page (`/`)** or by launching fresh live audits from the **Auditor Investigation Workspace (`/auditor`)**:
 
-2. **Launch a Clean Upfront Audit (Negative Control):**
-   - Click the **`1. Clean Upfront`** preset button (sets URL to `http://harness:8001/variant/clean`).
-   - Click **`Start Multi-Condition Audit`**.
-   - **Observe Outcome:** The Assessment Banner turns green (`VERIFIED CLEAN (UNDER TESTED FLOW)`), confirming zero dark patterns detected under the tested boundary.
+#### Option A: Inspect Pre-Seeded Demonstrations (Instant)
+From the Landing Page at [http://localhost:8000](http://localhost:8000), click any of the 3 demonstration audit cards:
 
-3. **Export Standalone Evidence Report:**
-   - Click the **`📄 HTML Evidence Report`** button in the Active Audit card.
-   - Inspect the standalone report featuring CCPA legal citations, SHA-256 cryptographic hashes, and clickable `/evidence/{filename}` screenshot artifacts.
+1. **Synthetic Positive Control (`aud_4d476bc71e63`):**
+   - **Scenario:** E-commerce flow concealing a mandatory ₹5.00 Handling Fee until the checkout summary.
+   - **Verdict:** `POTENTIAL INDICATORS DETECTED`.
+   - **Finding Deduplication:** Scorecard displays `1 Unique (4 Runs)` (`1 pattern(s) confirmed across 4 condition observations`); the findings tab consolidates repeated matrix runs into a single card with `Observed in 4 of 4 Matrix Runs (100% Reproduction)` and a structured per-run trace strip.
+   - **Evidence Gallery:** Shows synthetic offline DOM fixtures clearly labeled with analysis banners.
 
-4. **Generate CCPA Grievance Draft:**
-   - Click **`⚖️ CCPA Complaint Draft`** to generate a formatted consumer grievance report ready for filing with consumer protection authorities (labeled Draft Only; never auto-submitted).
+2. **Real-Site Negative Control (`aud_b29153cee0b1` — Headphone Zone):**
+   - **Scenario:** Real-world Shopify merchant with upfront, tax-inclusive pricing.
+   - **Verdict:** `VERIFIED CLEAN (UNDER TESTED FLOW)` with clear scope boundaries.
+   - **Evidence Gallery:** Contains genuine 1280×720 viewport captures (`run_cf2137881ab6_*.jpg`) with immutable cryptographic SHA-256 digests.
+   - **Lightbox:** Click `🔍 Full Resolution` to inspect high-resolution images in the modal.
+
+3. **Inconclusive Audit Demonstration (`aud_f0946ab48e50`):**
+   - **Scenario:** Obstructed checkout where checkout summary was missing.
+   - **Verdict:** `INCONCLUSIVE AUDIT` (conservative fail-closed policy denying clean badges when proof is incomplete).
+
+#### Option B: Launch a Live Multi-Condition Audit
+1. Navigate to the Workspace at [http://localhost:8000/auditor](http://localhost:8000/auditor).
+2. In the **Launch Checkout Audit** card, select a preset (e.g. **`2. Late Handling Fee`** or **`1. Clean Upfront`**).
+3. Click **`Start Multi-Condition Audit`** and watch the real-time **SSE Audit Progress Console** as 4 condition runs execute.
+4. Review findings, diffs, and evidence in the tabbed workspace.
+5. Click **`📄 HTML Evidence Report`** for a self-contained offline report, or **`⚖️ CCPA Complaint Draft`** for a structured consumer grievance document.
 
 ---
 
@@ -299,7 +307,7 @@ docker compose down
 Checkout Radar includes a comprehensive, 100% reproducible test and verification suite requiring **zero external API calls**:
 
 ```bash
-# 1. Local Pytest Suite (76 tests across 13 modules)
+# 1. Local Pytest Suite (85 tests across 13 modules)
 pytest backend/tests/ -v
 
 # 2. Docker Isolated Pytest Suite
@@ -311,7 +319,7 @@ python3 scripts/verify_demo_flows.py
 # 4. Automated Browser Interaction & Lightbox CDP Verification
 python3 scripts/verify_ui_interaction.py
 
-# 5. Dedicated Security & Secret Scanner (59 files + full git history)
+# 5. Dedicated Security & Secret Scanner (143 files + full git history)
 python3 scripts/scan_secrets.py
 ```
 

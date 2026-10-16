@@ -9,6 +9,11 @@ if %ERRORLEVEL% equ 0 (
     python scripts\launcher.py --down
     goto :eof
 )
+where py >nul 2>nul
+if %ERRORLEVEL% equ 0 (
+    py -3 scripts\launcher.py --down
+    goto :eof
+)
 
 echo [INFO] Stopping Checkout Radar containers...
 docker compose down

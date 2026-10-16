@@ -14,8 +14,23 @@ import time
 import urllib.request
 import websockets
 
-API_PORT = 36063
-BASE_URL = f"http://127.0.0.1:{API_PORT}"
+def resolve_api_base_url():
+    if "API_PORT" in os.environ:
+        return f"http://127.0.0.1:{os.environ['API_PORT']}"
+    try:
+        res = subprocess.run(["docker", "compose", "port", "api", "8000"], capture_output=True, text=True, timeout=5)
+        if res.returncode == 0 and res.stdout.strip():
+            out = res.stdout.strip().split("\n")[0]
+            parts = out.split(":")
+            if len(parts) >= 2:
+                host = parts[0] if parts[0] not in ("0.0.0.0", "") else "127.0.0.1"
+                port = parts[-1]
+                return f"http://{host}:{port}"
+    except Exception:
+        pass
+    return "http://127.0.0.1:8000"
+
+BASE_URL = resolve_api_base_url()
 CDP_PORT = 9222
 
 

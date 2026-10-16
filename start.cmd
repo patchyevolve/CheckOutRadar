@@ -12,6 +12,11 @@ if %ERRORLEVEL% equ 0 (
     python scripts\launcher.py %*
     goto :eof
 )
+where py >nul 2>nul
+if %ERRORLEVEL% equ 0 (
+    py -3 scripts\launcher.py %*
+    goto :eof
+)
 
 REM 2. Fallback: Pure Batch File Startup
 echo [INFO] Python not found in PATH; proceeding with Docker batch launcher...
@@ -62,7 +67,7 @@ echo   To stop services: run stop.cmd or docker compose down
 echo.
 
 if not "%1"=="--no-browser" (
-    start http://localhost:8000
+    start "" "http://localhost:8000"
 )
 
 endlocal
