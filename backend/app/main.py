@@ -238,9 +238,10 @@ def get_audit_details(audit_id: str):
     try:
         runs_rows = conn.execute(
             """
-            SELECT r.*, c.condition_key, c.is_reference
+            SELECT r.*, c.condition_key, c.is_reference, j.last_error, j.state as job_state
             FROM runs r
             JOIN conditions c ON r.condition_id = c.id
+            LEFT JOIN jobs j ON j.run_id = r.id
             WHERE c.audit_id = ?
             ORDER BY r.id ASC
             """,
@@ -251,6 +252,7 @@ def get_audit_details(audit_id: str):
             rd = dict(r)
             run_id = rd["id"]
             rd["requested"] = json.loads(rd["requested"]) if rd.get("requested") else {}
+            rd["observed"] = json.loads(rd["observed"]) if rd.get("observed") else {}
             sc_rows = conn.execute(
                 """
                 SELECT 

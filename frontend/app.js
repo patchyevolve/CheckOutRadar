@@ -929,6 +929,16 @@ function renderEvidenceGallery(runs, targetRunId) {
             let statusTag = "";
             if (r.provider_status === "RUNNING") {
                 statusTag = " [⏳ Running]";
+            } else if (r.provider_status === "FAILED" || r.outcome === "failed" || r.outcome === "provider_policy_blocked" || r.outcome === "blocked_by_bot") {
+                if (r.outcome === "blocked_by_bot") statusTag = " [🚫 Bot Blocked]";
+                else if (r.outcome === "provider_policy_blocked") statusTag = " [🛑 Policy Blocked]";
+                else statusTag = " [❌ Failed]";
+            } else if (r.outcome === "blocked_by_login") {
+                statusTag = " [🔒 Login Wall]";
+            } else if (r.outcome === "condition_not_applied") {
+                statusTag = " [⚠️ Unapplied]";
+            } else if (r.outcome === "extraction_inconsistent") {
+                statusTag = " [⚠️ Math Mismatch]";
             } else if (r.finished_at && r.provider_status !== "PENDING") {
                 statusTag = " [✓ Done]";
             } else {
@@ -942,6 +952,65 @@ function renderEvidenceGallery(runs, targetRunId) {
         }).join("");
     } else {
         selContainer.classList.add("hidden");
+    }
+
+    const runAlert = document.getElementById("gallery-run-alert");
+    if (runAlert) {
+        if (activeRun && activeRun.outcome && activeRun.outcome !== "ok") {
+            runAlert.classList.remove("hidden");
+            const blockerMsg = activeRun.observed && (activeRun.observed.blocker_reason || activeRun.observed.error_message);
+            const lastErrMsg = activeRun.last_error;
+            let icon = "⚠️";
+            let title = "Condition Execution Alert";
+            let color = "#f59e0b";
+            let bg = "rgba(245, 158, 11, 0.12)";
+            let border = "#f59e0b";
+
+            if (activeRun.outcome === "blocked_by_bot") {
+                icon = "🚫";
+                title = "Bot Detection Challenge (Cloudflare Turnstile)";
+                color = "#f87171";
+                bg = "rgba(239, 68, 68, 0.12)";
+                border = "#ef4444";
+            } else if (activeRun.outcome === "provider_policy_blocked") {
+                icon = "🛑";
+                title = "TinyFish Provider Safety Policy Block";
+                color = "#f87171";
+                bg = "rgba(239, 68, 68, 0.12)";
+                border = "#ef4444";
+            } else if (activeRun.outcome === "blocked_by_login") {
+                icon = "🔒";
+                title = "Mandatory Login / OTP Wall";
+                color = "#fbbf24";
+                bg = "rgba(251, 191, 36, 0.12)";
+                border = "#f59e0b";
+            } else if (activeRun.outcome === "extraction_inconsistent") {
+                icon = "⚠️";
+                title = "Extraction Arithmetic Inconsistency";
+                color = "#fbbf24";
+                bg = "rgba(251, 191, 36, 0.12)";
+                border = "#f59e0b";
+            } else if (activeRun.outcome === "condition_not_applied") {
+                icon = "⚠️";
+                title = "Condition Not Applied";
+                color = "#fbbf24";
+                bg = "rgba(251, 191, 36, 0.12)";
+                border = "#f59e0b";
+            }
+
+            runAlert.innerHTML = `
+                <div style="background: ${bg}; border: 1px solid ${border}; border-radius: 8px; padding: 0.75rem 1rem; color: #f1f5f9; display: flex; align-items: flex-start; gap: 0.75rem;">
+                    <span style="font-size: 1.3rem; line-height: 1.2;">${icon}</span>
+                    <div>
+                        <strong style="color: ${color}; display: block; margin-bottom: 0.25rem;">${title}</strong>
+                        <span style="font-size: 0.85rem; color: #cbd5e1;">${escapeHtml(blockerMsg || lastErrMsg || "This condition was obstructed or halted before complete checkout summary inspection.")}</span>
+                    </div>
+                </div>
+            `;
+        } else {
+            runAlert.classList.add("hidden");
+            runAlert.innerHTML = "";
+        }
     }
 
     const stages = [
@@ -1053,17 +1122,32 @@ function renderEvidenceGallery(runs, targetRunId) {
 
             timeMeta.innerText = timeStr;
         } else {
+            const isRunBlocked = activeRun && (activeRun.outcome === "blocked_by_bot" || activeRun.outcome === "provider_policy_blocked" || activeRun.outcome === "failed" || activeRun.outcome === "blocked_by_login");
+            const blockerMsg = activeRun && activeRun.observed && (activeRun.observed.blocker_reason || activeRun.observed.error_message);
+            const lastErrMsg = activeRun && activeRun.last_error;
+            
             badge.className = "stage-status-badge badge-stage-missing";
-            badge.innerText = "NOT CAPTURED";
-            imgContainer.innerHTML = `<div class="stage-empty-state">⚠️ Stage was not captured in this audit run</div>`;
-            if (execMeta) execMeta.innerHTML = `<span class="meta-status-pill pill-omitted">NOT EXECUTED</span>`;
-            if (visualMeta) visualMeta.innerHTML = `<span class="meta-status-pill pill-omitted">Not Captured</span>`;
+            badge.innerText = isRunBlocked ? (activeRun.outcome.toUpperCase().replace(/_/g, " ")) : "NOT CAPTURED";
+            
+            let emptyMsg = "⚠️ Stage was not captured in this audit run";
+            if (activeRun && activeRun.outcome === "blocked_by_bot") {
+                emptyMsg = `🚫 <b>Blocked by Bot Challenge / Cloudflare</b><br><small style="color:#f87171">${escapeHtml(blockerMsg || "Cloudflare Turnstile or CAPTCHA prevented navigation")}</small>`;
+            } else if (activeRun && activeRun.outcome === "provider_policy_blocked") {
+                emptyMsg = `🛑 <b>Provider Policy Block</b><br><small style="color:#f87171">${escapeHtml(blockerMsg || "Agent prompt violated cloud usage policy (e.g. interacting with payment gateway)")}</small>`;
+            } else if (activeRun && activeRun.outcome === "blocked_by_login") {
+                emptyMsg = `🔒 <b>Blocked by Login / OTP Wall</b><br><small style="color:#fbbf24">${escapeHtml(blockerMsg || "Mandatory authentication required before viewing stage")}</small>`;
+            } else if (activeRun && (activeRun.outcome === "failed" || activeRun.provider_status === "FAILED")) {
+                emptyMsg = `❌ <b>Agent Execution Failed</b><br><small style="color:#f87171">${escapeHtml(blockerMsg || lastErrMsg || "Cloud agent failed before checkout completion")}</small>`;
+            }
+            imgContainer.innerHTML = `<div class="stage-empty-state" style="padding: 1.5rem 1rem;">${emptyMsg}</div>`;
+            if (execMeta) execMeta.innerHTML = `<span class="meta-status-pill pill-omitted">${isRunBlocked ? 'OBSTRUCTED' : 'NOT EXECUTED'}</span>`;
+            if (visualMeta) visualMeta.innerHTML = `<span class="meta-status-pill pill-omitted">${isRunBlocked ? 'Blocked' : 'Not Captured'}</span>`;
             snapMeta.innerText = "-";
             snapMeta.title = "-";
             hashMeta.innerText = "-";
             hashMeta.title = "-";
             timeMeta.innerText = "-";
-            footer.innerHTML = `<span class="text-disabled">No viewport captured</span>`;
+            footer.innerHTML = `<span class="text-disabled">${isRunBlocked ? 'Navigation obstructed' : 'No viewport captured'}</span>`;
         }
     });
 }

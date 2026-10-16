@@ -13,12 +13,14 @@ from typing import Dict, Any, Optional
 GOAL_SYSTEM_GUARDRAILS = """
 MANDATORY SAFETY & AUDIT GUARDRAILS:
 1. STOP IMMEDIATELY BEFORE ANY FINAL PAYMENT OR ORDER CONFIRMATION STEP.
-2. DO NOT enter personal credentials, passwords, real credit cards, or submit OTPs.
-3. If an inescapable login or OTP wall blocks viewing the checkout summary or order bill, immediately set status to "blocked_by_login" and stop.
-4. If a bot detection challenge (CAPTCHA, Cloudflare block) prevents navigation, set status to "blocked_by_bot" and stop.
-5. Record verbatim visible text for all charges, disclosures, and urgency claims.
-6. Extract all monetary amounts in integer minor units (e.g., INR 5.00 -> 500 paise, INR 799.00 -> 79900 paise).
-7. Do not guess or assume values. If a field or disclosure cannot be determined, mark it as "unknown".
+2. ABSOLUTELY DO NOT CLICK ON, OPEN, EXPAND, OR INTERACT WITH PAYMENT METHODS, PAYMENT GATEWAYS, OR PAYMENT ACCORDIONS (e.g. Razorpay, Paytm, Cashfree, Stripe, PayU, Credit/Debit Cards, Netbanking, UPI, Wallets).
+3. DO NOT enter personal credentials, passwords, real credit cards, or submit OTPs.
+4. If an inescapable login or OTP wall blocks viewing the checkout summary or order bill, immediately set status to "blocked_by_login" and stop.
+5. If a bot detection challenge (CAPTCHA, Cloudflare Turnstile "Verify you are human") blocks navigation, set status to "blocked_by_bot" and stop.
+6. Inspect ONLY the static order summary sidebar / bill breakdown (Items, Subtotal, Shipping, Taxes, Discounts, Final Payable).
+7. Record verbatim visible text for all charges, disclosures, and urgency claims.
+8. Extract all monetary amounts in integer minor units (e.g., INR 5.00 -> 500 paise, INR 799.00 -> 79900 paise).
+9. Do not guess or assume values. If a field or disclosure cannot be determined, mark it as "unknown".
 """
 
 
@@ -73,8 +75,9 @@ Execution Steps:
    - Observe visible fee disclosures or delivery threshold notices.
 
 3. Checkout Summary Stage:
-   - Proceed to the checkout summary or order review screen (STOP BEFORE CLICKING 'PAY NOW' OR PLACING ORDER).
-   - Extract every itemized charge component: subtotal, handling fee, delivery fee, platform fee, surge fee, packaging fee, taxes, discounts, and final payable.
+   - Proceed to the checkout summary or order review screen.
+   - STOP IMMEDIATELY BEFORE ANY PAYMENT STEP. DO NOT EXPAND OR CLICK ANY PAYMENT OPTIONS OR GATEWAYS (Razorpay, UPI, Cards, etc.).
+   - Extract every itemized charge component from the order summary sidebar: subtotal, handling fee, delivery fee, platform fee, surge fee, packaging fee, taxes, discounts, and final payable.
    - Reconcile the math: Subtotal + Charges + Taxes - Discounts = Final Payable.
 
 {returning_instruction}

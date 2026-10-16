@@ -207,7 +207,7 @@ def enqueue_job(run_id: str) -> str:
         conn.close()
 
 
-def claim_next_job(worker_id: str, lease_duration_seconds: int = 120) -> Optional[Dict[str, Any]]:
+def claim_next_job(worker_id: str, lease_duration_seconds: int = 120, audit_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Atomically claim the next queued or expired-lease job with exclusive write lock."""
     conn = get_connection()
     try:
@@ -216,21 +216,57 @@ def claim_next_job(worker_id: str, lease_duration_seconds: int = 120) -> Optiona
         now = utc_now()
         new_lease_expiry = (datetime.now(timezone.utc) + timedelta(seconds=lease_duration_seconds)).isoformat()
 
-        # Find candidate job: either state='queued' or (state='claimed' AND lease_expires_at < now)
-        cursor.execute(
-            """
-            SELECT j.*, r.condition_id, r.provider_run_id, c.audit_id, c.condition_key, c.requested
-            FROM jobs j
-            JOIN runs r ON j.run_id = r.id
-            JOIN conditions c ON r.condition_id = c.id
-            WHERE (j.state = 'queued')
-               OR (j.state = 'claimed' AND j.lease_expires_at IS NOT NULL AND j.lease_expires_at < ?)
-               OR (j.state = 'retry_wait')
-            ORDER BY j.retries ASC, j.id ASC
-            LIMIT 1
-            """,
-            (now,),
-        )
+        # Safeguard: mock/demo workers must never claim jobs from live external merchant audits
+        is_mock_worker = worker_id.startswith("demo_worker_")
+        if audit_id:
+            cursor.execute(
+                """
+                SELECT j.*, r.condition_id, r.provider_run_id, c.audit_id, c.condition_key, c.requested
+                FROM jobs j
+                JOIN runs r ON j.run_id = r.id
+                JOIN conditions c ON r.condition_id = c.id
+                WHERE ((j.state = 'queued')
+                   OR (j.state = 'claimed' AND j.lease_expires_at IS NOT NULL AND j.lease_expires_at < ?)
+                   OR (j.state = 'retry_wait'))
+                   AND c.audit_id = ?
+                ORDER BY j.retries ASC, j.id ASC
+                LIMIT 1
+                """,
+                (now, audit_id),
+            )
+        elif is_mock_worker:
+            # Safeguard: mock/demo workers must never claim jobs from live external merchant audits
+            cursor.execute(
+                """
+                SELECT j.*, r.condition_id, r.provider_run_id, c.audit_id, c.condition_key, c.requested
+                FROM jobs j
+                JOIN runs r ON j.run_id = r.id
+                JOIN conditions c ON r.condition_id = c.id
+                JOIN audits a ON c.audit_id = a.id
+                WHERE ((j.state = 'queued')
+                   OR (j.state = 'claimed' AND j.lease_expires_at IS NOT NULL AND j.lease_expires_at < ?)
+                   OR (j.state = 'retry_wait'))
+                   AND (a.input_url LIKE '%harness%' OR a.input_url LIKE '%127.0.0.1%' OR a.input_url LIKE '%localhost%')
+                ORDER BY j.retries ASC, j.id ASC
+                LIMIT 1
+                """,
+                (now,),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT j.*, r.condition_id, r.provider_run_id, c.audit_id, c.condition_key, c.requested
+                FROM jobs j
+                JOIN runs r ON j.run_id = r.id
+                JOIN conditions c ON r.condition_id = c.id
+                WHERE (j.state = 'queued')
+                   OR (j.state = 'claimed' AND j.lease_expires_at IS NOT NULL AND j.lease_expires_at < ?)
+                   OR (j.state = 'retry_wait')
+                ORDER BY j.retries ASC, j.id ASC
+                LIMIT 1
+                """,
+                (now,),
+            )
         row = cursor.fetchone()
         if not row:
             conn.commit()

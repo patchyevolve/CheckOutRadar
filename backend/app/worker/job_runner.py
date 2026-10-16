@@ -67,9 +67,9 @@ class JobRunner:
 
 
 
-    def run_one_cycle(self) -> bool:
+    def run_one_cycle(self, audit_id: Optional[str] = None) -> bool:
         """Claim and execute one job if available. Returns True if a job was processed."""
-        job = crud.claim_next_job(worker_id=self.worker_id, lease_duration_seconds=600)
+        job = crud.claim_next_job(worker_id=self.worker_id, lease_duration_seconds=600, audit_id=audit_id)
         if not job:
             return False
 
@@ -258,10 +258,43 @@ class JobRunner:
 
         # 6. Parse and Validate Local Contract
         run_outcome = result_dict.get("status", "ok")
-        if prov_status == "FAILED":
-            run_outcome = "failed"
+        provider_error = poll_data.get("error")
+        error_text = ""
+        if isinstance(provider_error, dict):
+            error_text = provider_error.get("message") or provider_error.get("category") or str(provider_error)
+        elif provider_error:
+            error_text = str(provider_error)
 
         observed = result_dict.get("observed", {})
+        if not observed:
+            observed = {}
+
+        if prov_status == "FAILED":
+            err_lower = error_text.lower()
+            if any(k in err_lower for k in ["policy", "violate", "usage policies", "terms"]):
+                run_outcome = "provider_policy_blocked"
+                observed["blocker_reason"] = f"TinyFish Usage Policy Block: {error_text}"
+            elif any(k in err_lower for k in ["cloudflare", "bot", "captcha", "turnstile", "human"]):
+                run_outcome = "blocked_by_bot"
+                observed["blocker_reason"] = f"Cloudflare Bot Detection Block: {error_text}"
+            else:
+                run_outcome = "failed"
+                observed["blocker_reason"] = f"Cloud Agent Failed: {error_text or 'Unknown execution failure'}"
+
+        # Also inspect steps for bot challenges or policy blocks
+        for step in poll_data.get("steps", []):
+            st_text = f"{step.get('name', '')} {step.get('action', '')} {step.get('description', '')}".lower()
+            if any(k in st_text for k in ["cloudflare", "captcha", "verify you are human", "turnstile"]):
+                if run_outcome in ["ok", "condition_not_applied"]:
+                    run_outcome = "blocked_by_bot"
+                    observed["blocker_reason"] = "Cloudflare Turnstile 'Verify you are human' challenge intercepted navigation."
+            if any(k in st_text for k in ["usage policies", "violate our usage"]):
+                run_outcome = "provider_policy_blocked"
+                observed["blocker_reason"] = "TinyFish agent terminated due to provider usage policy violation (e.g. interacting with payment gateways)."
+
+        if error_text:
+            observed["error_message"] = error_text
+
         charges = result_dict.get("charges", [])
         disclosures = result_dict.get("disclosures", [])
         totals = result_dict.get("totals", {})

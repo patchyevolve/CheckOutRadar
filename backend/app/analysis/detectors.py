@@ -385,9 +385,28 @@ def assess_audit_outcome(
             r_id = r.get("id", "unknown_run")
             outcome = r.get("outcome", "ok")
             if outcome != "ok":
-                inconclusive_reasons.append(
-                    f"Run {r_id} ended with non-ok outcome '{outcome}' (flow was obstructed or extraction inconsistent)."
-                )
+                obs = r.get("observed") or {}
+                if isinstance(obs, str):
+                    try:
+                        obs = json.loads(obs)
+                    except Exception:
+                        obs = {}
+                blocker = obs.get("blocker_reason") or obs.get("error_message")
+                if outcome == "blocked_by_bot":
+                    desc = f"Run {r_id} was BLOCKED by bot detection challenge ('blocked_by_bot', CAPTCHA / Cloudflare Turnstile). {blocker or ''}".strip()
+                elif outcome == "provider_policy_blocked":
+                    desc = f"Run {r_id} was BLOCKED by provider usage policy ('provider_policy_blocked', e.g. attempting to interact with payment gateway). {blocker or ''}".strip()
+                elif outcome == "blocked_by_login":
+                    desc = f"Run {r_id} was BLOCKED by mandatory login / OTP authentication requirement ('blocked_by_login'). {blocker or ''}".strip()
+                elif outcome == "failed":
+                    desc = f"Run {r_id} ended with non-ok outcome 'failed': {blocker or 'Agent failed before checkout completion'}."
+                elif outcome == "condition_not_applied":
+                    desc = f"Run {r_id} ended with non-ok outcome 'condition_not_applied' (e.g. delivery pincode not accepted or site redirected flow)."
+                elif outcome == "extraction_inconsistent":
+                    desc = f"Run {r_id} ended with non-ok outcome 'extraction_inconsistent' (order total reconciliation failed arithmetic check)."
+                else:
+                    desc = f"Run {r_id} ended with non-ok outcome '{outcome}'."
+                inconclusive_reasons.append(desc)
 
             # Check stage captures completeness
             stage_caps = r.get("stage_captures", [])

@@ -12,6 +12,15 @@ import json
 import time
 from pathlib import Path
 
+# Isolate test database completely so verification runs never touch production or claim live user audits
+os.environ["SQLITE_DB_PATH"] = "/tmp/test_demo_flows_isolated.db"
+os.environ["EVIDENCE_DIR"] = "/tmp/test_demo_evidence"
+if os.path.exists("/tmp/test_demo_flows_isolated.db"):
+    try:
+        os.remove("/tmp/test_demo_flows_isolated.db")
+    except Exception:
+        pass
+
 # Add backend to sys.path
 sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 
@@ -28,7 +37,7 @@ def drain_audit_jobs(audit_id: str, runner: JobRunner, max_seconds: float = 12.0
     """Drain all jobs for a specific audit, resilient to concurrent background daemon workers."""
     start = time.time()
     while time.time() - start < max_seconds:
-        while runner.run_one_cycle():
+        while runner.run_one_cycle(audit_id=audit_id):
             pass
         conn = connection.get_connection()
         try:
@@ -337,6 +346,11 @@ if __name__ == "__main__":
     print("CHECKOUT RADAR: PRE-HACKATHON THREE-FLOW DEMO VERIFICATION")
     print("#" * 70)
     connection.init_db()
+    conn = connection.get_connection()
+    try:
+        connection.seed_demo_data_if_empty(conn)
+    finally:
+        conn.close()
     run_flow_1_synthetic_positive_controls()
     run_flow_2_real_site_negative_control()
     run_flow_3_failure_mode_inconclusive()
