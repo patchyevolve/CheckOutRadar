@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from .adapter import TinyFishAdapter
 from ..db import crud
+from ..services.settings_service import redact_secrets
 
 
 import socket
@@ -67,10 +68,16 @@ _ensure_resilient_dns()
 
 class RealTinyFishClient(TinyFishAdapter):
     def __init__(self, api_key: Optional[str] = None):
+        if not api_key:
+            try:
+                from ..services.settings_service import get_settings_manager
+                api_key = get_settings_manager().get_active_credentials().get("tinyfish_api_key", "")
+            except Exception:
+                pass
         self.api_key = api_key or os.getenv("TINYFISH_API_KEY", "")
-        self.agent_base = "https://agent.tinyfish.ai"
-        self.search_base = "https://api.search.tinyfish.ai"
-        self.fetch_base = "https://api.fetch.tinyfish.ai"
+        self.agent_base = os.getenv("TINYFISH_AGENT_BASE", "https://agent.tinyfish.ai").rstrip("/")
+        self.search_base = os.getenv("TINYFISH_SEARCH_BASE", "https://api.search.tinyfish.ai").rstrip("/")
+        self.fetch_base = os.getenv("TINYFISH_FETCH_BASE", "https://api.fetch.tinyfish.ai").rstrip("/")
 
     def _headers(self) -> Dict[str, str]:
         return {
@@ -99,20 +106,22 @@ class RealTinyFishClient(TinyFishAdapter):
                 )
                 return results
         except urllib.error.HTTPError as e:
+            err_msg = redact_secrets(e.reason or f"HTTP {e.code}", [self.api_key])
             crud.log_provider_call(
                 audit_id=audit_id,
                 operation="search",
                 response_status=e.code,
-                error_class=e.reason,
+                error_class=err_msg,
                 result_usable=False,
                 requested_at=req_at,
             )
             return []
         except Exception as e:
+            err_msg = redact_secrets(str(e), [self.api_key])
             crud.log_provider_call(
                 audit_id=audit_id,
                 operation="search",
-                error_class=str(e),
+                error_class=err_msg,
                 result_usable=False,
                 requested_at=req_at,
             )
@@ -146,24 +155,26 @@ class RealTinyFishClient(TinyFishAdapter):
                 )
                 return data
         except urllib.error.HTTPError as e:
+            err_msg = redact_secrets(str(e.reason) or f"HTTP {e.code}", [self.api_key])
             crud.log_provider_call(
                 audit_id=audit_id,
                 operation="fetch",
                 response_status=e.code,
-                error_class=e.reason,
+                error_class=err_msg,
                 result_usable=False,
                 requested_at=req_at,
             )
-            return {"results": [], "errors": [{"error": str(e.reason), "status": e.code}]}
+            return {"results": [], "errors": [{"error": err_msg, "status": e.code}]}
         except Exception as e:
+            err_msg = redact_secrets(str(e), [self.api_key])
             crud.log_provider_call(
                 audit_id=audit_id,
                 operation="fetch",
-                error_class=str(e),
+                error_class=err_msg,
                 result_usable=False,
                 requested_at=req_at,
             )
-            return {"results": [], "errors": [{"error": str(e)}]}
+            return {"results": [], "errors": [{"error": err_msg}]}
 
     def submit_agent_run(
         self,
@@ -213,17 +224,32 @@ class RealTinyFishClient(TinyFishAdapter):
                 )
                 return prov_run_id
         except urllib.error.HTTPError as e:
-            err_body = e.read().decode("utf-8")
+            try:
+                err_body = e.read().decode("utf-8")
+            except Exception:
+                err_body = str(e.reason or e)
+            sanitized_err = redact_secrets(err_body, [self.api_key])
             crud.log_provider_call(
                 audit_id=audit_id,
                 run_id=run_id,
                 operation="agent_submit",
                 response_status=e.code,
-                error_class=err_body,
+                error_class=sanitized_err,
                 result_usable=False,
                 requested_at=req_at,
             )
-            raise RuntimeError(f"TinyFish agent submission failed: {e.code} - {err_body}")
+            raise RuntimeError(f"TinyFish agent submission failed: {e.code} - {sanitized_err}")
+        except Exception as e:
+            sanitized_err = redact_secrets(str(e), [self.api_key])
+            crud.log_provider_call(
+                audit_id=audit_id,
+                run_id=run_id,
+                operation="agent_submit",
+                error_class=sanitized_err,
+                result_usable=False,
+                requested_at=req_at,
+            )
+            raise RuntimeError(f"TinyFish agent submission error: {sanitized_err}")
 
     def poll_agent_run(self, provider_run_id: str, audit_id: str, run_id: Optional[str] = None) -> Dict[str, Any]:
         req_at = datetime.now(timezone.utc).isoformat()
@@ -245,17 +271,31 @@ class RealTinyFishClient(TinyFishAdapter):
                     requested_at=req_at,
                 )
                 return data
-        except Exception as e:
+        except urllib.error.HTTPError as e:
+            sanitized_err = redact_secrets(f"HTTPError {e.code}: {e.reason}", [self.api_key])
             crud.log_provider_call(
                 audit_id=audit_id,
                 run_id=run_id,
                 operation="agent_poll",
                 provider_request_id=provider_run_id,
-                error_class=str(e),
+                response_status=e.code,
+                error_class=sanitized_err,
                 result_usable=False,
                 requested_at=req_at,
             )
-            raise
+            raise RuntimeError(sanitized_err)
+        except Exception as e:
+            sanitized_err = redact_secrets(str(e), [self.api_key])
+            crud.log_provider_call(
+                audit_id=audit_id,
+                run_id=run_id,
+                operation="agent_poll",
+                provider_request_id=provider_run_id,
+                error_class=sanitized_err,
+                result_usable=False,
+                requested_at=req_at,
+            )
+            raise RuntimeError(sanitized_err)
 
     def download_screenshot(self, provider_run_id: str, step_id: str, audit_id: str, run_id: Optional[str] = None) -> bytes:
         req_at = datetime.now(timezone.utc).isoformat()
@@ -277,17 +317,31 @@ class RealTinyFishClient(TinyFishAdapter):
                     requested_at=req_at,
                 )
                 return raw_bytes
-        except Exception as e:
+        except urllib.error.HTTPError as e:
+            sanitized_err = redact_secrets(f"HTTPError {e.code}: {e.reason}", [self.api_key])
             crud.log_provider_call(
                 audit_id=audit_id,
                 run_id=run_id,
                 operation="screenshot",
                 provider_request_id=f"{provider_run_id}/{step_id}",
-                error_class=str(e),
+                response_status=e.code,
+                error_class=sanitized_err,
                 result_usable=False,
                 requested_at=req_at,
             )
-            raise
+            raise RuntimeError(sanitized_err)
+        except Exception as e:
+            sanitized_err = redact_secrets(str(e), [self.api_key])
+            crud.log_provider_call(
+                audit_id=audit_id,
+                run_id=run_id,
+                operation="screenshot",
+                provider_request_id=f"{provider_run_id}/{step_id}",
+                error_class=sanitized_err,
+                result_usable=False,
+                requested_at=req_at,
+            )
+            raise RuntimeError(sanitized_err)
 
     def create_browser_profile(self, name: str, audit_id: str) -> str:
         req_at = datetime.now(timezone.utc).isoformat()
@@ -310,15 +364,27 @@ class RealTinyFishClient(TinyFishAdapter):
                     requested_at=req_at,
                 )
                 return prof_id
-        except Exception as e:
+        except urllib.error.HTTPError as e:
+            sanitized_err = redact_secrets(f"HTTPError {e.code}: {e.reason}", [self.api_key])
             crud.log_provider_call(
                 audit_id=audit_id,
                 operation="profile_create",
-                error_class=str(e),
+                response_status=e.code,
+                error_class=sanitized_err,
                 result_usable=False,
                 requested_at=req_at,
             )
-            raise
+            raise RuntimeError(sanitized_err)
+        except Exception as e:
+            sanitized_err = redact_secrets(str(e), [self.api_key])
+            crud.log_provider_call(
+                audit_id=audit_id,
+                operation="profile_create",
+                error_class=sanitized_err,
+                result_usable=False,
+                requested_at=req_at,
+            )
+            raise RuntimeError(sanitized_err)
 
     def delete_browser_profile(self, profile_id: str, audit_id: str) -> None:
         req_at = datetime.now(timezone.utc).isoformat()
@@ -337,12 +403,25 @@ class RealTinyFishClient(TinyFishAdapter):
                     result_usable=True,
                     requested_at=req_at,
                 )
-        except Exception as e:
+        except urllib.error.HTTPError as e:
+            sanitized_err = redact_secrets(f"HTTPError {e.code}: {e.reason}", [self.api_key])
             crud.log_provider_call(
                 audit_id=audit_id,
                 operation="profile_delete",
                 provider_request_id=profile_id,
-                error_class=str(e),
+                response_status=e.code,
+                error_class=sanitized_err,
                 result_usable=False,
                 requested_at=req_at,
             )
+        except Exception as e:
+            sanitized_err = redact_secrets(str(e), [self.api_key])
+            crud.log_provider_call(
+                audit_id=audit_id,
+                operation="profile_delete",
+                provider_request_id=profile_id,
+                error_class=sanitized_err,
+                result_usable=False,
+                requested_at=req_at,
+            )
+

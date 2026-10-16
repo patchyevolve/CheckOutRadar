@@ -471,6 +471,10 @@ class TestLLMRequest(BaseModel):
     model: Optional[str] = None
 
 
+class TestTinyFishRequest(BaseModel):
+    api_key: Optional[str] = None
+
+
 @app.get("/settings")
 def get_settings():
     """Retrieve public provider settings with all secrets safely masked."""
@@ -494,6 +498,15 @@ def test_llm_connection(req: TestLLMRequest):
         base_url=req.base_url,
         api_key=req.api_key,
         model=req.model,
+    )
+    return res
+
+
+@app.post("/settings/test-tinyfish")
+def test_tinyfish_connection(req: TestTinyFishRequest):
+    """Execute an isolated test request to verify TinyFish API key and connectivity. Secrets are strictly redacted."""
+    res = get_settings_manager().test_tinyfish_connection(
+        api_key=req.api_key,
     )
     return res
 

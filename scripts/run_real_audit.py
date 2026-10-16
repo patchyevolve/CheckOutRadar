@@ -40,6 +40,9 @@ from app.worker.job_runner import JobRunner
 from app.analysis.detectors import assess_audit_outcome
 from app.reports.html_report import generate_html_report
 from app.reports.complaint_draft import generate_complaint_draft
+from app.services.settings_service import get_settings_manager
+
+get_settings_manager().set_setting("mock_tinyfish", False)
 
 
 def main():
@@ -87,6 +90,13 @@ def main():
     print(f"\n[4] Executing Job via {adapter_name}...")
     t_start = time.time()
     processed = runner.run_one_cycle()
+    timeout_sec = 240.0
+    while time.time() - t_start < timeout_sec:
+        audit = crud.get_audit(audit_id)
+        if audit and audit.get("status") == "complete":
+            break
+        if not runner.run_one_cycle():
+            time.sleep(3.0)
     elapsed = time.time() - t_start
 
     print(f"    Cycle Completed in {elapsed:.2f}s (processed = {processed})")

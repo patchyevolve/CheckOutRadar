@@ -214,13 +214,15 @@ class JobRunner:
                     prio = 2
 
             raw_bytes = None
-            if step.get("screenshot"):
-                # base64 data uri
+            raw_s = step.get("screenshot") or step.get("screenshot_base64")
+            if raw_s:
+                # base64 data uri or raw base64
                 try:
-                    s_uri = step["screenshot"]
-                    if "," in s_uri:
-                        b64_part = s_uri.split(",", 1)[1]
-                        raw_bytes = base64.b64decode(b64_part)
+                    if "," in raw_s:
+                        b64_part = raw_s.split(",", 1)[1]
+                    else:
+                        b64_part = raw_s
+                    raw_bytes = base64.b64decode(b64_part)
                 except Exception:
                     raw_bytes = None
 
@@ -281,6 +283,26 @@ class JobRunner:
             sc_copy = dict(sc)
             sc_copy["snapshot_id"] = snap_id
             resolved_stage_captures.append(sc_copy)
+
+        # Fallback: synthesize stage captures from execution steps if result_dict had none
+        if not resolved_stage_captures and poll_data.get("steps"):
+            for step_idx, step in enumerate(poll_data.get("steps", [])):
+                step_id = step.get("id") or f"step_{step_idx + 1}"
+                snap_id = snapshot_map.get(step_id) or snapshot_map.get(step_idx + 1)
+                st_name = "product"
+                act_lower = (step.get("action", "") or step.get("name", "") or step.get("description", "") or "").lower()
+                if any(k in act_lower for k in ["checkout", "summary", "review", "pay", "order"]):
+                    st_name = "checkout_summary"
+                elif any(k in act_lower for k in ["cart", "basket"]):
+                    st_name = "cart"
+                resolved_stage_captures.append({
+                    "step_name": st_name,
+                    "step_index": step_idx + 1,
+                    "provider_step_id": step_id,
+                    "capture_status": "verified" if snap_id else "incomplete",
+                    "inspection_status": "inspected" if snap_id else "uninspected",
+                    "snapshot_id": snap_id,
+                })
 
         is_reconciled, run_outcome = crud.persist_run_observations_atomically(
             run_id=run_id,

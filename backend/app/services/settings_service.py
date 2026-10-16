@@ -337,6 +337,94 @@ class SettingsManager:
                 "model": test_model,
             }
 
+    def test_tinyfish_connection(
+        self,
+        api_key: Optional[str] = None,
+        timeout_sec: float = 6.0,
+    ) -> Dict[str, Any]:
+        """
+        Execute an isolated test request to verify TinyFish API key and connectivity.
+        Guarantees that credentials are never leaked in error messages, tracebacks, or output.
+        """
+        active = self.get_active_credentials()
+        test_key = api_key.strip() if api_key is not None and api_key.strip() else active["tinyfish_api_key"]
+
+        if not test_key:
+            return {
+                "success": False,
+                "status_code": None,
+                "latency_ms": None,
+                "message": "No TinyFish API key provided or configured. Enter a TinyFish API key to test the connection.",
+                "error": "missing_api_key",
+            }
+
+        search_base = os.getenv("TINYFISH_SEARCH_BASE", "https://api.search.tinyfish.ai").rstrip("/")
+        url = f"{search_base}/?query=test"
+        req = urllib.request.Request(
+            url,
+            headers={"X-API-Key": test_key},
+            method="GET",
+        )
+
+        t_start = time.perf_counter()
+        try:
+            with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+                elapsed_ms = round((time.perf_counter() - t_start) * 1000, 1)
+                return {
+                    "success": True,
+                    "status_code": resp.status,
+                    "latency_ms": elapsed_ms,
+                    "message": f"Successfully connected to TinyFish API (HTTP {resp.status}) in {elapsed_ms}ms.",
+                    "error": None,
+                }
+        except urllib.error.HTTPError as e:
+            elapsed_ms = round((time.perf_counter() - t_start) * 1000, 1)
+            status_code = e.code
+            if status_code == 401:
+                msg = "Authentication failed (HTTP 401 Unauthorized): Invalid TinyFish API key or expired token."
+            elif status_code == 403:
+                msg = "Access forbidden (HTTP 403 Forbidden): Check TinyFish account permissions or key restrictions."
+            elif status_code == 429:
+                msg = "Rate limit or quota exceeded (HTTP 429): Upstream TinyFish rate limit reached."
+            elif 500 <= status_code < 600:
+                msg = f"Upstream TinyFish error (HTTP {status_code}): Service may be temporarily experiencing outages."
+            else:
+                msg = f"TinyFish API returned HTTP {status_code}."
+
+            return {
+                "success": False,
+                "status_code": status_code,
+                "latency_ms": elapsed_ms,
+                "message": redact_secrets(msg, [test_key]),
+                "error": f"http_{status_code}",
+            }
+        except urllib.error.URLError as e:
+            sanitized_reason = redact_secrets(str(e.reason), [test_key])
+            return {
+                "success": False,
+                "status_code": None,
+                "latency_ms": None,
+                "message": f"Connection failed: {sanitized_reason}",
+                "error": "connection_failed",
+            }
+        except TimeoutError:
+            return {
+                "success": False,
+                "status_code": None,
+                "latency_ms": None,
+                "message": f"Connection timed out after {timeout_sec}s. Check endpoint address and network settings.",
+                "error": "timeout",
+            }
+        except Exception as e:
+            err_msg = redact_secrets(str(e), [test_key])
+            return {
+                "success": False,
+                "status_code": None,
+                "latency_ms": None,
+                "message": f"TinyFish connection check error: {err_msg}",
+                "error": "provider_error",
+            }
+
 
 # Singleton instance
 _manager_instance: Optional[SettingsManager] = None
