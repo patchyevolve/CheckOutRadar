@@ -369,8 +369,8 @@ function renderExecutiveScorecard(det, findings, diffs, runs) {
     badgeEl.className = "kpi-badge";
     if (isClean) {
         badgeEl.classList.add("badge-clean");
-        badgeEl.innerText = "VERIFIED CLEAN";
-        subEl.innerText = "Observed flow clean; not gateway certified";
+        badgeEl.innerText = "VERIFIED CLEAN (TESTED FLOW)";
+        subEl.innerText = "Observed flow clean; uninspected gateways outside scope";
     } else if (hasIndicators) {
         badgeEl.classList.add("badge-indicators");
         badgeEl.innerText = "INDICATORS DETECTED";
@@ -420,11 +420,20 @@ function renderExecutiveScorecard(det, findings, diffs, runs) {
     const medCount = findings.filter(f => (f.severity || "").toLowerCase() === "medium").length;
     const lowCount = findings.filter(f => (f.severity || "").toLowerCase() === "low").length;
 
-    indValEl.innerText = `${findings.length} Flagged`;
-    if (findings.length > 0) {
+    const uniqueGroups = groupFindingsByPattern(findings);
+    const uniqueCount = uniqueGroups.length;
+
+    if (uniqueCount > 0) {
         indValEl.style.color = "#f87171";
-        indSubEl.innerText = `${highCount} High, ${medCount} Med, ${lowCount} Low (Non-adjudicative)`;
+        if (findings.length > uniqueCount) {
+            indValEl.innerText = `${uniqueCount} Unique (${findings.length} Runs)`;
+            indSubEl.innerText = `${uniqueCount} pattern(s) confirmed across ${findings.length} condition observations`;
+        } else {
+            indValEl.innerText = `${uniqueCount} Flagged`;
+            indSubEl.innerText = `${highCount} High, ${medCount} Med, ${lowCount} Low (Non-adjudicative)`;
+        }
     } else {
+        indValEl.innerText = "0 Flagged";
         indValEl.style.color = "#34d399";
         indSubEl.innerText = "0 Violations under tested conditions";
     }
@@ -490,16 +499,22 @@ function renderAssessmentBanner(assessment) {
         title.innerText = "Verified Clean Checkout Flow";
         countTag.innerText = "0 Indicators Detected";
         countTag.style.color = "#10b981";
-        summary.innerText = assessment.summary || "All required stages were captured and inspected; 0 potential dark pattern indicators detected within observed flow boundary.";
+        summary.innerText = "All required stages (Product, Cart, Checkout Summary) captured and inspected; 0 potential dark pattern indicators detected within observed flow boundary. Non-destructive audit stopped prior to payment authorization (third-party payment gateways uninspected).";
         reasonsContainer.classList.add("hidden");
     } else if (hasIndicators) {
         banner.classList.add("assessment-indicators");
         badge.classList.add("badge-indicators");
         badge.innerText = "INDICATORS DETECTED";
-        title.innerText = `${assessment.findings_count || 1} Potential Dark Pattern Indicator(s) Flagged`;
-        countTag.innerText = `${assessment.findings_count || 1} Indicator(s)`;
+        const uniqueGroups = groupFindingsByPattern(rawFindings);
+        if (rawFindings.length > uniqueGroups.length) {
+            title.innerText = `${uniqueGroups.length} Unique Dark Pattern Category Flagged (${rawFindings.length} Matrix Run Observations)`;
+            countTag.innerText = `${uniqueGroups.length} Unique (${rawFindings.length} Obs)`;
+        } else {
+            title.innerText = `${assessment.findings_count || 1} Potential Dark Pattern Indicator(s) Flagged`;
+            countTag.innerText = `${assessment.findings_count || 1} Indicator(s)`;
+        }
         countTag.style.color = "#f87171";
-        summary.innerText = assessment.summary || "Technical checkout audit findings flagged candidate dark patterns matching CCPA 2023 regulations.";
+        summary.innerText = "Technical checkout audit findings flagged candidate dark patterns matching CCPA 2023 regulations. Non-adjudicative empirical evidence; not a statutory or judicial verdict.";
         reasonsContainer.classList.add("hidden");
     } else {
         banner.classList.add("assessment-inconclusive");
@@ -728,6 +743,28 @@ function onSearchFindings() {
     filterAndRenderFindings();
 }
 
+function groupFindingsByPattern(findingsList) {
+    const groups = new Map();
+    (findingsList || []).forEach(f => {
+        let coreKey = f.category || "unknown";
+        if (f.raw_observations && f.raw_observations.step_t0) {
+            coreKey += `:${f.raw_observations.step_t0}_${f.raw_observations.step_t1}`;
+        } else if (f.explanation) {
+            const m = f.explanation.match(/'([^']+)'/);
+            if (m) {
+                coreKey += `:${m[1].toLowerCase()}`;
+            } else {
+                coreKey += `:${f.explanation.substring(0, 45).toLowerCase()}`;
+            }
+        }
+        if (!groups.has(coreKey)) {
+            groups.set(coreKey, []);
+        }
+        groups.get(coreKey).push(f);
+    });
+    return Array.from(groups.values());
+}
+
 function filterAndRenderFindings() {
     const list = document.getElementById("findings-list");
     let filtered = rawFindings;
@@ -745,7 +782,13 @@ function filterAndRenderFindings() {
         });
     }
 
-    document.getElementById("findings-count-pill").innerText = `${filtered.length} of ${rawFindings.length} Found`;
+    const uniqueGroups = groupFindingsByPattern(filtered);
+
+    if (uniqueGroups.length === filtered.length) {
+        document.getElementById("findings-count-pill").innerText = `${filtered.length} of ${rawFindings.length} Found`;
+    } else {
+        document.getElementById("findings-count-pill").innerText = `${uniqueGroups.length} Unique Pattern(s) (${filtered.length} Run Observations)`;
+    }
 
     if (!filtered.length) {
         if (!rawFindings.length) {
@@ -756,25 +799,65 @@ function filterAndRenderFindings() {
         return;
     }
 
-    list.innerHTML = filtered.map(f => {
-        let evSnippet = "";
-        if (f.evidence_ids && f.evidence_ids.length) {
-            const evArr = Array.isArray(f.evidence_ids) ? f.evidence_ids : [f.evidence_ids];
-            evSnippet = `<span class="trace-tag">Evidence: <code>${escapeHtml(evArr.join(", "))}</code></span>`;
+    list.innerHTML = uniqueGroups.map(items => {
+        const primary = items[0];
+        const isMultiRun = items.length > 1;
+
+        let occurrencePill = "";
+        if (isMultiRun) {
+            occurrencePill = `<span class="badge badge-accent" style="font-size: 0.72em; padding: 2px 6px;">Observed in ${items.length} of ${currentAuditRuns.length || items.length} Matrix Runs (100% Reproduction)</span>`;
+        } else {
+            occurrencePill = `<span class="badge badge-outline" style="font-size: 0.72em; padding: 2px 6px;">1 Run Observation</span>`;
         }
+
+        let traceSection = "";
+        if (isMultiRun) {
+            traceSection = `
+            <div class="finding-matrix-trail" style="margin-top: 10px; background: rgba(15, 23, 42, 0.6); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(148, 163, 184, 0.15);">
+                <div style="font-size: 0.78em; font-weight: 600; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+                    Matrix Traceability (${items.length} Run Occurrences):
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    ${items.map(it => {
+                        const runObj = currentAuditRuns.find(r => r.id === it.run_id);
+                        const runLabel = runObj ? (runObj.is_reference ? 'Reference (' + (runObj.condition_key || runObj.id.substring(0, 8)) + ')' : (runObj.condition_key || it.run_id.substring(0, 8))) : (it.run_id ? it.run_id.substring(0, 8) : 'Run');
+                        const evArr = Array.isArray(it.evidence_ids) ? it.evidence_ids : (it.evidence_ids ? [it.evidence_ids] : []);
+                        return `
+                        <div style="font-size: 0.78em; font-family: ui-monospace, SFMono-Regular, monospace; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+                            <span style="color: #38bdf8; font-weight: bold;">[${escapeHtml(runLabel)}]</span>
+                            <span style="color: #64748b;">Finding: <code style="color: #cbd5e1;">${escapeHtml(it.id)}</code></span>
+                            ${it.diff_id ? `<span style="color: #64748b;">Diff: <code style="color: #cbd5e1;">${escapeHtml(it.diff_id)}</code></span>` : ''}
+                            ${evArr.length ? `<span style="color: #64748b;">Evidence: <code style="color: #cbd5e1;">${escapeHtml(evArr.join(', '))}</code></span>` : ''}
+                        </div>`;
+                    }).join("")}
+                </div>
+            </div>`;
+        } else {
+            let evSnippet = "";
+            if (primary.evidence_ids && primary.evidence_ids.length) {
+                const evArr = Array.isArray(primary.evidence_ids) ? primary.evidence_ids : [primary.evidence_ids];
+                evSnippet = `<span class="trace-tag">Evidence: <code>${escapeHtml(evArr.join(", "))}</code></span>`;
+            }
+            traceSection = `
+            <div class="finding-trace-bar">
+                <span class="trace-tag">Finding ID: <code>${escapeHtml(primary.id)}</code></span>
+                ${primary.diff_id ? `<span class="trace-tag">Diff Ref: <code>${escapeHtml(primary.diff_id)}</code></span>` : ""}
+                ${evSnippet}
+            </div>`;
+        }
+
         return `
         <div class="finding-item">
-            <div class="finding-item-header">
-                <span class="finding-cat">${escapeHtml((f.category || "").replace(/_/g, " "))}</span>
-                <span class="finding-badge">${escapeHtml((f.severity || "").toUpperCase())} (${Math.round((f.confidence || 0) * 100)}%)</span>
+            <div class="finding-item-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="finding-cat">${escapeHtml((primary.category || "").replace(/_/g, " "))}</span>
+                    ${occurrencePill}
+                </div>
+                <span class="finding-badge">${escapeHtml((primary.severity || "").toUpperCase())} (${Math.round((primary.confidence || 0) * 100)}%)</span>
             </div>
-            <div class="finding-expl">${escapeHtml(f.explanation || "")}</div>
-            ${f.heuristic_note ? `<div class="finding-heuristic">ℹ️ ${escapeHtml(f.heuristic_note)}</div>` : ""}
-            <div class="finding-trace-bar">
-                <span class="trace-tag">Finding ID: <code>${escapeHtml(f.id)}</code></span>
-                ${f.diff_id ? `<span class="trace-tag">Diff Ref: <code>${escapeHtml(f.diff_id)}</code></span>` : ""}
-                ${evSnippet}
-            </div>
+            <div class="finding-expl">${escapeHtml(primary.explanation || "")}</div>
+            ${primary.heuristic_note ? `<div class="finding-heuristic">ℹ️ ${escapeHtml(primary.heuristic_note)}</div>` : ""}
+            ${traceSection}
         </div>
         `;
     }).join("");

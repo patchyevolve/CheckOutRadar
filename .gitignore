@@ -19,6 +19,7 @@ data/evidence/*.jpg
 data/evidence/*.html
 data/evidence/*.json
 !data/evidence/.gitkeep
+!data/evidence/run_cf2137881ab6*.jpg
 
 # Pytest & caches
 .pytest_cache/

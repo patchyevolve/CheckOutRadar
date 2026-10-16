@@ -100,3 +100,38 @@ def test_docker_compose_syntax_and_healthchecks():
     assert "harness" in config_text
     assert "api" in config_text
     assert "worker" in config_text
+
+
+def test_demo_seed_initialization(tmp_path, monkeypatch):
+    """Verify that seed_demo_data_if_empty seeds baseline demo fixtures into an empty database."""
+    from app.db import connection
+
+    test_db = tmp_path / "test_fresh_clone.db"
+    monkeypatch.setenv("SQLITE_DB_PATH", str(test_db))
+
+    connection.init_db(seed_demo=False)
+    conn = connection.get_connection()
+    try:
+        # Initially empty
+        count = conn.execute("SELECT COUNT(*) FROM audits").fetchone()[0]
+        assert count == 0
+
+        # Seed baseline demo fixtures
+        connection.seed_demo_data_if_empty(conn)
+
+        count_after = conn.execute("SELECT COUNT(*) FROM audits").fetchone()[0]
+        assert count_after == 3
+
+        # Verify specific demo audit IDs
+        audit_ids = [r[0] for r in conn.execute("SELECT id FROM audits").fetchall()]
+        assert "aud_b29153cee0b1" in audit_ids  # Headphone Zone live
+        assert "aud_4d476bc71e63" in audit_ids  # Late fee drip
+        assert "aud_f0946ab48e50" in audit_ids  # Inconclusive default
+
+        # Idempotence: second call should not duplicate or error
+        connection.seed_demo_data_if_empty(conn)
+        count_idempotent = conn.execute("SELECT COUNT(*) FROM audits").fetchone()[0]
+        assert count_idempotent == 3
+    finally:
+        conn.close()
+
