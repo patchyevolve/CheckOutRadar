@@ -410,9 +410,11 @@ The frontend redesign was fully implemented across `frontend/index.html`, `front
 | **DEF-11** | Data provenance ambiguity | P2 | Added high-contrast provenance badges (`[LIVE MERCHANT]` vs `[SYNTHETIC HARNESS]`) and explicit harness variant merchant names. | `after/03d_history_tab_1440x900.png` |
 | **DEF-12** | Missing test evidence files on disk | P1 | Restored byte-identical mock snapshots into `data/evidence/`; verified all database records resolve HTTP 200 without fallbacks. | `after/03_indicators_detected_viewport_1440x900.png` |
 | **DEF-13** | Mobile modal and table touch polish | P2 | Added `-webkit-overflow-scrolling: touch`, `min-height: 42px` touch targets for tabs, and `max-height: 88vh` on grievance modal. | `after/12_mobile_viewport_375x812.png` |
+| **DEF-14** | Mock image ambiguity & status confounding | P1 | Replaced stretched 100×100 placeholder with an explicit `[SYNTHETIC HARNESS FIXTURE]` preview; clearly separated Stage Execution (`STAGE EXECUTED`), Visual Capture Availability (`LIVE VIEWPORT` vs `SYNTHETIC FIXTURE`), and Pipeline Integrity (`SHA-256 HASHED`). | `after/03_indicators_detected_viewport_1440x900.png` |
+| **DEF-15** | Findings traceability across multi-condition runs | P2 | Added trace tags (`Finding ID`, `Matched Diff`, `Evidence Snapshots`) to each finding card so duplicate text across matrix runs is traceable to specific condition runs. | `after/03b_indicators_findings_tab_1440x900.png` |
 
 ### 9.3 Test Suite & Regression Verification
-- **Local Pytest Suite:** 81 / 81 tests passing (1.49s) across 13 test modules.
+- **Local Pytest Suite:** 81 / 81 tests passing across 13 test modules.
 - **Three Demonstration Flows:** All 3 demo flows pass cleanly (Synthetic Positive Controls, Clean Negative Control, Conservative Inconclusive Default).
 - **CDP UI Interaction Suite:** All 4 browser automation checks pass (`scripts/verify_ui_interaction.py`).
 - **Security & Secret Scanner:** 0 secrets detected across 113 tracked files and full git commit history (`scripts/scan_secrets.py`).

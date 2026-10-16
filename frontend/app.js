@@ -1,6 +1,7 @@
 // Checkout Radar Dashboard Client Application — Forensic Workspace
 
 let currentAuditId = null;
+let currentAudit = null;
 let eventSource = null;
 let currentAuditRuns = [];
 let selectedRunId = null;
@@ -297,6 +298,7 @@ async function refreshAuditData(auditId) {
         const findsData = await findResp.json();
         const callsData = await callsResp.json();
 
+        currentAudit = det.audit || null;
         currentAuditRuns = det.runs || [];
         rawFindings = findsData.findings || [];
         rawDiffs = diffsData.diffs || [];
@@ -318,6 +320,16 @@ async function refreshAuditData(auditId) {
         const pct = Math.min(100, Math.round((compRuns / totalConds) * 100));
         document.getElementById("progress-bar").style.width = `${pct}%`;
         document.getElementById("progress-count").innerText = `${compRuns} / ${totalConds} runs`;
+
+        // Hide stream console on completed audits to preserve above-the-fold vertical space
+        const consoleDetails = document.getElementById("console-details");
+        if (consoleDetails) {
+            if (det.audit && det.audit.status === "complete") {
+                consoleDetails.classList.add("hidden");
+            } else {
+                consoleDetails.classList.remove("hidden");
+            }
+        }
 
         // Update Tab Badges
         document.getElementById("tab-pill-evidence").innerText = "3";
@@ -550,6 +562,15 @@ function renderEvidenceGallery(runs, targetRunId) {
 
     const stageCaps = activeRun ? (activeRun.stage_captures || []) : [];
 
+    // Determine if this audit run is synthetic harness / mock vs live crawl
+    const auditObj = currentAudit || {};
+    const isSyntheticAudit = (auditObj.merchant || "").toLowerCase().includes("harness") ||
+                             (auditObj.merchant || "").toLowerCase().includes("demo") ||
+                             (auditObj.input_url || "").toLowerCase().includes("harness") ||
+                             (auditObj.input_url || "").toLowerCase().includes("127.0.0.1") ||
+                             (auditObj.input_url || "").toLowerCase().includes("localhost");
+    const isSyntheticRun = activeRun && ((activeRun.provider_run_id || "").startsWith("mock_run_"));
+
     stages.forEach(st => {
         const sc = stageCaps.find(c => {
             const sName = (c.step_name || "").toLowerCase();
@@ -561,6 +582,8 @@ function renderEvidenceGallery(runs, targetRunId) {
 
         const badge = document.getElementById(`badge-stage-${st.key}`);
         const imgContainer = document.getElementById(`img-container-${st.key}`);
+        const execMeta = document.getElementById(`meta-exec-${st.key}`);
+        const visualMeta = document.getElementById(`meta-visual-${st.key}`);
         const snapMeta = document.getElementById(`meta-snap-${st.key}`);
         const hashMeta = document.getElementById(`meta-hash-${st.key}`);
         const timeMeta = document.getElementById(`meta-time-${st.key}`);
@@ -577,17 +600,47 @@ function renderEvidenceGallery(runs, targetRunId) {
             const timeRaw = sc.snapshot_captured_at || sc.captured_at;
             const timeStr = timeRaw ? formatTimestamp(timeRaw) : "Timestamp recorded";
 
-            if (evUrl) {
+            const isSyntheticDigest = sha256 && sha256.startsWith("e9ec365e");
+            const isSyntheticFixture = isSyntheticDigest || isSyntheticRun || isSyntheticAudit;
+
+            // Separate Status 1: Stage Execution
+            if (execMeta) {
+                execMeta.innerHTML = `<span class="meta-status-pill pill-executed">STAGE EXECUTED</span>`;
+            }
+
+            // Separate Status 2: Visual Capture Availability
+            if (visualMeta) {
+                visualMeta.innerHTML = isSyntheticFixture 
+                    ? `<span class="meta-status-pill pill-synthetic">Synthetic Fixture (No Live Viewport)</span>`
+                    : `<span class="meta-status-pill pill-live">Live Viewport (1280×720)</span>`;
+            }
+
+            if (isSyntheticFixture) {
+                // Clearly labelled synthetic preview container
+                imgContainer.innerHTML = `
+                    <div class="stage-synthetic-fixture">
+                        <span class="synthetic-fixture-tag">SYNTHETIC HARNESS FIXTURE</span>
+                        <div class="synthetic-fixture-title">Offline DOM Analysis</div>
+                        <p class="synthetic-fixture-desc">Deterministic test harness execution. DOM charges & disclosures verified without browser rendering.</p>
+                    </div>
+                `;
+                footer.innerHTML = `
+                    <button class="btn btn-secondary btn-chip" onclick="openScreenshotModal('${evUrl}', '${escapeHtml(st.name)}', '${escapeHtml(snapId)}', '${escapeHtml(sha256)}', true)">
+                        🔬 Raw Diagnostic Artifact
+                    </button>
+                `;
+            } else if (evUrl) {
+                // Live merchant real viewport
                 imgContainer.innerHTML = `
                     <img src="${evUrl}" 
                          alt="${escapeHtml(st.name)} Viewport" 
                          class="gallery-thumb" 
-                         onclick="openScreenshotModal('${evUrl}', '${escapeHtml(st.name)}', '${escapeHtml(snapId)}', '${escapeHtml(sha256)}')"
+                         onclick="openScreenshotModal('${evUrl}', '${escapeHtml(st.name)}', '${escapeHtml(snapId)}', '${escapeHtml(sha256)}', false)"
                          title="Click to view full-resolution screenshot"
                          onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'stage-empty-state\\'>🖼️ Artifact referenced (${escapeHtml(snapId)})<br><small style=\\'color:#94a3b8\\'>File pending on disk</small></div>';" />
                 `;
                 footer.innerHTML = `
-                    <button class="btn btn-secondary btn-chip" onclick="openScreenshotModal('${evUrl}', '${escapeHtml(st.name)}', '${escapeHtml(snapId)}', '${escapeHtml(sha256)}')">
+                    <button class="btn btn-secondary btn-chip" onclick="openScreenshotModal('${evUrl}', '${escapeHtml(st.name)}', '${escapeHtml(snapId)}', '${escapeHtml(sha256)}', false)">
                         🔍 Full Resolution
                     </button>
                 `;
@@ -596,6 +649,7 @@ function renderEvidenceGallery(runs, targetRunId) {
                 footer.innerHTML = `<span class="text-disabled">Metadata verified</span>`;
             }
 
+            // Separate Status 3: Artifact Integrity
             snapMeta.innerText = snapId;
             snapMeta.title = snapId;
 
@@ -612,6 +666,8 @@ function renderEvidenceGallery(runs, targetRunId) {
             badge.className = "stage-status-badge badge-stage-missing";
             badge.innerText = "NOT CAPTURED";
             imgContainer.innerHTML = `<div class="stage-empty-state">⚠️ Stage was not captured in this audit run</div>`;
+            if (execMeta) execMeta.innerHTML = `<span class="meta-status-pill pill-omitted">NOT EXECUTED</span>`;
+            if (visualMeta) visualMeta.innerHTML = `<span class="meta-status-pill pill-omitted">Not Captured</span>`;
             snapMeta.innerText = "-";
             snapMeta.title = "-";
             hashMeta.innerText = "-";
@@ -626,6 +682,8 @@ function resetGalleryCards() {
     ["product", "cart", "checkout_summary"].forEach(k => {
         const badge = document.getElementById(`badge-stage-${k}`);
         const imgContainer = document.getElementById(`img-container-${k}`);
+        const execMeta = document.getElementById(`meta-exec-${k}`);
+        const visualMeta = document.getElementById(`meta-visual-${k}`);
         const snapMeta = document.getElementById(`meta-snap-${k}`);
         const hashMeta = document.getElementById(`meta-hash-${k}`);
         const timeMeta = document.getElementById(`meta-time-${k}`);
@@ -633,6 +691,8 @@ function resetGalleryCards() {
 
         if (badge) { badge.className = "stage-status-badge badge-stage-waiting"; badge.innerText = "WAITING"; }
         if (imgContainer) imgContainer.innerHTML = `<div class="stage-empty-state">No viewport captured yet</div>`;
+        if (execMeta) execMeta.innerText = "-";
+        if (visualMeta) visualMeta.innerText = "-";
         if (snapMeta) { snapMeta.innerText = "-"; snapMeta.title = "-"; }
         if (hashMeta) { hashMeta.innerText = "-"; hashMeta.title = "-"; }
         if (timeMeta) timeMeta.innerText = "-";
@@ -696,7 +756,13 @@ function filterAndRenderFindings() {
         return;
     }
 
-    list.innerHTML = filtered.map(f => `
+    list.innerHTML = filtered.map(f => {
+        let evSnippet = "";
+        if (f.evidence_ids && f.evidence_ids.length) {
+            const evArr = Array.isArray(f.evidence_ids) ? f.evidence_ids : [f.evidence_ids];
+            evSnippet = `<span class="trace-tag">Evidence: <code>${escapeHtml(evArr.join(", "))}</code></span>`;
+        }
+        return `
         <div class="finding-item">
             <div class="finding-item-header">
                 <span class="finding-cat">${escapeHtml((f.category || "").replace(/_/g, " "))}</span>
@@ -704,8 +770,14 @@ function filterAndRenderFindings() {
             </div>
             <div class="finding-expl">${escapeHtml(f.explanation || "")}</div>
             ${f.heuristic_note ? `<div class="finding-heuristic">ℹ️ ${escapeHtml(f.heuristic_note)}</div>` : ""}
+            <div class="finding-trace-bar">
+                <span class="trace-tag">Finding ID: <code>${escapeHtml(f.id)}</code></span>
+                ${f.diff_id ? `<span class="trace-tag">Diff Ref: <code>${escapeHtml(f.diff_id)}</code></span>` : ""}
+                ${evSnippet}
+            </div>
         </div>
-    `).join("");
+        `;
+    }).join("");
 }
 
 // -------------------------------------------------------------
@@ -1081,9 +1153,11 @@ async function triggerReobserve() {
 // Lightbox Modal
 // -------------------------------------------------------------
 
-function openScreenshotModal(imgUrl, stageTitle, snapId, sha256) {
+function openScreenshotModal(imgUrl, stageTitle, snapId, sha256, isSynthetic = false) {
     const modal = document.getElementById("screenshot-modal");
-    document.getElementById("modal-stage-title").innerText = `${stageTitle} Viewport`;
+    document.getElementById("modal-stage-title").innerText = isSynthetic 
+        ? `${stageTitle} (Synthetic Diagnostic Artifact)` 
+        : `${stageTitle} Viewport`;
     document.getElementById("modal-snap-id").innerText = snapId || "-";
     document.getElementById("modal-img").src = imgUrl;
     document.getElementById("modal-hash-val").innerText = sha256 || "N/A (digest not supplied)";
