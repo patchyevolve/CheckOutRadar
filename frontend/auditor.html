@@ -53,6 +53,7 @@
                         <button type="button" class="btn-chip" onclick="setTarget('http://harness:8001/variant/addon_countdown', 'Demo Store (Sneak + Timer)')">3. Add-on + Countdown</button>
                         <button type="button" class="btn-chip" onclick="setTarget('http://harness:8001/variant/upfront_fee', 'Demo Store (Upfront Fee)')">4. Upfront Convenience</button>
                         <button type="button" class="btn-chip" onclick="setTarget('http://harness:8001/variant/legitimate_threshold', 'Demo Store (Threshold)')">5. Cart Threshold Policy</button>
+                        <button type="button" class="btn-chip" onclick="setTarget('https://www.headphonezone.in/products/tangzu-waner-s-g', 'Headphone Zone (Live)')">🌐 Live: Headphone Zone</button>
                     </div>
 
                     <div class="form-row">
@@ -594,11 +595,17 @@
                 </div>
 
                 <!-- Modal Actions -->
-                <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
-                    <button type="button" class="btn btn-secondary" id="btn-test-connection" onclick="testLLMConnection()">
-                        <span id="test-spinner" class="spinner-inline hidden"></span>
-                        <span>🔌 Test LLM Connection</span>
-                    </button>
+                <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="btn btn-secondary" id="btn-test-connection" onclick="testLLMConnection()">
+                            <span id="test-spinner" class="spinner-inline hidden"></span>
+                            <span>🔌 Test LLM</span>
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="btn-test-tinyfish" onclick="testTinyFishConnection()">
+                            <span id="test-tf-spinner" class="spinner-inline hidden"></span>
+                            <span>🐟 Test TinyFish</span>
+                        </button>
+                    </div>
                     <div style="display: flex; gap: 8px;">
                         <button type="button" class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button>
                         <button type="submit" class="btn btn-primary" id="btn-save-settings">Save Configuration</button>

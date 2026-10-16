@@ -269,6 +269,71 @@ async function testLLMConnection() {
     }
 }
 
+async function testTinyFishConnection() {
+    const apiKey = document.getElementById("settings-tinyfish-key").value.trim();
+
+    const btn = document.getElementById("btn-test-tinyfish");
+    const spinner = document.getElementById("test-tf-spinner");
+    const resultBox = document.getElementById("connection-test-result");
+    const badge = document.getElementById("test-status-badge");
+    const latency = document.getElementById("test-latency-badge");
+    const message = document.getElementById("test-message-text");
+
+    btn.disabled = true;
+    if (spinner) spinner.classList.remove("hidden");
+    resultBox.classList.remove("hidden", "test-result-success", "test-result-error");
+    resultBox.style.borderColor = "var(--border)";
+    badge.className = "badge badge-accent";
+    badge.innerText = "CONNECTING...";
+    latency.innerText = "...";
+    message.innerText = "Connecting to TinyFish Web Agent API...";
+
+    try {
+        const payload = {};
+        if (apiKey) {
+            payload.api_key = apiKey;
+        }
+
+        const resp = await fetch("/settings/test-tinyfish", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await resp.json();
+
+        resultBox.classList.remove("hidden");
+        if (data.success) {
+            resultBox.classList.add("test-result-success");
+            badge.className = "badge";
+            badge.style.background = "#065f46";
+            badge.style.color = "#a7f3d0";
+            badge.innerText = `CONNECTED (${data.status_code || 200} OK)`;
+            latency.innerText = `${data.latency_ms} ms`;
+            message.innerText = data.message;
+        } else {
+            resultBox.classList.add("test-result-error");
+            badge.className = "badge";
+            badge.style.background = "#7f1d1d";
+            badge.style.color = "#fecaca";
+            badge.innerText = `FAILED (${data.status_code ? 'HTTP ' + data.status_code : data.error || 'ERROR'})`;
+            latency.innerText = data.latency_ms ? `${data.latency_ms} ms` : "N/A";
+            message.innerText = data.message;
+        }
+    } catch (e) {
+        resultBox.classList.add("test-result-error");
+        badge.className = "badge";
+        badge.style.background = "#7f1d1d";
+        badge.style.color = "#fecaca";
+        badge.innerText = "CLIENT ERROR";
+        latency.innerText = "N/A";
+        message.innerText = `Failed to send test request: ${e.message}`;
+    } finally {
+        btn.disabled = false;
+        if (spinner) spinner.classList.add("hidden");
+    }
+}
+
 async function saveProviderSettings(event) {
     if (event) event.preventDefault();
 

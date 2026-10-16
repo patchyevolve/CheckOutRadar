@@ -284,6 +284,16 @@ async def run_checks():
         assert "llama-3.3-70b" in groq_model
         print(f"  Preset applied: {groq_url} ({groq_model})")
 
+        # Test TinyFish connection check button
+        print("  Testing TinyFish connection test button...")
+        btn_tf_exists = await chrome.evaluate("Boolean(document.getElementById('btn-test-tinyfish'))")
+        assert btn_tf_exists is True, "Expected btn-test-tinyfish button in settings modal"
+        await chrome.evaluate("testTinyFishConnection()")
+        await asyncio.sleep(2.5)
+        tf_badge_text = await chrome.evaluate("document.getElementById('test-status-badge').innerText")
+        print(f"  TinyFish Test Status Badge: '{tf_badge_text}'")
+        assert "CONNECTED" in tf_badge_text or "FAILED" in tf_badge_text or "CONNECTING" in tf_badge_text
+
         # Capture screenshot of settings modal
         await chrome.capture_screenshot("/tmp/view_provider_settings_modal.png")
 

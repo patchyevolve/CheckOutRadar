@@ -3,7 +3,7 @@
 > **Outside-In Checkout Flow Auditor & CCPA Dark Pattern Detector**  
 > *AZINHACK 2026 Submission* · Team of 4
 
-[![CI Tests](https://img.shields.io/badge/tests-99%20passed-brightgreen.svg)]()
+[![CI Tests](https://img.shields.io/badge/tests-114%20passed-brightgreen.svg)]()
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)]()
 [![Docker Compose](https://img.shields.io/badge/docker--compose-ready-blue.svg)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)]()
@@ -307,8 +307,8 @@ docker compose down
 Checkout Radar includes a comprehensive, 100% reproducible test and verification suite requiring **zero external API calls**:
 
 ```bash
-# 1. Local Pytest Suite (99 tests across 14 modules)
-pytest backend/tests/ -v
+# 1. Local Pytest Suite (114 tests across 15 modules)
+PYTHONPATH=backend pytest backend/tests/ -v
 
 # 2. Docker Isolated Pytest Suite
 docker compose run --rm api pytest tests/
@@ -319,13 +319,235 @@ python3 scripts/verify_demo_flows.py
 # 4. Automated Browser Interaction & Lightbox CDP Verification
 python3 scripts/verify_ui_interaction.py
 
-# 5. Dedicated Security & Secret Scanner (143 files + full git history)
+# 5. Dedicated Security & Secret Scanner (147 files + full git history)
 python3 scripts/scan_secrets.py
 ```
 
 ---
 
-## 8. API Surface
+## 8. Live Merchant Auditing & Arbitrary Site Verification Guide
+
+This section is a comprehensive, standalone guide for auditing any arbitrary e-commerce checkout flow using a live **TinyFish Web Agent** API key.
+
+---
+
+### 8.1 The Fresh-User Journey Overview
+
+A user auditing a real website follows a 6-step outside-in workflow:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Auditor / User
+    participant UI as Workspace UI (/auditor)
+    participant API as FastAPI Backend (/settings)
+    participant DB as SQLite (Backend Secure Store)
+    participant Worker as Durable Job Worker
+    participant TF as TinyFish Web Agent API
+    participant Store as Live Merchant (e.g. Shopify)
+
+    User->>UI: 1. Click ⚙️ Provider Settings
+    User->>UI: 2. Enter TinyFish API Key & Click "🐟 Test TinyFish"
+    UI->>API: POST /settings/test-tinyfish
+    API->>TF: GET api.search.tinyfish.ai/?query=test
+    TF-->>API: 200 OK (Latency ~1.9s)
+    API-->>UI: Connected! Status 200 OK
+    User->>UI: 3. Select Mode: "Live TinyFish Execution" & Save
+    UI->>API: POST /settings {mock_tinyfish: false}
+    API->>DB: Persist backend setting
+
+    User->>UI: 4. Enter Target URL & Click "Start Multi-Condition Audit"
+    UI->>API: POST /audits
+    API->>DB: Enqueue Matrix Jobs
+    Worker->>DB: Claim Job with Monotonic Lease
+    Worker->>TF: Search Terms & Fetch Markdown Policies
+    Worker->>TF: Run Async Agent (Stop Before Payment)
+    TF->>Store: Navigate PDP -> Cart Drawer -> Order Review
+    Store-->>TF: Viewport screenshots & extracted bill
+    Worker->>TF: Poll status & download base64 screenshots
+    Worker->>Worker: Redact screenshots & Reconcile integer minor units
+    Worker->>DB: Persist observations atomically (BEGIN IMMEDIATE)
+    Worker->>DB: Run Diff Engine & Statutory Detector Rules
+    UI->>User: 5. Display 3-Stage Visual Evidence Gallery & Scorecard
+    User->>UI: 6. Inspect Findings, SHA-256 Lightbox & Export HTML Report
+```
+
+---
+
+### 8.2 Configuring TinyFish Credentials via the UI
+
+Checkout Radar features a **Zero-Exfiltration Architecture**: API keys are saved exclusively to the SQLite database on the backend and are **never** echoed to browser storage, JavaScript variables, logs, or exported reports.
+
+1. **Open the Settings Modal:**
+   - In the Auditor Workspace at [http://localhost:8000/auditor](http://localhost:8000/auditor), click the **`⚙️ Provider Settings`** button in the top navigation bar.
+2. **Enter your TinyFish API Key:**
+   - Locate the **TinyFish API Key** field.
+   - Paste your key (e.g. `sk-tinyfish-...`).
+   - *Note:* If a key is already configured on the server or in `.env`, the status badge shows `sk-...xxxx (Configured)`. You can leave the field blank to keep the existing key, or click `Clear Key` to remove it.
+3. **Test the Connection:**
+   - Click the **`🐟 Test TinyFish`** button in the modal footer.
+   - Checkout Radar executes an isolated, timed test probe to `https://api.search.tinyfish.ai/?query=test`.
+   - The status box will confirm connectivity:
+     $$\text{CONNECTED (200 OK) } \cdot \text{ Latency: } \sim 1,900\text{ ms}$$
+   - *Security Guarantee:* If an invalid key or network error occurs, the key is scrubbed from the error message using `redact_secrets()` before rendering.
+4. **Activate Live Execution Mode:**
+   - In the **Agent Execution Mode** dropdown, select:
+     `Live TinyFish Execution (Requires TINYFISH_API_KEY)`
+5. **Save the Configuration:**
+   - Click **`Save Configuration`**. The modal closes and the backend is now actively configured for live agent dispatch.
+6. **Confirm Live Mode is Active:**
+   - Query the health endpoint in your browser or terminal at [http://localhost:8000/health](http://localhost:8000/health):
+     ```json
+     {
+       "status": "healthy",
+       "service": "checkout-radar-api",
+       "mock_mode": false,
+       "has_tinyfish_key": true,
+       "has_llm_key": true
+     }
+     ```
+   - When `mock_mode` is `false`, audits against external URLs will automatically invoke `RealTinyFishClient`.
+
+---
+
+### 8.3 Configuring an Optional LLM Provider (Optional Step)
+
+> [!NOTE]
+> **LLM classification is 100% optional.**  
+> Detection of dark pattern indicators (Drip Pricing, Basket Sneaking, and False Urgency) is performed upstream by Checkout Radar's **deterministic diff engine and CCPA rule detectors**.
+
+- **What happens when no LLM is configured?**
+  Checkout Radar automatically invokes its pre-validated **deterministic statutory explanation templates**. These templates cite the exact sections of the CCPA 2023 Gazette Notification, format the price variance, and preserve all evidence links. Zero errors or ungrounded assertions occur.
+- **Configuring an LLM for dynamic semantic contextualization:**
+  1. In **`⚙️ Provider Settings`**, select a quick preset:
+     - `⚡ Groq`: `https://api.groq.com/openai/v1` (`llama-3.3-70b-versatile`)
+     - `🤖 OpenAI`: `https://api.openai.com/v1` (`gpt-4o-mini`)
+     - `✨ Google Gemini`: `https://generativelanguage.googleapis.com/v1beta/openai` (`gemini-1.5-flash`)
+     - `💻 Ollama / Local`: `http://localhost:11434/v1` (`llama3.2`)
+     - `🛠️ Custom`: Any OpenAI-compatible `/v1/chat/completions` endpoint.
+  2. Enter your LLM API key and click **`🔌 Test LLM`** to verify credentials and model latency.
+  3. Set **Outbound Request Pacing** (default: `2.0` seconds) to prevent upstream rate-limiting (`HTTP 429`).
+  4. Click **`Save Configuration`**.
+
+---
+
+### 8.4 Target Website & URL Compatibility Criteria
+
+Checkout Radar audits public e-commerce stores from the outside in without requiring merchant cooperation, pre-installed tracking pixels, or developer API tokens.
+
+#### Supported URL Types
+- **Direct Product Display Pages (PDP):**
+  - URLs pointing to an item with an active "Add to Cart" or "Buy Now" button.
+  - Examples: Shopify stores, WooCommerce catalogs, Magento stores, BigCommerce sites, or custom headless retail sites with guest checkout.
+  - **Authorized Reference Live Store:** `https://www.headphonezone.in/products/tangzu-waner-s-g`  
+    *(Click the `🌐 Live: Headphone Zone` chip on the launch card to pre-fill instantly).*
+
+#### Incompatible / Restricted Target Flows
+To protect audit integrity and adhere to conservative fail-closed evaluation, certain flows cannot be fully audited:
+1. **Mandatory Phone / SMS OTP Walls (Pre-Login Barriers):**
+   - Quick-commerce apps (e.g. Blinkit, Zepto, Swiggy Instamart) require a physical Indian mobile number and an SMS OTP before rendering the cart or fee itemization.
+   - *Outcome:* The agent halts immediately without requesting OTPs, records `blocked_by_login`, and classifies the audit as **`INCONCLUSIVE`**.
+2. **Aggressive Bot Protection / CAPTCHA Challenges:**
+   - Sites enforcing Cloudflare Turnstile, Datadome, or Google reCAPTCHA v2/v3 interstitial challenges.
+   - *Outcome:* The agent records `blocked_by_bot` and routes to **`INCONCLUSIVE`**.
+3. **Generic Homepages or Category Grid Pages:**
+   - URLs without a direct product add-to-cart mechanism (e.g. `https://example.com/`) may cause the agent to wander or fail to reach checkout. Always supply a direct PDP URL.
+
+#### Recommended Preset for Live Audits
+- In the **Matrix Preset** dropdown, select **`Quick Preset`** (4 runs: Reference Tier-1 Pincode, Pincode B, Pincode C, and Below-Threshold Cart Tier).
+- To run a minimal 1-run reference test against a live store via CLI:
+  ```bash
+  python3 scripts/run_real_audit.py
+  ```
+
+---
+
+### 8.5 Launching the Audit & Following Progress
+
+1. **Submit the URL:**
+   - In the **Launch Checkout Audit** panel at `/auditor`, enter the target URL (e.g. `https://www.headphonezone.in/products/tangzu-waner-s-g`).
+   - Select `Quick Preset`.
+   - Click **`Start Multi-Condition Audit`**.
+2. **Watch the Live Server-Sent Events (SSE) Stream:**
+   - The launcher collapses and the **Active Forensic Audit** panel activates.
+   - Expand the **`📡 Live Agent Event Stream`** accordion to observe execution telemetry in real time:
+     - `run_started`: Condition initialized (e.g. pincode `110001`, fresh guest profile).
+     - `search`: TinyFish Search queries merchant terms and pricing policy.
+     - `fetch`: TinyFish Fetch retrieves clean markdown of shipping/cancellation policies.
+     - `agent_submitted`: Async web agent dispatched to TinyFish cloud with CCPA goal prompt.
+     - `agent_polled`: Agent executing browser clicks (navigating PDP, opening cart drawer, proceeding to checkout summary).
+     - `finding_flagged`: Emitted immediately when a candidate dark pattern indicator is identified.
+     - `run_completed`: All stage viewports sanitized and integer minor-unit math reconciled.
+     - `audit_completed`: Final assessment evaluated and scorecards updated.
+
+---
+
+### 8.6 Inspecting Forensic Evidence & Reports
+
+Once the audit reaches `Audit Completed`, inspect the tabbed workspace:
+
+1. **Executive Scorecard (Top Hero Strip):**
+   - **Observed Audit Verdict:** Displays `VERIFIED CLEAN (UNDER TESTED FLOW)`, `POTENTIAL INDICATORS DETECTED`, or `INCONCLUSIVE AUDIT`.
+   - **Pricing Variance & Drip:** Quantifies difference between initial listed price and checkout payable in ₹ INR minor units.
+   - **Dark Pattern Signals:** Deduplicated count of unique patterns and total occurrences across runs.
+   - **Evidence Integrity:** Count of cryptographically verified screenshot artifacts.
+2. **Tab 1: 📸 Journey Evidence Gallery:**
+   - Displays viewports across the three funnel stages: **Stage 1 (Product Page)**, **Stage 2 (Cart Drawer / Page)**, and **Stage 3 (Checkout Summary)**.
+   - Each card displays independent statuses: *Stage Execution* (`VERIFIED`), *Visual Capture* (`CAPTURED`), and *Pipeline Integrity* (SHA-256 digest).
+   - **Condition Run Dropdown:** Switch between matrix runs to inspect how prices or delivery disclosures varied for different pincodes or cart values.
+   - **Full-Resolution Lightbox:** Click **`🔍 Full Resolution`** on any card to inspect the unscaled capture, copy the SHA-256 hash, or download the raw JPEG.
+3. **Tab 2: 🚨 Dark Pattern Findings & Diffs:**
+   - Consolidates findings across runs with **Matrix Reproduction Rates** (e.g. *Observed in 4 of 4 Matrix Runs (100% Reproduction)*).
+   - Click any finding card to expand:
+     - CCPA 2023 Gazette definition and rule mapping.
+     - Non-judicial statutory explanation.
+     - Trace strip showing Run ID, Condition Key, Diff Reference, and clickable Evidence Snapshot links.
+4. **Tab 3: 🔬 Technical Trail & Calls:**
+   - Chronological audit log of every external operation (`search`, `fetch`, `agent_submit`, `agent_poll`, `screenshot`).
+   - Displays timestamp, provider request ID, HTTP status code, and latency.
+5. **Exporting Reports:**
+   - **`📄 HTML Evidence Report`:** Standalone, self-contained report ready for legal counsel, compliance review, or investigative journalism.
+   - **`⚖️ CCPA Complaint Draft`:** Pre-structured grievance draft adhering to the National Consumer Helpline / CCPA complaint format.
+
+---
+
+### 8.7 Safety Guardrails & Outcome Interpretation
+
+Checkout Radar enforces strict ethical, legal, and operational guardrails:
+
+#### The Non-Destructive Invariant: STOP BEFORE PAYMENT
+> [!CAUTION]
+> Under no circumstances does Checkout Radar place orders, enter financial credentials, or transfer money.
+- The web agent is instructed with strict negative prompts:
+  `STOP IMMEDIATELY BEFORE ANY FINAL PAYMENT OR ORDER CONFIRMATION STEP. NEVER CLICK PAY NOW, COMPLETE ORDER, OR SUBMIT PAYMENT.`
+- The audit terminates strictly upon capturing the itemized order summary (item subtotal, taxes, shipping, handling fees, and payable total).
+- No merchant inventory is reserved and zero payment gateways are triggered.
+
+#### How to Interpret Audit Verdicts
+| Outcome | Regulatory Meaning | When Emitted |
+|---|---|---|
+| **`VERIFIED CLEAN (UNDER TESTED FLOW)`** | Bounded Clean Finding | All required stages (product, cart, checkout summary) were captured, inspected, and verified transparent with ₹0 hidden fees and 0 dark patterns. *Explicitly does not certify uninspected payment gateways or untested payment methods.* |
+| **`POTENTIAL INDICATORS DETECTED`** | Candidate Dark Pattern Flagged | Empirical evidence confirms a discrepancy: mandatory fee introduced late (*Drip Pricing*), pre-selected optional fee included in total (*Basket Sneaking*), or reset countdown timer (*False Urgency*). |
+| **`INCONCLUSIVE AUDIT`** | Incomplete / Obstructed Audit | Checkout summary could not be reached or verified (e.g. phone OTP wall, CAPTCHA, server error, or network drop). **Conservative Fail-Closed Rule: Missing evidence is NEVER treated as proof that a site is clean.** |
+
+---
+
+### 8.8 Troubleshooting & Edge Cases
+
+| Symptom | Cause | Resolution |
+|---|---|---|
+| **Test TinyFish returns HTTP 401 Unauthorized** | The configured API key is invalid, inactive, or expired. | Check your TinyFish API key. Open `⚙️ Provider Settings`, paste the correct key, and click `🐟 Test TinyFish` to verify before saving. |
+| **Test TinyFish returns HTTP 403 Forbidden** | The TinyFish account does not have access to Web Agent or Search APIs. | Verify that your TinyFish plan includes Agent and Search endpoints, or contact TinyFish support. |
+| **Agent run times out polling** | The target website took longer than expected to load or solve DOM steps. | Increase polling timeout via environment variable `TINYFISH_MAX_POLLS=90` (default: 60 polls $\times$ 5s = 300s). |
+| **Audit outcome is `INCONCLUSIVE`** | The merchant site enforced a mandatory phone OTP or Cloudflare challenge before checkout. | This is expected and honest behavior. Review the *Inconclusive Factors* list in the assessment banner. The site cannot be certified clean without bypassing authentication walls. |
+| **Port conflict on startup (`8000` or `8001` already in use)** | Another application on your machine is using port 8000 or 8001. | Launch with custom port overrides: `API_PORT=8080 HARNESS_PORT=8081 ./start.sh`. |
+| **Docker daemon unavailable** | Docker Desktop is not started or systemd service is inactive. | Start Docker Desktop (macOS/Windows) or run `sudo systemctl start docker` (Linux). |
+| **LLM returns HTTP 429 Too Many Requests** | Groq or OpenAI free-tier rate limits exceeded. | Increase request pacing to `3.0` or `4.0` seconds in `⚙️ Provider Settings`. Alternatively, Checkout Radar automatically uses deterministic statutory templates with zero impact on audit validity. |
+| **Switching back to Offline Mock** | You want to run tests or demos without consuming TinyFish credits. | In `⚙️ Provider Settings`, set *Agent Execution Mode* to `Deterministic Offline Mock (Zero Credits)` and save. |
+
+---
+
+## 9. API Surface
 
 | Endpoint | Method | Purpose |
 |---|---|---|
@@ -342,11 +564,12 @@ python3 scripts/scan_secrets.py
 | `/settings` | `GET` | Retrieve public provider configuration with all secrets safely masked. |
 | `/settings` | `POST` | Update LLM base URL, model, pacing, mode, and backend credentials securely. |
 | `/settings/test-llm` | `POST` | Execute isolated, timed connectivity test with sanitized error reporting. |
+| `/settings/test-tinyfish` | `POST` | Execute isolated, timed TinyFish connectivity check with sanitized error reporting. |
 | `/health` | `GET` | Real-time service status, mock mode indicator, and key detection. |
 
 ---
 
-## 9. Declared Code Reuse & Dependencies
+## 10. Declared Code Reuse & Dependencies
 
 Checkout Radar was designed and developed originally for AZINHACK 2026. Standard open-source libraries used:
 - `FastAPI`, `Starlette`, `Uvicorn` — Web framework and ASGI server
@@ -357,6 +580,7 @@ Checkout Radar was designed and developed originally for AZINHACK 2026. Standard
 
 ---
 
-## 10. Legal & Ethical Disclaimer
+## 11. Legal & Ethical Disclaimer
 
 Findings generated by Checkout Radar represent algorithmic candidate indicators of potential deceptive practices under the CCPA Guidelines for Prevention and Regulation of Dark Patterns, 2023. They do not constitute judicial rulings, formal legal determinations, or statutory liability.
+
