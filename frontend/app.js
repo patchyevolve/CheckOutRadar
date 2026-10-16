@@ -52,6 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (e.key === "Escape") {
             closeScreenshotModal();
             closeComplaintModal();
+            closeSettingsModal();
         }
     });
 
@@ -61,10 +62,274 @@ document.addEventListener("DOMContentLoaded", () => {
             if (e.target === m) {
                 closeScreenshotModal();
                 closeComplaintModal();
+                closeSettingsModal();
             }
         });
     });
 });
+
+// -------------------------------------------------------------
+// Provider & LLM Settings
+// -------------------------------------------------------------
+
+let currentSettings = null;
+let pendingClearLLMKey = false;
+let pendingClearTinyFishKey = false;
+
+async function openSettingsModal() {
+    const modal = document.getElementById("settings-modal");
+    const testResult = document.getElementById("connection-test-result");
+    if (testResult) testResult.classList.add("hidden");
+
+    pendingClearLLMKey = false;
+    pendingClearTinyFishKey = false;
+
+    try {
+        const resp = await fetch("/settings");
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        currentSettings = data;
+
+        document.getElementById("settings-llm-base-url").value = data.llm_base_url || "https://api.openai.com/v1";
+        document.getElementById("settings-llm-model").value = data.llm_model || "gpt-4o-mini";
+        document.getElementById("settings-pacing").value = data.llm_pacing_seconds !== undefined ? data.llm_pacing_seconds : 2.0;
+        document.getElementById("settings-mock-mode").value = String(data.mock_tinyfish !== false);
+
+        // Reset key input fields
+        const llmKeyInput = document.getElementById("settings-llm-api-key");
+        llmKeyInput.value = "";
+        const tfKeyInput = document.getElementById("settings-tinyfish-key");
+        tfKeyInput.value = "";
+
+        updateKeyStatusBadges(data);
+        onMockModeChanged();
+    } catch (e) {
+        console.error("Failed to load settings:", e);
+    }
+
+    modal.classList.remove("hidden");
+}
+
+function closeSettingsModal() {
+    const modal = document.getElementById("settings-modal");
+    if (modal) modal.classList.add("hidden");
+}
+
+function updateKeyStatusBadges(settings) {
+    const llmStatus = document.getElementById("settings-llm-key-status");
+    if (llmStatus) {
+        if (pendingClearLLMKey) {
+            llmStatus.innerText = "PENDING CLEAR (ON SAVE)";
+            llmStatus.style.color = "#f59e0b";
+            llmStatus.style.borderColor = "#f59e0b";
+        } else if (settings && settings.has_llm_key) {
+            llmStatus.innerText = `CONFIGURED (${settings.llm_key_masked || "STORED"})`;
+            llmStatus.style.color = "#10b981";
+            llmStatus.style.borderColor = "#10b981";
+        } else {
+            llmStatus.innerText = "NOT CONFIGURED (OFFLINE RULES)";
+            llmStatus.style.color = "#94a3b8";
+            llmStatus.style.borderColor = "#475569";
+        }
+    }
+
+    const tfStatus = document.getElementById("settings-tinyfish-key-status");
+    if (tfStatus) {
+        if (pendingClearTinyFishKey) {
+            tfStatus.innerText = "PENDING CLEAR (ON SAVE)";
+            tfStatus.style.color = "#f59e0b";
+            tfStatus.style.borderColor = "#f59e0b";
+        } else if (settings && settings.has_tinyfish_key) {
+            tfStatus.innerText = `CONFIGURED (${settings.tinyfish_key_masked || "STORED"})`;
+            tfStatus.style.color = "#10b981";
+            tfStatus.style.borderColor = "#10b981";
+        } else {
+            tfStatus.innerText = "NOT CONFIGURED (MOCK DEFAULT)";
+            tfStatus.style.color = "#94a3b8";
+            tfStatus.style.borderColor = "#475569";
+        }
+    }
+}
+
+function clearLLMKey() {
+    pendingClearLLMKey = true;
+    document.getElementById("settings-llm-api-key").value = "";
+    document.getElementById("settings-llm-api-key").placeholder = "Key will be cleared upon saving";
+    updateKeyStatusBadges(currentSettings);
+}
+
+function clearTinyFishKey() {
+    pendingClearTinyFishKey = true;
+    document.getElementById("settings-tinyfish-key").value = "";
+    document.getElementById("settings-tinyfish-key").placeholder = "Key will be cleared upon saving";
+    updateKeyStatusBadges(currentSettings);
+}
+
+function onMockModeChanged() {
+    const isMock = document.getElementById("settings-mock-mode").value === "true";
+    const tfGroup = document.getElementById("group-tinyfish-key");
+    if (tfGroup) {
+        tfGroup.style.opacity = isMock ? "0.75" : "1.0";
+    }
+}
+
+function applyProviderPreset(preset) {
+    const baseUrlInput = document.getElementById("settings-llm-base-url");
+    const modelInput = document.getElementById("settings-llm-model");
+    const pacingInput = document.getElementById("settings-pacing");
+
+    if (preset === "groq") {
+        baseUrlInput.value = "https://api.groq.com/openai/v1";
+        modelInput.value = "llama-3.3-70b-versatile";
+        pacingInput.value = 2.0;
+    } else if (preset === "openai") {
+        baseUrlInput.value = "https://api.openai.com/v1";
+        modelInput.value = "gpt-4o-mini";
+        pacingInput.value = 1.0;
+    } else if (preset === "gemini") {
+        baseUrlInput.value = "https://generativelanguage.googleapis.com/v1beta/openai";
+        modelInput.value = "gemini-1.5-flash";
+        pacingInput.value = 2.0;
+    } else if (preset === "ollama") {
+        baseUrlInput.value = "http://localhost:11434/v1";
+        modelInput.value = "llama3.2";
+        pacingInput.value = 0.5;
+    } else if (preset === "custom") {
+        baseUrlInput.focus();
+    }
+}
+
+async function testLLMConnection() {
+    const baseUrl = document.getElementById("settings-llm-base-url").value.trim();
+    const model = document.getElementById("settings-llm-model").value.trim();
+    const apiKey = document.getElementById("settings-llm-api-key").value.trim();
+
+    const btn = document.getElementById("btn-test-connection");
+    const spinner = document.getElementById("test-spinner");
+    const resultBox = document.getElementById("connection-test-result");
+    const badge = document.getElementById("test-status-badge");
+    const latency = document.getElementById("test-latency-badge");
+    const message = document.getElementById("test-message-text");
+
+    btn.disabled = true;
+    if (spinner) spinner.classList.remove("hidden");
+    resultBox.classList.remove("hidden", "test-result-success", "test-result-error");
+    resultBox.style.borderColor = "var(--border)";
+    badge.className = "badge badge-accent";
+    badge.innerText = "CONNECTING...";
+    latency.innerText = "...";
+    message.innerText = `Connecting to ${baseUrl}/chat/completions with model '${model}'...`;
+
+    try {
+        const payload = {
+            base_url: baseUrl,
+            model: model,
+        };
+        if (apiKey) {
+            payload.api_key = apiKey;
+        }
+
+        const resp = await fetch("/settings/test-llm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await resp.json();
+
+        resultBox.classList.remove("hidden");
+        if (data.success) {
+            resultBox.classList.add("test-result-success");
+            badge.className = "badge";
+            badge.style.background = "#065f46";
+            badge.style.color = "#a7f3d0";
+            badge.innerText = `CONNECTED (${data.status_code || 200} OK)`;
+            latency.innerText = `${data.latency_ms} ms`;
+            message.innerText = data.message;
+        } else {
+            resultBox.classList.add("test-result-error");
+            badge.className = "badge";
+            badge.style.background = "#7f1d1d";
+            badge.style.color = "#fecaca";
+            badge.innerText = `FAILED (${data.status_code ? 'HTTP ' + data.status_code : data.error || 'ERROR'})`;
+            latency.innerText = data.latency_ms ? `${data.latency_ms} ms` : "N/A";
+            message.innerText = data.message;
+        }
+    } catch (e) {
+        resultBox.classList.add("test-result-error");
+        badge.className = "badge";
+        badge.style.background = "#7f1d1d";
+        badge.style.color = "#fecaca";
+        badge.innerText = "CLIENT ERROR";
+        latency.innerText = "N/A";
+        message.innerText = `Failed to send test request: ${e.message}`;
+    } finally {
+        btn.disabled = false;
+        if (spinner) spinner.classList.add("hidden");
+    }
+}
+
+async function saveProviderSettings(event) {
+    if (event) event.preventDefault();
+
+    const baseUrl = document.getElementById("settings-llm-base-url").value.trim();
+    const model = document.getElementById("settings-llm-model").value.trim();
+    const apiKey = document.getElementById("settings-llm-api-key").value.trim();
+    const mockMode = document.getElementById("settings-mock-mode").value === "true";
+    const tfKey = document.getElementById("settings-tinyfish-key").value.trim();
+    const pacing = parseFloat(document.getElementById("settings-pacing").value) || 2.0;
+
+    const payload = {
+        llm_base_url: baseUrl,
+        llm_model: model,
+        llm_pacing_seconds: pacing,
+        mock_tinyfish: mockMode,
+    };
+
+    if (pendingClearLLMKey) {
+        payload.clear_llm_key = true;
+    } else if (apiKey) {
+        payload.llm_api_key = apiKey;
+    }
+
+    if (pendingClearTinyFishKey) {
+        payload.clear_tinyfish_key = true;
+    } else if (tfKey) {
+        payload.tinyfish_api_key = tfKey;
+    }
+
+    const saveBtn = document.getElementById("btn-save-settings");
+    saveBtn.disabled = true;
+    saveBtn.innerText = "Saving...";
+
+    try {
+        const resp = await fetch("/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json();
+            throw new Error(err.detail || `HTTP ${resp.status}`);
+        }
+
+        const updated = await resp.json();
+        currentSettings = updated;
+        pendingClearLLMKey = false;
+        pendingClearTinyFishKey = false;
+
+        // Refresh health indicator in navbar
+        await checkHealth();
+
+        closeSettingsModal();
+    } catch (e) {
+        alert(`Failed to save settings: ${e.message}`);
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerText = "Save Configuration";
+    }
+}
 
 // -------------------------------------------------------------
 // Launcher Collapse & Expand

@@ -19,6 +19,7 @@
         <div class="nav-badges">
             <a href="/" class="btn btn-sm btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">&larr; Overview</a>
             <button type="button" class="btn btn-sm btn-outline-accent" id="btn-toggle-launcher" onclick="toggleLauncher()">+ New Audit</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-provider-settings" onclick="openSettingsModal()">⚙️ Provider Settings</button>
             <span class="badge badge-accent">AZINHACK 2026</span>
             <span class="badge badge-outline" id="backend-status">Connecting...</span>
         </div>
@@ -490,6 +491,120 @@
                     <button class="btn btn-primary" onclick="closeScreenshotModal()">Close</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Provider & LLM Settings Modal -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-content settings-modal-content">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 1.4em;">⚙️</span>
+                    <div>
+                        <h3 style="margin-bottom: 2px;">Provider & Model Configuration</h3>
+                        <span class="subtitle" style="margin-bottom: 0;">OpenAI-Compatible LLM & Agent Execution Settings</span>
+                    </div>
+                </div>
+                <button class="btn-close" onclick="closeSettingsModal()">&times;</button>
+            </div>
+
+            <div class="modal-notice" style="display: flex; align-items: flex-start; gap: 10px;">
+                <span style="font-size: 1.2em;">🔒</span>
+                <div>
+                    <strong>Zero-Exfiltration Architecture:</strong> Credentials are stored exclusively on the backend. Raw API keys are never written to browser storage, reports, or logs.
+                </div>
+            </div>
+
+            <!-- Provider Presets -->
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label style="font-size: 0.82em; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">Quick Presets (OpenAI-Compatible):</label>
+                <div class="quick-targets" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    <button type="button" class="btn-chip" onclick="applyProviderPreset('groq')">⚡ Groq (llama-3.3-70b)</button>
+                    <button type="button" class="btn-chip" onclick="applyProviderPreset('openai')">🤖 OpenAI (gpt-4o-mini)</button>
+                    <button type="button" class="btn-chip" onclick="applyProviderPreset('gemini')">✨ Google Gemini (1.5-flash)</button>
+                    <button type="button" class="btn-chip" onclick="applyProviderPreset('ollama')">💻 Ollama / Local (localhost:11434)</button>
+                    <button type="button" class="btn-chip" onclick="applyProviderPreset('custom')">🛠️ Custom</button>
+                </div>
+            </div>
+
+            <form id="settings-form" onsubmit="saveProviderSettings(event)">
+                <!-- Base URL -->
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label for="settings-llm-base-url" style="font-weight: 600; font-size: 0.88em; margin-bottom: 4px; display: block;">LLM Base URL (OpenAI-Compatible)</label>
+                    <input type="url" id="settings-llm-base-url" placeholder="https://api.openai.com/v1" required style="width: 100%; box-sizing: border-box;" />
+                    <span class="meta-subtext" style="font-size: 0.75em; color: var(--text-muted); margin-top: 4px; display: block;">Chat completions endpoint will be called at <code>{base_url}/chat/completions</code>.</span>
+                </div>
+
+                <!-- Model Identifier -->
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label for="settings-llm-model" style="font-weight: 600; font-size: 0.88em; margin-bottom: 4px; display: block;">Model Identifier</label>
+                    <input type="text" id="settings-llm-model" placeholder="gpt-4o-mini" required style="width: 100%; box-sizing: border-box;" />
+                </div>
+
+                <!-- LLM API Key -->
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <label for="settings-llm-api-key" style="font-weight: 600; font-size: 0.88em;">LLM API Key</label>
+                        <span id="settings-llm-key-status" class="badge badge-outline" style="font-size: 0.7em;">Checking...</span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" id="settings-llm-api-key" placeholder="Enter API key (leave blank to keep current)" autocomplete="off" style="flex: 1; box-sizing: border-box;" />
+                        <button type="button" class="btn btn-sm btn-secondary" id="btn-clear-llm-key" onclick="clearLLMKey()">Clear Key</button>
+                    </div>
+                    <span class="meta-subtext" style="font-size: 0.75em; color: var(--text-muted); margin-top: 4px; display: block;">Never echoed back in plaintext. Leave blank to preserve active backend key.</span>
+                </div>
+
+                <!-- TinyFish Execution Mode -->
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label for="settings-mock-mode" style="font-weight: 600; font-size: 0.88em; margin-bottom: 4px; display: block;">Agent Execution Mode</label>
+                    <select id="settings-mock-mode" style="width: 100%; box-sizing: border-box;" onchange="onMockModeChanged()">
+                        <option value="true">Deterministic Offline Mock (Zero Credits, Recommended Baseline)</option>
+                        <option value="false">Live TinyFish Execution (Requires TINYFISH_API_KEY)</option>
+                    </select>
+                </div>
+
+                <!-- TinyFish API Key -->
+                <div class="form-group" id="group-tinyfish-key" style="margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <label for="settings-tinyfish-key" style="font-weight: 600; font-size: 0.88em;">TinyFish API Key</label>
+                        <span id="settings-tinyfish-key-status" class="badge badge-outline" style="font-size: 0.7em;">Checking...</span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" id="settings-tinyfish-key" placeholder="Enter TinyFish key (leave blank to keep current)" autocomplete="off" style="flex: 1; box-sizing: border-box;" />
+                        <button type="button" class="btn btn-sm btn-secondary" id="btn-clear-tinyfish-key" onclick="clearTinyFishKey()">Clear Key</button>
+                    </div>
+                </div>
+
+                <!-- Rate Limit Pacing -->
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label for="settings-pacing" style="font-weight: 600; font-size: 0.88em; margin-bottom: 4px; display: block;">Outbound Request Pacing (seconds)</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="number" id="settings-pacing" min="0" max="30" step="0.5" value="2.0" style="width: 100px; box-sizing: border-box;" />
+                        <span class="meta-subtext" style="font-size: 0.75em; color: var(--text-muted);">Enforces delay between LLM calls to prevent rate limiting.</span>
+                    </div>
+                </div>
+
+                <!-- Connection Test Status Box -->
+                <div id="connection-test-result" class="test-result-box hidden" style="margin-bottom: 16px; padding: 12px; border-radius: 8px; font-size: 0.85em;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                        <span id="test-status-badge" class="badge">Testing</span>
+                        <span id="test-latency-badge" class="mono" style="color: var(--text-muted); font-size: 0.8em;">- ms</span>
+                    </div>
+                    <div id="test-message-text" style="line-height: 1.4;">Status message here</div>
+                </div>
+
+                <!-- Modal Actions -->
+                <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" id="btn-test-connection" onclick="testLLMConnection()">
+                        <span id="test-spinner" class="spinner-inline hidden"></span>
+                        <span>🔌 Test LLM Connection</span>
+                    </button>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="btn-save-settings">Save Configuration</button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 

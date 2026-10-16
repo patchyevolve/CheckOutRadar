@@ -247,6 +247,53 @@ async def run_checks():
         await chrome.capture_screenshot("/tmp/view_html_report.png")
         print("  [✓] Check 4 passed: All HTML report links use safe /evidence/{filename} URLs.")
 
+        # =========================================================================
+        # CHECK 5: Provider Settings Modal & Zero Exfiltration Verification
+        # =========================================================================
+        print("\n--- Verifying Check 5: Provider Settings Modal & Zero Exfiltration ---")
+        auditor_url = f"{BASE_URL}/auditor"
+        print(f"Navigating to {auditor_url}...")
+        await chrome.send("Page.navigate", {"url": auditor_url})
+        await asyncio.sleep(1.5)
+
+        # Open Settings Modal
+        print("  Clicking 'Provider Settings' button in navbar...")
+        await chrome.evaluate("openSettingsModal()")
+        await asyncio.sleep(0.5)
+
+        modal_visible = await chrome.evaluate("!document.getElementById('settings-modal').classList.contains('hidden')")
+        assert modal_visible is True, "Settings modal should be visible"
+
+        # Verify default / active base URL and model fields are populated
+        base_url_val = await chrome.evaluate("document.getElementById('settings-llm-base-url').value")
+        model_val = await chrome.evaluate("document.getElementById('settings-llm-model').value")
+        key_input_val = await chrome.evaluate("document.getElementById('settings-llm-api-key').value")
+        print(f"  Base URL: '{base_url_val}', Model: '{model_val}', Key Input Length: {len(key_input_val)}")
+
+        assert base_url_val.startswith("http"), f"Expected HTTP base URL, got {base_url_val}"
+        assert len(model_val) > 0, "Expected non-empty model identifier"
+        # STRICT PRIVACY INVARIANT: API key input must NOT contain any plaintext secret by default
+        assert key_input_val == "", "API key input must never be pre-populated with plaintext secrets from backend"
+
+        # Test preset click (Groq)
+        print("  Testing Groq preset button...")
+        await chrome.evaluate("applyProviderPreset('groq')")
+        groq_url = await chrome.evaluate("document.getElementById('settings-llm-base-url').value")
+        groq_model = await chrome.evaluate("document.getElementById('settings-llm-model').value")
+        assert "groq.com" in groq_url
+        assert "llama-3.3-70b" in groq_model
+        print(f"  Preset applied: {groq_url} ({groq_model})")
+
+        # Capture screenshot of settings modal
+        await chrome.capture_screenshot("/tmp/view_provider_settings_modal.png")
+
+        # Close settings modal
+        await chrome.evaluate("closeSettingsModal()")
+        await asyncio.sleep(0.3)
+        modal_closed = await chrome.evaluate("document.getElementById('settings-modal').classList.contains('hidden')")
+        assert modal_closed is True, "Settings modal should be hidden after closing"
+        print("  [✓] Check 5 passed: Provider settings modal functions with zero credential exfiltration.")
+
     finally:
         await chrome.close()
         chrome.stop()

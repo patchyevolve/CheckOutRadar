@@ -24,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from pydantic import BaseModel
 from .db import crud, connection
 from .models.schemas import CreateAuditRequest, AuditResponse
 from .matrix.orchestrator import expand_matrix
@@ -32,6 +33,7 @@ from .worker.redactor import get_evidence_dir
 from .reports.html_report import generate_html_report
 from .reports.complaint_draft import generate_complaint_draft
 from .analysis.detectors import assess_audit_outcome
+from .services.settings_service import get_settings_manager
 
 app = FastAPI(
     title="Checkout Radar API",
@@ -451,13 +453,59 @@ def get_provider_calls(audit_id: str):
     return {"audit_id": audit_id, "provider_calls": calls}
 
 
+class UpdateSettingsRequest(BaseModel):
+    llm_base_url: Optional[str] = None
+    llm_model: Optional[str] = None
+    llm_api_key: Optional[str] = None
+    clear_llm_key: Optional[bool] = False
+    tinyfish_api_key: Optional[str] = None
+    clear_tinyfish_key: Optional[bool] = False
+    mock_tinyfish: Optional[bool] = None
+    llm_provider: Optional[str] = None
+    llm_pacing_seconds: Optional[float] = None
+
+
+class TestLLMRequest(BaseModel):
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+    model: Optional[str] = None
+
+
+@app.get("/settings")
+def get_settings():
+    """Retrieve public provider settings with all secrets safely masked."""
+    return get_settings_manager().get_public_settings()
+
+
+@app.post("/settings")
+def update_settings(req: UpdateSettingsRequest):
+    """Update provider settings on backend and persist to database. Never echoes raw secrets."""
+    try:
+        updated = get_settings_manager().update_settings(req.model_dump(exclude_unset=True))
+        return updated
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/settings/test-llm")
+def test_llm_connection(req: TestLLMRequest):
+    """Execute an isolated test request to verify LLM endpoint and model. Secrets are strictly redacted."""
+    res = get_settings_manager().test_llm_connection(
+        base_url=req.base_url,
+        api_key=req.api_key,
+        model=req.model,
+    )
+    return res
+
+
 @app.get("/health")
 def health_check():
-    mock_mode = os.getenv("MOCK_TINYFISH", "true").lower() in ["true", "1", "yes"]
+    settings = get_settings_manager().get_public_settings()
     return {
         "status": "healthy",
         "service": "checkout-radar-api",
-        "mock_mode": mock_mode,
-        "has_tinyfish_key": bool(os.getenv("TINYFISH_API_KEY")),
-        "has_llm_key": bool(os.getenv("LLM_API_KEY")),
+        "mock_mode": settings["mock_tinyfish"],
+        "has_tinyfish_key": settings["has_tinyfish_key"],
+        "has_llm_key": settings["has_llm_key"],
     }
+

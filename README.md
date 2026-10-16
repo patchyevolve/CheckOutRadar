@@ -3,7 +3,7 @@
 > **Outside-In Checkout Flow Auditor & CCPA Dark Pattern Detector**  
 > *AZINHACK 2026 Submission* · Team of 4
 
-[![CI Tests](https://img.shields.io/badge/tests-85%20passed-brightgreen.svg)]()
+[![CI Tests](https://img.shields.io/badge/tests-99%20passed-brightgreen.svg)]()
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)]()
 [![Docker Compose](https://img.shields.io/badge/docker--compose-ready-blue.svg)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)]()
@@ -307,7 +307,7 @@ docker compose down
 Checkout Radar includes a comprehensive, 100% reproducible test and verification suite requiring **zero external API calls**:
 
 ```bash
-# 1. Local Pytest Suite (85 tests across 13 modules)
+# 1. Local Pytest Suite (99 tests across 14 modules)
 pytest backend/tests/ -v
 
 # 2. Docker Isolated Pytest Suite
@@ -339,6 +339,10 @@ python3 scripts/scan_secrets.py
 | `/audits/{id}/complaint-draft` | `POST` | Generates CCPA consumer grievance draft (Draft only; never auto-submitted). |
 | `/audits/{id}/reobserve` | `POST` | Triggers manual temporal re-observation across time. |
 | `/audits/{id}/provider-calls` | `GET` | Complete log of all Search, Fetch, Agent, and Screenshot calls. |
+| `/settings` | `GET` | Retrieve public provider configuration with all secrets safely masked. |
+| `/settings` | `POST` | Update LLM base URL, model, pacing, mode, and backend credentials securely. |
+| `/settings/test-llm` | `POST` | Execute isolated, timed connectivity test with sanitized error reporting. |
+| `/health` | `GET` | Real-time service status, mock mode indicator, and key detection. |
 
 ---
 

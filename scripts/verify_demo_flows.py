@@ -9,6 +9,7 @@ Executes and verifies:
 import sys
 import os
 import json
+import time
 from pathlib import Path
 
 # Add backend to sys.path
@@ -21,6 +22,25 @@ from app.tinyfish.mock_client import MockTinyFishClient
 from app.analysis.detectors import assess_audit_outcome
 from app.reports.html_report import generate_html_report
 from app.reports.complaint_draft import generate_complaint_draft
+
+
+def drain_audit_jobs(audit_id: str, runner: JobRunner, max_seconds: float = 12.0):
+    """Drain all jobs for a specific audit, resilient to concurrent background daemon workers."""
+    start = time.time()
+    while time.time() - start < max_seconds:
+        while runner.run_one_cycle():
+            pass
+        conn = connection.get_connection()
+        try:
+            pending = conn.execute(
+                "SELECT COUNT(*) FROM jobs j JOIN runs r ON j.run_id = r.id JOIN conditions c ON r.condition_id = c.id WHERE c.audit_id = ? AND j.state != 'done'",
+                (audit_id,),
+            ).fetchone()[0]
+            if pending == 0:
+                break
+        finally:
+            conn.close()
+        time.sleep(0.1)
 
 
 def run_flow_1_synthetic_positive_controls():
@@ -37,8 +57,7 @@ def run_flow_1_synthetic_positive_controls():
     )
     expand_matrix(audit_id_drip, preset="quick")
     runner_drip = JobRunner(worker_id="demo_worker_drip", adapter=MockTinyFishClient())
-    while runner_drip.run_one_cycle():
-        pass
+    drain_audit_jobs(audit_id_drip, runner_drip)
 
     findings_drip = crud.get_findings_for_audit(audit_id_drip)
     diffs_drip = crud.get_diffs_for_audit(audit_id_drip)
@@ -56,8 +75,7 @@ def run_flow_1_synthetic_positive_controls():
     )
     expand_matrix(audit_id_addon, preset="quick")
     runner_addon = JobRunner(worker_id="demo_worker_addon", adapter=MockTinyFishClient())
-    while runner_addon.run_one_cycle():
-        pass
+    drain_audit_jobs(audit_id_addon, runner_addon)
 
     findings_addon = crud.get_findings_for_audit(audit_id_addon)
     sneak_findings = [f for f in findings_addon if f["category"] == "basket_sneaking"]
@@ -85,8 +103,7 @@ def run_flow_2_real_site_negative_control():
     )
     expand_matrix(audit_id_clean, preset="quick")
     runner_clean = JobRunner(worker_id="demo_worker_clean", adapter=MockTinyFishClient())
-    while runner_clean.run_one_cycle():
-        pass
+    drain_audit_jobs(audit_id_clean, runner_clean)
 
     audit_clean = crud.get_audit(audit_id_clean)
     conditions_clean = crud.get_conditions_for_audit(audit_id_clean)

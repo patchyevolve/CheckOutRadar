@@ -31,14 +31,16 @@ from ..analysis.detectors import (
     detect_run_false_urgency_indicators,
 )
 from ..analysis.classifier import LLMClassifier
+from ..services.settings_service import get_settings_manager
 from .redactor import redact_and_store_screenshot
 
 logger = logging.getLogger(__name__)
 
 
 def get_adapter(url: Optional[str] = None) -> TinyFishAdapter:
-    mock_mode = os.getenv("MOCK_TINYFISH", "true").lower() in ["true", "1", "yes"]
-    api_key = os.getenv("TINYFISH_API_KEY", "")
+    settings = get_settings_manager().get_active_credentials()
+    mock_mode = settings.get("mock_tinyfish", True)
+    api_key = settings.get("tinyfish_api_key", "")
     is_local = bool(url and any(h in url for h in ["harness", "localhost", "127.0.0.1", "testserver"]))
     if mock_mode or not api_key or is_local:
         return MockTinyFishClient()

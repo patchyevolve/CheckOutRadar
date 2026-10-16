@@ -32,6 +32,8 @@ from typing import Dict, Any, Optional, Tuple, List, Set
 from pathlib import Path
 from pydantic import BaseModel, Field, field_validator
 
+from ..services.settings_service import get_settings_manager
+
 
 ALLOWED_CCPA_CATEGORIES = {"drip_pricing", "basket_sneaking", "false_urgency"}
 
@@ -333,13 +335,15 @@ class LLMClassifier:
         self,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
-        model: str = "gpt-4o-mini",
+        model: Optional[str] = None,
     ):
-        self.api_key = api_key or os.getenv("LLM_API_KEY", "")
-        self.base_url = (base_url or os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")).rstrip("/")
-        self.model = os.getenv("LLM_MODEL", model)
+        settings = get_settings_manager().get_active_credentials()
+        self.api_key = api_key if api_key is not None else settings["llm_api_key"]
+        effective_base = base_url if base_url is not None else settings["llm_base_url"]
+        self.base_url = (effective_base or "https://api.openai.com/v1").rstrip("/")
+        self.model = model if model is not None else settings["llm_model"]
         self.ccpa_definitions = load_ccpa_definitions()
-        self.pacing_seconds = float(os.getenv("LLM_PACING_SECONDS", "2.0"))
+        self.pacing_seconds = float(settings.get("llm_pacing_seconds", 2.0))
         self._last_request_time: float = 0.0
         self._last_http_latency_ms: float = 0.0
 

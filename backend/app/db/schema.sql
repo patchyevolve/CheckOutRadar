@@ -196,6 +196,13 @@ CREATE TABLE IF NOT EXISTS alerts (
     acknowledged BOOLEAN NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS system_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    is_secret BOOLEAN NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_runs_condition ON runs(condition_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_state ON jobs(state, lease_expires_at);
 CREATE INDEX IF NOT EXISTS idx_charge_obs_run ON charge_observations(run_id);
