@@ -684,9 +684,10 @@ async function refreshAuditData(auditId) {
 
 function renderExecutiveScorecard(det, findings, diffs, runs) {
     const assessment = det.assessment || {};
-    const isClean = Boolean(assessment.is_clean === true && assessment.status === "clean");
-    const isInconclusive = Boolean(assessment.is_inconclusive === true || assessment.status === "inconclusive");
-    const hasIndicators = Boolean(
+    const isRunning = Boolean((currentAudit && currentAudit.status === "running") || (assessment && assessment.status === "running"));
+    const isClean = !isRunning && Boolean(assessment.is_clean === true && assessment.status === "clean");
+    const isInconclusive = !isRunning && Boolean(assessment.is_inconclusive === true || assessment.status === "inconclusive");
+    const hasIndicators = !isRunning && Boolean(
         assessment.status === "potential_indicators_detected" || 
         assessment.status === "indicators_detected" || 
         (assessment.findings_count > 0 && !isInconclusive)
@@ -697,7 +698,14 @@ function renderExecutiveScorecard(det, findings, diffs, runs) {
     const subEl = document.getElementById("kpi-assessment-sub");
 
     badgeEl.className = "kpi-badge";
-    if (isClean) {
+    if (isRunning) {
+        badgeEl.className = "kpi-badge badge-accent";
+        badgeEl.style.background = "#0369a1";
+        badgeEl.style.color = "#e0f2fe";
+        badgeEl.innerText = "IN PROGRESS";
+        const comp = runs.filter(r => r.finished_at && r.provider_status !== "RUNNING" && r.provider_status !== "PENDING").length;
+        subEl.innerText = `${comp} of ${runs.length} conditions executed`;
+    } else if (isClean) {
         badgeEl.classList.add("badge-clean");
         badgeEl.innerText = "VERIFIED CLEAN (TESTED FLOW)";
         subEl.innerText = "Observed flow clean; uninspected gateways outside scope";
@@ -724,7 +732,11 @@ function renderExecutiveScorecard(det, findings, diffs, runs) {
         }
     });
 
-    if (dripFeeMinor > 0) {
+    if (isRunning) {
+        priceValEl.innerText = `Evaluating...`;
+        priceValEl.style.color = "#38bdf8";
+        priceSubEl.innerText = "Extracting charges from completed runs";
+    } else if (dripFeeMinor > 0) {
         priceValEl.innerText = `+₹${(dripFeeMinor / 100).toFixed(2)} Drip Fee`;
         priceValEl.style.color = "#f87171";
         priceSubEl.innerText = `${lateLabel} disclosed at checkout summary`;
@@ -765,15 +777,17 @@ function renderExecutiveScorecard(det, findings, diffs, runs) {
     } else {
         indValEl.innerText = "0 Flagged";
         indValEl.style.color = "#34d399";
-        indSubEl.innerText = "0 Violations under tested conditions";
+        indSubEl.innerText = isRunning ? "Evaluating candidate rules..." : "0 Violations under tested conditions";
     }
 
     // KPI 4: Evidence Integrity Score
     const integValEl = document.getElementById("kpi-integrity-val");
     const integSubEl = document.getElementById("kpi-integrity-sub");
 
-    const refRun = runs.find(r => r.is_reference) || runs[0];
-    const stageCaps = refRun ? (refRun.stage_captures || []) : [];
+    const displayRun = runs.find(r => r.is_reference && r.stage_captures && r.stage_captures.length > 0) ||
+                       runs.find(r => r.stage_captures && r.stage_captures.length > 0) ||
+                       runs[0];
+    const stageCaps = displayRun ? (displayRun.stage_captures || []) : [];
     const verifiedCaps = stageCaps.filter(c => c.capture_status === "verified");
 
     if (verifiedCaps.length === 3) {
@@ -783,11 +797,11 @@ function renderExecutiveScorecard(det, findings, diffs, runs) {
     } else if (verifiedCaps.length > 0) {
         integValEl.innerText = `${verifiedCaps.length} / 3 Stages Captured`;
         integValEl.style.color = "#fbbf24";
-        integSubEl.innerText = "Incomplete stage observation pipeline";
+        integSubEl.innerText = isRunning ? "Active run stage pipeline" : "Incomplete stage observation pipeline";
     } else {
         integValEl.innerText = "0 / 3 Captured";
         integValEl.style.color = "#94a3b8";
-        integSubEl.innerText = "Awaiting stage captures";
+        integSubEl.innerText = isRunning ? "Awaiting first run completion" : "Awaiting stage captures";
     }
 }
 
@@ -813,6 +827,26 @@ function renderAssessmentBanner(assessment) {
     const reasonsList = document.getElementById("assessment-reasons-list");
 
     badge.className = "assessment-status-badge";
+
+    const isRunning = Boolean(assessment.status === "running" || (currentAudit && currentAudit.status === "running"));
+    if (isRunning) {
+        banner.style.borderColor = "#0284c7";
+        banner.style.background = "linear-gradient(180deg, rgba(2, 132, 199, 0.12) 0%, rgba(15, 23, 42, 0.6) 100%)";
+        badge.className = "assessment-status-badge";
+        badge.style.background = "#0369a1";
+        badge.style.color = "#e0f2fe";
+        badge.style.borderColor = "#38bdf8";
+        badge.innerText = "AUDIT IN PROGRESS";
+        title.innerText = "Automated Multi-Condition Audit In Progress";
+        countTag.innerText = "Executing";
+        countTag.style.color = "#38bdf8";
+        summary.innerText = assessment.summary || "Real cloud browser agents are executing across matrix conditions. Evidence and viewports update live as runs complete.";
+        reasonsContainer.classList.add("hidden");
+        return;
+    }
+
+    banner.style.borderColor = "";
+    banner.style.background = "";
 
     const isClean = Boolean(assessment.is_clean === true && assessment.status === "clean");
     const isInconclusive = Boolean(assessment.is_inconclusive === true || assessment.status === "inconclusive");
@@ -880,7 +914,10 @@ function renderEvidenceGallery(runs, targetRunId) {
         activeRun = runs.find(r => r.id === targetRunId);
     }
     if (!activeRun) {
-        activeRun = runs.find(r => r.is_reference) || runs[0];
+        const compRefRun = runs.find(r => r.is_reference && r.stage_captures && r.stage_captures.length > 0 && r.finished_at && r.provider_status !== "RUNNING");
+        const compAnyRun = runs.find(r => r.stage_captures && r.stage_captures.length > 0 && r.finished_at && r.provider_status !== "RUNNING");
+        const anyWithCaps = runs.find(r => r.stage_captures && r.stage_captures.length > 0);
+        activeRun = compRefRun || compAnyRun || anyWithCaps || runs.find(r => r.is_reference) || runs[0];
     }
     selectedRunId = activeRun ? activeRun.id : null;
 
@@ -889,9 +926,17 @@ function renderEvidenceGallery(runs, targetRunId) {
     if (runs.length > 1) {
         selContainer.classList.remove("hidden");
         dropdown.innerHTML = runs.map(r => {
+            let statusTag = "";
+            if (r.provider_status === "RUNNING") {
+                statusTag = " [⏳ Running]";
+            } else if (r.finished_at && r.provider_status !== "PENDING") {
+                statusTag = " [✓ Done]";
+            } else {
+                statusTag = " [⏱ Queued]";
+            }
             const label = r.is_reference 
-                ? `Reference (${r.condition_key || r.id.substring(0, 8)})` 
-                : `Run ${r.id.substring(0, 8)} (${r.condition_key || 'Variant'})`;
+                ? `Reference (${r.condition_key || r.id.substring(0, 8)})${statusTag}` 
+                : `Run ${r.id.substring(0, 8)} (${r.condition_key || 'Variant'})${statusTag}`;
             const selected = (r.id === selectedRunId) ? 'selected' : '';
             return `<option value="${r.id}" ${selected}>${escapeHtml(label)}</option>`;
         }).join("");

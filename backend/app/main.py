@@ -301,7 +301,19 @@ def get_audit_details(audit_id: str):
 
         findings = crud.get_findings_for_audit(audit_id)
         diffs = crud.get_diffs_for_audit(audit_id)
-        assessment = assess_audit_outcome(runs=runs, findings=findings, diffs=diffs)
+        if audit.get("status") == "running":
+            comp_runs = [r for r in runs if r.get("finished_at")]
+            assessment = {
+                "status": "running",
+                "findings_count": len(findings),
+                "summary": f"Audit execution in progress ({len(comp_runs)} of {len(runs)} matrix runs completed). Real TinyFish cloud browser agents are actively navigating checkout flows. Final compliance assessment will be evaluated upon completion.",
+                "inconclusive_reasons": [],
+                "is_clean": False,
+                "is_inconclusive": False,
+                "is_running": True,
+            }
+        else:
+            assessment = assess_audit_outcome(runs=runs, findings=findings, diffs=diffs)
 
         return {
             "audit": audit,

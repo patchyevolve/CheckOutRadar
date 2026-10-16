@@ -158,6 +158,7 @@ def update_run_outcome(
 ):
     conn = get_connection()
     try:
+        now = utc_now() if provider_status in ["COMPLETED", "FAILED", "CANCELLED"] else None
         conn.execute(
             """
             UPDATE runs
@@ -166,7 +167,10 @@ def update_run_outcome(
                 outcome = ?,
                 observed = ?,
                 profile_state_verified = ?,
-                finished_at = ?
+                finished_at = CASE
+                    WHEN ? IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN coalesce(finished_at, ?)
+                    ELSE NULL
+                END
             WHERE id = ?
             """,
             (
@@ -175,7 +179,8 @@ def update_run_outcome(
                 outcome,
                 json.dumps(observed) if observed else None,
                 int(profile_state_verified),
-                utc_now(),
+                provider_status,
+                now,
                 run_id,
             ),
         )

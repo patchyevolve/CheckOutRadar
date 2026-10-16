@@ -5,6 +5,12 @@ import sqlite3
 from typing import Generator
 from pathlib import Path
 
+try:
+    os.umask(0)
+except Exception:
+    pass
+
+
 def get_db_path() -> str:
     repo_root = Path(__file__).resolve().parent.parent.parent.parent
     default_path = str(repo_root / "data" / "checkout_radar.db")
@@ -22,6 +28,7 @@ def get_connection() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.execute("PRAGMA journal_mode = WAL;")
+    conn.execute("PRAGMA busy_timeout = 30000;")
     return conn
 
 
