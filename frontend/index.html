@@ -404,19 +404,19 @@
                 <div class="demos-grid">
                     <!-- Demo 1: Real Store -->
                     <div class="demo-card">
-                        <span class="demo-type-pill live">Live Merchant Capture</span>
+                        <span class="demo-type-pill live">Live Merchant Capture (TinyFish Cloud Agent)</span>
                         <h3 class="demo-title">Headphone Zone (Live Store)</h3>
                         <p class="demo-desc">
                             Genuine 1280×720 viewport captures across Product Page, Cart Drawer, and Shopify Checkout Summary. Demonstrates verified clean upfront pricing with ₹0.00 variance and ₹99 COD unexpanded drawer disclosure under tested flow.
                         </p>
-                        <a href="/auditor?audit_id=aud_b29153cee0b1" class="btn-primary-glow demo-btn">
+                        <a href="/auditor?audit_id=aud_4a9e5ad89c01" class="btn-primary-glow demo-btn">
                             Inspect Live Store Audit &rarr;
                         </a>
                     </div>
 
                     <!-- Demo 2: Drip Pricing -->
                     <div class="demo-card">
-                        <span class="demo-type-pill synthetic">Synthetic Harness Fixture</span>
+                        <span class="demo-type-pill synthetic">Synthetic Harness Positive Control · CCPA Annex 1.8</span>
                         <h3 class="demo-title">Drip Pricing Positive Control</h3>
                         <p class="demo-desc">
                             Deterministic test harness demonstrating late-stage handling fee (+₹5.00) hidden on product page and revealed only at checkout summary. Reproduces across 4 matrix conditions and flags CCPA Annex 1.8 indicator via offline DOM analysis fixtures.
@@ -426,12 +426,24 @@
                         </a>
                     </div>
 
-                    <!-- Demo 3: Inconclusive Default -->
+                    <!-- Demo 3: Basket Sneaking & False Urgency -->
                     <div class="demo-card">
-                        <span class="demo-type-pill synthetic">Failure Mode Control</span>
+                        <span class="demo-type-pill synthetic">Synthetic Harness Positive Control · CCPA Annex 1.2 & 1.1</span>
+                        <h3 class="demo-title">Basket Sneaking & False Urgency</h3>
+                        <p class="demo-desc">
+                            Controlled merchant harness demonstrating pre-selected ₹15.00 transit protection add-on in cart and a 600s urgency countdown timer that restarts after 30s elapsed clock measurement.
+                        </p>
+                        <a href="/auditor?audit_id=aud_6af006332ece" class="btn-outline-landing demo-btn">
+                            Inspect Sneak & Timer &rarr;
+                        </a>
+                    </div>
+
+                    <!-- Demo 4: Inconclusive Default -->
+                    <div class="demo-card">
+                        <span class="demo-type-pill synthetic">Failure Mode Control · Fail-Closed Inconclusive</span>
                         <h3 class="demo-title">Inconclusive Fail-Closed Default</h3>
                         <p class="demo-desc">
-                            Simulates an obstructed checkout journey where the checkout summary was blocked. Demonstrates fail-closed denial of clean verdict and transparent logging of missing required stages.
+                            Simulates an obstructed checkout journey where the checkout summary was blocked by an authentication wall or network error. Demonstrates fail-closed denial of clean verdict and transparent logging of missing required stages.
                         </p>
                         <a href="/auditor?audit_id=aud_f0946ab48e50" class="btn-outline-landing demo-btn">
                             Inspect Inconclusive Flow &rarr;

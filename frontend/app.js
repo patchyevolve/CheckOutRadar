@@ -69,6 +69,52 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // -------------------------------------------------------------
+// Clipboard Utilities
+// -------------------------------------------------------------
+
+function copyToClipboard(text, targetEl) {
+    if (!text || text === "-" || text === "N/A") return;
+    const cleanText = text.replace(/^[📋\s]+|[📋\s]+$/g, "").trim();
+    if (!cleanText) return;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(cleanText).then(showFeedback).catch(fallback);
+    } else {
+        fallback();
+    }
+
+    function fallback() {
+        const ta = document.createElement("textarea");
+        ta.value = cleanText;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); showFeedback(); } catch (e) {}
+        document.body.removeChild(ta);
+    }
+
+    function showFeedback() {
+        const el = (typeof targetEl === "string") ? document.getElementById(targetEl) : targetEl;
+        if (!el) return;
+        const originalTitle = el.getAttribute("data-original-title") || el.title;
+        el.setAttribute("data-original-title", originalTitle);
+        const originalColor = el.style.color;
+        el.style.color = "#34d399";
+        el.title = "Copied to clipboard!";
+        setTimeout(() => {
+            el.style.color = originalColor;
+            el.title = originalTitle;
+        }, 1500);
+    }
+}
+
+function copyActiveAuditId() {
+    if (!currentAudit || !currentAudit.id) return;
+    copyToClipboard(currentAudit.id, "active-audit-id");
+}
+
+// -------------------------------------------------------------
 // Provider & LLM Settings
 // -------------------------------------------------------------
 
@@ -461,14 +507,23 @@ async function checkHealth() {
         const data = await resp.json();
         const badge = document.getElementById("backend-status");
         if (data.status === "healthy") {
+            const isLive = !data.mock_mode && data.has_tinyfish_key;
             const modeText = data.mock_mode ? "Mock Mode" : (data.has_tinyfish_key ? "Live TinyFish" : "Ready");
             badge.innerText = `● API Online (${modeText})`;
-            badge.style.color = "#10b981";
-            badge.style.borderColor = "#10b981";
+            if (isLive) {
+                badge.className = "badge badge-live";
+                badge.style.color = "";
+                badge.style.borderColor = "";
+            } else {
+                badge.className = "badge badge-mock";
+                badge.style.color = "";
+                badge.style.borderColor = "";
+            }
         }
     } catch (e) {
         const badge = document.getElementById("backend-status");
         badge.innerText = "● API Offline";
+        badge.className = "badge badge-outline";
         badge.style.color = "#ef4444";
         badge.style.borderColor = "#ef4444";
     }
@@ -1110,14 +1165,20 @@ function renderEvidenceGallery(runs, targetRunId) {
 
             // Separate Status 3: Artifact Integrity
             snapMeta.innerText = snapId;
-            snapMeta.title = snapId;
+            snapMeta.title = `Click to copy Snapshot ID: ${snapId}`;
+            snapMeta.style.cursor = "pointer";
+            snapMeta.onclick = () => copyToClipboard(snapId, snapMeta);
 
             if (sha256) {
                 hashMeta.innerText = `${sha256.substring(0, 16)}...`;
-                hashMeta.title = sha256;
+                hashMeta.title = `Click to copy full SHA-256 hash: ${sha256}`;
+                hashMeta.style.cursor = "pointer";
+                hashMeta.onclick = () => copyToClipboard(sha256, hashMeta);
             } else {
                 hashMeta.innerText = "N/A";
                 hashMeta.title = "No cryptographic digest recorded";
+                hashMeta.style.cursor = "default";
+                hashMeta.onclick = null;
             }
 
             timeMeta.innerText = timeStr;

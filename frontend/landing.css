@@ -589,7 +589,7 @@
    ------------------------------------------------------------- */
 .demos-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: 20px;
 }
 
@@ -731,6 +731,29 @@
     }
 }
 
+@media (max-width: 640px) {
+    .landing-nav-actions .btn-outline-landing {
+        display: none;
+    }
+    .landing-brand h1 {
+        font-size: 1.1em;
+    }
+    .landing-brand-tagline {
+        display: none;
+    }
+    .hero-cta-group {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    .hero-cta-group a {
+        width: 100%;
+        box-sizing: border-box;
+        text-align: center;
+        justify-content: center;
+    }
+}
+
 @media (max-width: 480px) {
     .hero-title {
         font-size: 1.85em;
@@ -754,3 +777,4 @@
         display: none;
     }
 }
+
