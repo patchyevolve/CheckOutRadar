@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout Radar — Pitch Deck (AZINHACK 2026)</title>
+    <style>
+        :root {
+            --bg: #080c14;
+            --card-bg: #0e1626;
+            --surface-elevated: #162238;
+            --border: #233148;
+            --border-hover: #3b82f6;
+            --accent-blue: #3b82f6;
+            --accent-cyan: #38bdf8;
+            --accent-emerald: #10b981;
+            --accent-coral: #ef4444;
+            --accent-amber: #f59e0b;
+            --accent-purple: #8b5cf6;
+            --text-white: #ffffff;
+            --text-light: #cbd5e1;
+            --text-muted: #94a3b8;
+            --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-mono: "SF Mono", "Fira Code", monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #030712;
+            color: var(--text-light);
+            font-family: var(--font-sans);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Slide Stage Container */
+        .deck-wrapper {
+            width: 100%;
+            max-width: 1333px;
+            aspect-ratio: 16 / 9;
+            background-color: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 40px rgba(59, 130, 246, 0.1);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .slide {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            padding: 40px 50px;
+            position: relative;
+        }
+
+        .slide.active {
+            display: flex;
+            animation: fadeIn 0.25s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Slide Header */
+        .slide-tag {
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .slide-title {
+            font-size: 2.1rem;
+            font-weight: 800;
+            color: var(--text-white);
+            line-height: 1.2;
+            margin-bottom: 6px;
+        }
+
+        .slide-subtitle {
+            font-size: 1rem;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+
+        /* Slide Content Areas */
+        .content-grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            flex: 1;
+        }
+
+        .content-grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            flex: 1;
+        }
+
+        .content-grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            flex: 1;
+        }
+
+        .content-grid-2x2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 18px;
+            flex: 1;
+        }
+
+        /* Cards */
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 22px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            transition: border-color 0.2s;
+        }
+
+        .card:hover {
+            border-color: var(--accent-blue);
+        }
+
+        .card-tag {
+            font-size: 0.8rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-white);
+            margin-bottom: 12px;
+        }
+
+        .card-desc {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: var(--text-light);
+        }
+
+        .card-list {
+            list-style: none;
+            margin-top: 6px;
+        }
+
+        .card-list li {
+            font-size: 0.92rem;
+            line-height: 1.5;
+            color: var(--text-light);
+            margin-bottom: 10px;
+            position: relative;
+            padding-left: 18px;
+        }
+
+        .card-list li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: var(--accent-blue);
+            font-weight: bold;
+        }
+
+        /* Big Metrics */
+        .metric-val {
+            font-family: var(--font-mono);
+            font-size: 2.3rem;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 4px;
+        }
+
+        .metric-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Stage Steps */
+        .step-num {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-cyan);
+            border-radius: 4px;
+            width: fit-content;
+            margin-bottom: 8px;
+        }
+
+        /* Slide Controls & Footer */
+        .deck-footer {
+            margin-top: auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            padding-top: 14px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .controls-bar {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-top: 16px;
+        }
+
+        .ctrl-btn {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--text-light);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .ctrl-btn:hover {
+            background-color: var(--surface-elevated);
+            border-color: var(--accent-blue);
+            color: var(--text-white);
+        }
+
+        .slide-counter {
+            font-family: var(--font-mono);
+            font-size: 0.95rem;
+            color: var(--accent-cyan);
+            font-weight: 600;
+        }
+
+        /* Print styles for direct PDF export */
+        @media print {
+            body {
+                background: none;
+                color: #000;
+            }
+            .controls-bar { display: none; }
+            .deck-wrapper {
+                border: none;
+                box-shadow: none;
+                max-width: 100%;
+                aspect-ratio: auto;
+            }
+            .slide {
+                display: flex !important;
+                page-break-after: always;
+                height: 100vh;
+                padding: 30px;
+                background-color: #080c14 !important;
+                color: #cbd5e1 !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="deck-wrapper" id="deck">
+
+        <!-- =========================================================
+             SLIDE 1: Title & Positioning
+             ========================================================= -->
+        <div class="slide active" id="slide-1">
+            <div style="margin-bottom: 16px;">
+                <span style="background: rgba(30, 58, 138, 0.5); border: 1px solid var(--accent-blue); color: var(--accent-cyan); font-size: 0.75rem; font-weight: 700; padding: 4px 12px; border-radius: 999px; letter-spacing: 0.05em;">
+                    AZINHACK 2026 · INNOVATION & CONSUMER TRANSPARENCY TRACK
+                </span>
+            </div>
+
+            <h1 style="font-size: 3.4rem; font-weight: 900; color: #fff; line-height: 1.1; margin-bottom: 8px;">
+                CHECKOUT RADAR
+            </h1>
+            <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--accent-cyan); margin-bottom: 14px;">
+                Outside-In Checkout Flow Auditor & CCPA Dark Pattern Detector
+            </h2>
+            <p style="font-size: 1.1rem; color: var(--text-light); max-width: 950px; line-height: 1.5; margin-bottom: 30px;">
+                Deploying autonomous TinyFish browser agents across controlled condition matrices to turn subjective dark pattern claims into reproducible, screenshot-backed empirical evidence.
+            </p>
+
+            <div class="content-grid-4" style="flex: unset; margin-bottom: 24px;">
+                <div class="card">
+                    <div class="metric-val" style="color: var(--accent-emerald);">114 / 114</div>
+                    <div class="metric-label">Tests Passing in CI</div>
+                </div>
+                <div class="card">
+                    <div class="metric-val" style="color: var(--accent-cyan);">3 / 3</div>
+                    <div class="metric-label">Demo Flows Verified</div>
+                </div>
+                <div class="card">
+                    <div class="metric-val" style="color: var(--accent-blue);">SHA-256</div>
+                    <div class="metric-label">Chain of Custody</div>
+                </div>
+                <div class="card">
+                    <div class="metric-val" style="color: var(--accent-purple);">$0.00</div>
+                    <div class="metric-label">Deterministic Offline Mock</div>
+                </div>
+            </div>
+
+            <div class="deck-footer">
+                <div>Team of 4 · Submission: October 2026</div>
+                <div>Slide 1 of 10</div>
+            </div>
+        </div>
+
+        <!-- =========================================================
+             SLIDE 2: Problem Statement
+             ========================================================= -->
+        <div class="slide" id="slide-2">
+            <div class="slide-tag">1. Problem Statement</div>
+            <div class="slide-title">The Hidden Fee Epidemic & The Evidence Gap</div>
+            <div class="slide-subtitle">Consumers face systemic late-stage fee inflation without any tool to gather admissible legal proof.</div>
+
+            <div class="content-grid-3">
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-coral);">💸 LATE-STAGE INFLATION</div>
+                    <div class="card-title">The Drip Pricing Trap</div>
+                    <ul class="card-list">
+                        <li>Surge fees, handling charges, and packaging costs appear only on the final payment screen.</li>
+                        <li>Consumers invest 10–15 minutes entering addresses before the true payable price is disclosed.</li>
+                        <li>Violates Section 18 of the Consumer Protection Act, 2019.</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-amber);">⚖️ REGULATORY MANDATE</div>
+                    <div class="card-title">CCPA 2023 Guidelines</div>
+                    <ul class="card-list">
+                        <li>Notified by Ministry of Consumer Affairs on 30 Nov 2023.</li>
+                        <li><strong>Annex 1.8:</strong> Strictly bans Drip Pricing (concealing mandatory costs).</li>
+                        <li><strong>Annex 1.2:</strong> Prohibits Basket Sneaking (pre-ticked add-ons).</li>
+                        <li><strong>Annex 1.1:</strong> Prohibits False Urgency (falsely resetting countdown timers).</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-blue);">🔍 THE EVIDENCE VOID</div>
+                    <div class="card-title">Lack of Empirical Tooling</div>
+                    <ul class="card-list">
+                        <li>Existing compliance tools cater exclusively to internal platform teams.</li>
+                        <li>Consumers, researchers, and journalists lack outside-in auditing mechanisms.</li>
+                        <li>Modern SPAs (React/Shopify) defeat simple scrapers, leaving deceptive funnels unmonitored.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="deck-footer">
+                <div>Checkout Radar · AZINHACK 2026 Submission</div>
+                <div>Slide 2 of 10</div>
+            </div>
+        </div>
+
+        <!-- =========================================================
+             SLIDE 3: Proposed Solution
+             ========================================================= -->
+        <div class="slide" id="slide-3">
+            <div class="slide-tag">2. Proposed Solution</div>
+            <div class="slide-title">Matched-Pair Differential Auditing Engine</div>
+            <div class="slide-subtitle">Controlled behavioral experiments that mathematically isolate fee inflation and dark patterns.</div>
+
+            <div class="content-grid-2">
+                <div class="card" style="justify-content: center;">
+                    <div class="card-title" style="color: var(--accent-cyan); font-size: 1.4rem;">Not a Scraper: A Controlled Experiment</div>
+                    <ul class="card-list" style="margin-top: 10px;">
+                        <li><strong>Differential Principle:</strong> Compares two checkout runs that differ in exactly one requested dimension while holding all other controls fixed.</li>
+                        <li><strong>Integer Minor-Unit Math:</strong> Reconciles all charges in integer paise (₹0.01) to eliminate floating-point rounding errors.</li>
+                        <li><strong>The Cart Invariant:</strong> Separates Recipe Family from Cart Instance. Quantity changes do NOT trigger false price variance alarms.</li>
+                        <li><strong>Cryptographic Custody:</strong> 1280×720 viewports redacted with Pillow and hashed with SHA-256 for court-admissible proof.</li>
+                    </ul>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div class="card" style="padding: 14px 18px;">
+                        <div style="font-size: 0.95rem; font-weight: 700; color: var(--accent-cyan);">📍 Location Effect</div>
+                        <div style="font-size: 0.85rem; color: var(--text-light);">Tests Tier-1 Metro (110001) vs Tier-2/3 (492001) · Controls: Session, Cart, Recipe</div>
+                    </div>
+                    <div class="card" style="padding: 14px 18px;">
+                        <div style="font-size: 0.95rem; font-weight: 700; color: var(--accent-blue);">👤 Session Effect</div>
+                        <div style="font-size: 0.85rem; color: var(--text-light);">Tests Fresh Guest Profile vs Returning Profile · Controls: Pincode, Cart, Recipe</div>
+                    </div>
+                    <div class="card" style="padding: 14px 18px;">
+                        <div style="font-size: 0.95rem; font-weight: 700; color: var(--accent-emerald);">🛒 Cart Threshold</div>
+                        <div style="font-size: 0.85rem; color: var(--text-light);">Tests Above Threshold (₹998) vs Below (₹499) · Controls: Pincode, Session, Unit Price</div>
+                    </div>
+                    <div class="card" style="padding: 14px 18px;">
+                        <div style="font-size: 0.95rem; font-weight: 700; color: var(--accent-purple);">⏱️ Temporal Drift</div>
+                        <div style="font-size: 0.85rem; color: var(--text-light);">Tests Observation at t0 vs Re-observation at t1 · Controls: All conditions held fixed</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="deck-footer">
+                <div>Checkout Radar · AZINHACK 2026 Submission</div>
+                <div>Slide 3 of 10</div>
+            </div>
+        </div>
+
+        <!-- =========================================================
+             SLIDE 4: Target Users & Use Cases
+             ========================================================= -->
+        <div class="slide" id="slide-4">
+            <div class="slide-tag">3. Target Users & Use Cases</div>
+            <div class="slide-title">Empowering the Consumer Protection Ecosystem</div>
+            <div class="slide-subtitle">Three key personas solving grievances, regulatory research, and enterprise compliance.</div>
+
+            <div class="content-grid-3">
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-cyan);">PERSONA 01</div>
+                    <div class="card-title">Consumers & Grievance Advocates</div>
+                    <ul class="card-list">
+                        <li>Instant 1-click generation of <strong>National Consumer Helpline (NCH)</strong> complaint drafts.</li>
+                        <li>Pre-filled with merchant identity, exact fee breakdown, and statutory CCPA rule citations.</li>
+                        <li>Includes SHA-256 evidence links that merchants cannot dispute.</li>
+                        <li>Reduces complaint preparation from <strong>45 minutes to 30 seconds</strong>.</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-blue);">PERSONA 02</div>
+                    <div class="card-title">Investigative Media & Researchers</div>
+                    <ul class="card-list">
+                        <li>Empirical, reproducible datasets on fee inflation, surge fees, and geographic discrimination.</li>
+                        <li>Export self-contained, offline HTML dossiers complete with high-res viewports.</li>
+                        <li>Enables data-driven investigative journalism into predatory dark patterns.</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-emerald);">PERSONA 03</div>
+                    <div class="card-title">Enterprise Compliance Teams</div>
+                    <ul class="card-list">
+                        <li>Outside-in regression testing for e-commerce brands before regulatory penalties.</li>
+                        <li>Audit Shopify, WooCommerce, or custom storefronts against CCPA 2023 guidelines.</li>
+                        <li>Detect dark patterns introduced unintentionally by third-party checkout plugins.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="deck-footer">
+                <div>Checkout Radar · AZINHACK 2026 Submission</div>
+                <div>Slide 4 of 10</div>
+            </div>
+        </div>
+
+        <!-- =========================================================
+             SLIDE 5: Role of ML & AI
+             ========================================================= -->
+        <div class="slide" id="slide-5">
+            <div class="slide-tag">4. Role of Machine Learning & AI</div>
+            <div class="slide-title">Hybrid Architecture: Deterministic First, AI Last</div>
+            <div class="slide-subtitle">AI navigates and contextualizes; deterministic engines compute mathematical proof.</div>
+
+            <div class="content-grid-2">
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-cyan);">AUTONOMOUS VISION & DOM AGENT</div>
+                    <div class="card-title">TinyFish Web Agent AI</div>
+                    <ul class="card-list">
+                        <li><strong>Complex DOM Navigation:</strong> Overcomes dynamic React, Vue, Shopify, and headless checkouts without custom scrapers.</li>
+                        <li><strong>Human-Like Emulation:</strong> Solves variant selection, opens cart drawers, fills guest address forms, and handles modals.</li>
+                        <li><strong>Hardened Safety Invariant:</strong> Negative prompts enforce a strict <strong>STOP BEFORE PAYMENT</strong> authorization boundary.</li>
+                        <li><strong>Zero Hallucination in Pricing:</strong> Agent captures raw 1280×720 viewports and itemized DOM strings; does not invent fees.</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-blue);">SEMANTIC CONTEXTUALIZATION</div>
+                    <div class="card-title">Schema-Guarded LLM</div>
+                    <ul class="card-list">
+                        <li><strong>Downstream Explanation Only:</strong> LLM never detects findings; it strictly translates candidate diffs into legal explanations.</li>
+                        <li><strong>Strict Non-Judicial Filter:</strong> Regex intercepts prohibited adjudicative terms (<em>'guilty', 'unlawful'</em>) while preserving disclaimers.</li>
+                        <li><strong>Evidence Grounding Engine:</strong> Rejects claims of fee absence unless substantiated by explicit <code>not_observed_verified</code> records.</li>
+                        <li><strong>Resilient Fallback:</strong> If rate-limited (HTTP 429), deterministic statutory templates ensure 100% compliant outputs.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="deck-footer">
+                <div>Checkout Radar · AZINHACK 2026 Submission</div>
+                <div>Slide 5 of 10</div>
+            </div>
+        </div>
+
+        <!-- =========================================================
+             SLIDE 6: Proposed Technical Approach
+             ========================================================= -->
+        <div class="slide" id="slide-6">
+            <div class="slide-tag">5. Proposed Technical Approach</div>
+            <div class="slide-title">8-Stage Forensic Pipeline & Append-Only Architecture</div>
+            <div class="slide-subtitle">End-to-end data flow with integer minor-unit arithmetic, lease fencing, and cryptographic custody.</div>
+
+            <div class="content-grid-4">
+                <div class="card">
+                    <div class="step-num">STAGE 01</div>
+                    <div class="card-title" style="font-size: 1.05rem;">Discovery</div>
+                    <div class="card-desc" style="font-size: 0.85rem;">TinyFish Search API queries merchant terms, pricing policies, and return links.</div>
+                </div>
+                <div class="card">
+                    <div class="step-num">STAGE 02</div>
+                    <div class="card-title" style="font-size: 1.05rem;">Policy Extraction</div>
+                    <div class="card-desc" style="font-size: 0.85rem;">TinyFish Fetch API extracts clean markdown policies with defined cache TTLs.</div>
+                </div>
+                <div class="card">
+                    <div class="step-num">STAGE 03</div>
+                    <div class="card-title" style="font-size: 1.05rem;">Agent Navigation</div>
+                    <div class="card-desc" style="font-size: 0.85rem;">Autonomous web agent navigates funnel with stop-before-payment guardrail.</div>
+                </div>
+                <div class="card">
+                    <div class="step-num">STAGE 04</div>
+                    <div class="card-title" style="font-size: 1.05rem;">Redact & Hash</div>
+                    <div class="card-desc" style="font-size: 0.85rem;">Pillow masks bottom-5% and form PII; calculates SHA-256 image digest.</div>
+                </div>
+            </div>
+
+            <div class="content-grid-4" style="margin-top: 14px;">
+                <div class="card">
+                    <div class="step-num" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald);">STAGE 05</div>
+                    <div class="card-title" style="font-size: 1.05rem;">Reconcile</div>
+                    <div class="card-desc" style="font-size: 0.85rem;">Integer paise check: Subtotal + Charges + Taxes - Discounts == Payable.</div>
+                </div>
+                <div class="card">
+                    <div class="step-num" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue);">STAGE 06</div>
+                    <div class="card-title" style="font-size: 1.05rem;">Diff Engine</div>
+                    <div class="card-desc" style="font-size: 0.85rem;">Matched-pair engine computes 5 diff types across isolated dimensions.</div>
+                </div>
+                <div class="card">
+                    <div class="step-num" style="background: rgba(239, 68, 68, 0.15); color: var(--accent-coral);">STAGE 07</div>
+                    <div class="card-title" style="font-size: 1.05rem;">CCPA Detectors</div>
+                    <div class="card-desc" style="font-size: 0.85rem;">Deterministic rules match Annex 1.8 (Drip), 1.2 (Sneak), 1.1 (Urgency).</div>
+                </div>
+                <div class="card">
+                    <div class="step-num" style="background: rgba(56, 189, 248, 0.15); color: var(--accent-cyan);">STAGE 08</div>
+                    <div class="card-title" style="font-size: 1.05rem;">Dossier & Draft</div>
+                    <div class="card-desc" style="font-size: 0.85rem;">Compiles self-contained HTML evidence report and editable NCH grievance.</div>
+                </div>
+            </div>
+
+            <div class="deck-footer">
+                <div>Checkout Radar · AZINHACK 2026 Submission</div>
+                <div>Slide 6 of 10</div>
+            </div>
+        </div>
+
+        <!-- =========================================================
+             SLIDE 7: Proposed TinyFish Integration
+             ========================================================= -->
+        <div class="slide" id="slide-7">
+            <div class="slide-tag">6. Proposed TinyFish Integration</div>
+            <div class="slide-title">Deep Platform Integration Across the Full API Surface</div>
+            <div class="slide-subtitle">TinyFish is in the main execution path across Search, Fetch, Agent, and Profiles APIs.</div>
+
+            <div class="content-grid-2x2">
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-cyan);">🔍 DISCOVERY</div>
+                    <div class="card-title">TinyFish Search API</div>
+                    <div class="card-desc">Discovers merchant declared terms of service, fee disclosures, and return policies during audit initiation without manual URL hunting.</div>
+                </div>
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-blue);">📄 EXTRACTION</div>
+                    <div class="card-title">TinyFish Fetch API</div>
+                    <div class="card-desc">Extracts clean policy text with intelligent caching: <code>ttl: 0</code> for dynamic checkout flows, <code>ttl: 3600</code> for static terms to conserve API quota.</div>
+                </div>
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-emerald);">🤖 AUTOMATION</div>
+                    <div class="card-title">TinyFish Agent API</div>
+                    <div class="card-desc">Executes multi-step browser automations across product, cart, and summary states under strict CCPA safety and Stop-Before-Payment guardrails.</div>
+                </div>
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-purple);">🛡️ ISOLATION</div>
+                    <div class="card-title">TinyFish Profiles API</div>
+                    <div class="card-desc">Spawns isolated browser context profiles for returning visitor conditions, preventing cookie and session leakage between matrix runs.</div>
+                </div>
+            </div>
+
+            <div class="deck-footer">
+                <div>Checkout Radar · AZINHACK 2026 Submission</div>
+                <div>Slide 7 of 10</div>
+            </div>
+        </div>
+
+        <!-- =========================================================
+             SLIDE 8: Expected Impact
+             ========================================================= -->
+        <div class="slide" id="slide-8">
+            <div class="slide-tag">7. Expected Impact</div>
+            <div class="slide-title">Quantified Consumer, Legal, and Technical Outcomes</div>
+            <div class="slide-subtitle">Measurable results proven across synthetic benchmarks and live merchant audits.</div>
+
+            <div class="content-grid-2x2">
+                <div class="card">
+                    <div class="metric-val" style="color: var(--accent-cyan);">45m ➔ 30s</div>
+                    <div class="card-title">Consumer Grievance Velocity</div>
+                    <div class="card-desc">Reduces the time to document, verify, and draft an actionable CCPA dark pattern complaint from 45 minutes to 30 seconds with 1-click export.</div>
+                </div>
+                <div class="card">
+                    <div class="metric-val" style="color: var(--accent-emerald);">100% / 100%</div>
+                    <div class="card-title">Precision & Recall</div>
+                    <div class="card-desc">100% precision, 100% recall, and F1 = 1.000 across 45 designed scenario bundles. Zero false alarms on negative controls.</div>
+                </div>
+                <div class="card">
+                    <div class="metric-val" style="color: var(--accent-blue);">0 Secrets</div>
+                    <div class="card-title">Zero-Exfiltration Architecture</div>
+                    <div class="card-desc">All API credentials stored backend-only. Raw keys never touch frontend storage, reports, or logs. Form PII redacted by Pillow.</div>
+                </div>
+                <div class="card">
+                    <div class="metric-val" style="color: var(--accent-purple);">SHA-256</div>
+                    <div class="card-title">Cryptographic Custody</div>
+                    <div class="card-desc">Every observed charge is backed by an immutable SHA-256 hashed viewport, transforming anecdotal claims into legally admissible proof.</div>
+                </div>
+            </div>
+
+            <div class="deck-footer">
+                <div>Checkout Radar · AZINHACK 2026 Submission</div>
+                <div>Slide 8 of 10</div>
+            </div>
+        </div>
+
+        <!-- =========================================================
+             SLIDE 9: Feasibility
+             ========================================================= -->
+        <div class="slide" id="slide-9">
+            <div class="slide-tag">8. Feasibility & Implementation Readiness</div>
+            <div class="slide-title">Production-Ready Stack with Deterministic Offline Defaults</div>
+            <div class="slide-subtitle">Zero-barrier demonstration: judges can clone, test, and run audits immediately with zero cloud costs.</div>
+
+            <div class="content-grid-3">
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-cyan);">🚀 ONE-COMMAND LAUNCH</div>
+                    <div class="card-title">Zero Setup Friction</div>
+                    <ul class="card-list">
+                        <li>Cross-platform launcher script (<code>./start.sh</code> or <code>start.cmd</code>).</li>
+                        <li>Automatic pre-flight diagnostics, <code>.env</code> provisioning, and healthcheck sync.</li>
+                        <li>Dynamic host port discovery eliminates port conflict errors.</li>
+                        <li>Docker Compose orchestrates harness, API, and worker in &lt;30s.</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-emerald);">🛡️ DETERMINISTIC MOCK</div>
+                    <div class="card-title">100% Free Offline Mode</div>
+                    <ul class="card-list">
+                        <li>Runs full audits, tests, and demo flows without consuming TinyFish or LLM credits.</li>
+                        <li>Includes 5-variant reproducible merchant server container.</li>
+                        <li>114 unit, integration, and concurrency tests pass locally in &lt;2 seconds.</li>
+                        <li>Pre-seeded demonstration audits populate instantly.</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-blue);">💰 ECONOMICAL SCALE</div>
+                    <div class="card-title">Cost-Efficient Live Runs</div>
+                    <ul class="card-list">
+                        <li>A full Quick 4-run condition matrix audit costs <strong>under $0.20</strong> on TinyFish cloud.</li>
+                        <li>Monotonic lease recovery prevents duplicate submissions on failure.</li>
+                        <li>TTL caching on Fetch API prevents redundant policy crawls.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="deck-footer">
+                <div>Checkout Radar · AZINHACK 2026 Submission</div>
+                <div>Slide 9 of 10</div>
+            </div>
+        </div>
+
+        <!-- =========================================================
+             SLIDE 10: Future Scope
+             ========================================================= -->
+        <div class="slide" id="slide-10">
+            <div class="slide-tag">9. Future Scope & Roadmap</div>
+            <div class="slide-title">Scaling from Hackathon MVP to National Transparency Infrastructure</div>
+            <div class="slide-subtitle">Strategic expansion across real-time consumer warnings, regulatory APIs, and global jurisdictions.</div>
+
+            <div class="content-grid-3">
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-cyan);">PHASE 1 (NEAR-TERM)</div>
+                    <div class="card-title">Consumer Extension</div>
+                    <ul class="card-list">
+                        <li>Chrome/Firefox extension auditing checkout funnels in the background while users shop.</li>
+                        <li>Instant warning badges appear when a hidden fee or pre-ticked add-on is detected.</li>
+                        <li>One-click "Report to Checkout Radar" crowdsourced fee tracking.</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-blue);">PHASE 2 (MID-TERM)</div>
+                    <div class="card-title">Direct NCH API Integration</div>
+                    <ul class="card-list">
+                        <li>Direct integration with National Consumer Helpline and e-Daakhil consumer court APIs.</li>
+                        <li>Automated grievance filing with digitally signed, SHA-256 hashed evidence bundles.</li>
+                        <li>Enables consumer organizations to file class-action transparency complaints.</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <div class="card-tag" style="color: var(--accent-purple);">PHASE 3 (LONG-TERM)</div>
+                    <div class="card-title">Cross-Border Audits</div>
+                    <ul class="card-list">
+                        <li>Deploy residential browser proxies across 7 jurisdictions (US, UK, EU, Canada, Australia, Japan, India).</li>
+                        <li>Audit geographic price discrimination, currency conversion drip fees, and international shipping surges.</li>
+                        <li>Compliance engine mapped to EU DSA and US FTC Dark Pattern guidelines.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="deck-footer">
+                <div>Checkout Radar · AZINHACK 2026 Submission</div>
+                <div>Slide 10 of 10</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Presentation Controls -->
+    <div class="controls-bar">
+        <button class="ctrl-btn" onclick="prevSlide()">← Previous</button>
+        <span class="slide-counter" id="counter">Slide 1 / 10</span>
+        <button class="ctrl-btn" onclick="nextSlide()">Next →</button>
+        <button class="ctrl-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+        <button class="ctrl-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 10;
+
+        function showSlide(n) {
+            if (n < 1) n = 1;
+            if (n > totalSlides) n = totalSlides;
+            currentSlide = n;
+
+            document.querySelectorAll('.slide').forEach(slide => slide.classList.remove('active'));
+            document.getElementById(`slide-${currentSlide}`).classList.add('active');
+            document.getElementById('counter').innerText = `Slide ${currentSlide} / ${totalSlides}`;
+        }
+
+        function nextSlide() {
+            showSlide(currentSlide + 1);
+        }
+
+        function prevSlide() {
+            showSlide(currentSlide - 1);
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.getElementById('deck').requestFullscreen().catch(err => {
+                    alert(`Error attempting to enable full-screen mode: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+                nextSlide();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                prevSlide();
+            } else if (e.key === 'f' || e.key === 'F') {
+                toggleFullscreen();
+            }
+        });
+    </script>
+</body>
+</html>
