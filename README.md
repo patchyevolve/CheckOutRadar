@@ -1,33 +1,20 @@
 <div align="center">
 
-# 📡 Checkout Radar
+<img src="screenshots/landing/01_landing_desktop_1440x900.png" alt="Checkout Radar: Outside-In Differential Checkout Transparency & Dark Pattern Auditor" width="100%">
 
-### Outside-in auditing for hidden checkout fees, not unverified claims.
+<h3>Checkout transparency built on evidence, not claims.</h3>
 
-<p>Audit e-commerce checkout funnels from the outside in. Deploy autonomous browser agents across controlled condition matrices (pincodes, sessions, cart thresholds, and time) to capture immutable, SHA-256 hashed evidence of dark patterns mapped directly to India's CCPA 2023 Guidelines.</p>
+<p>Audit e-commerce funnels from the outside in. Deploy autonomous browser agents across controlled condition matrices to capture immutable, SHA-256 hashed proof of dark patterns mapped directly to India's CCPA 2023 Guidelines.</p>
 
-<p>
-  <a href="#the-experience"><b>The Experience</b></a> · 
-  <a href="#the-product-as-a-skeleton"><b>Product Skeleton</b></a> · 
-  <a href="#the-pipeline"><b>8-Stage Pipeline</b></a> · 
-  <a href="#the-method-and-condition-matrix"><b>The Method</b></a> · 
-  <a href="#engineering-map"><b>Engineering Map</b></a> · 
-  <a href="#evaluation-and-benchmarks"><b>Evaluation</b></a> · 
-  <a href="#local-development-and-quickstart"><b>Quickstart</b></a> · 
-  <a href="#live-merchant-auditing-guide"><b>Live Auditing</b></a>
-</p>
+<a href="http://localhost:8000/auditor"><img src="https://img.shields.io/badge/Launch%20Auditor%20Workspace%20%E2%86%92-0b0f19?style=for-the-badge&logo=radar&logoColor=white&labelColor=1e40af" alt="Launch Auditor Workspace → http://localhost:8000/auditor" height="42"></a>
 
 <p><sub>AZINHACK 2026 Submission · 100% Deterministic Offline Mock by Default · Zero External API Keys Required to Run or Test · Non-Destructive Stop-Before-Payment Guarantee</sub></p>
 
-[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![SQLite WAL](https://img.shields.io/badge/SQLite-WAL%20Mode-003B57?style=flat&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
-[![TinyFish Web Agents](https://img.shields.io/badge/TinyFish-Web%20Agents-0284c7?style=flat)](https://tinyfish.ai/)
-[![Docker Compose](https://img.shields.io/badge/Docker-Compose%20Ready-2496ED?style=flat&logo=docker&logoColor=white)](docker-compose.yml)
-[![Tests Passing](https://img.shields.io/badge/tests-114%20passed-10b981?style=flat&logo=pytest&logoColor=white)](backend/tests/)
-[![Demo Verification](https://img.shields.io/badge/demo%20flows-3%2F3%20verified-10b981?style=flat)](scripts/verify_demo_flows.py)
-[![Security Scan](https://img.shields.io/badge/secrets-0%20detected-10b981?style=flat)](scripts/scan_secrets.py)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+<img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12+" height="28"> <img src="https://img.shields.io/badge/FastAPI-0.110%2B-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI" height="28"> <img src="https://img.shields.io/badge/SQLite-WAL%20Mode-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite WAL" height="28"> <img src="https://img.shields.io/badge/TinyFish-Web%20Agents-0284c7?style=flat-square" alt="TinyFish Web Agents" height="28"> <img src="https://img.shields.io/badge/Pydantic-v2-E92063?style=flat-square&logo=pydantic&logoColor=white" alt="Pydantic v2" height="28"><br>
+<img src="https://img.shields.io/badge/Pillow-Redaction-blue?style=flat-square" alt="Pillow Redaction" height="28"> <img src="https://img.shields.io/badge/Groq-gpt--oss--20b-F55036?style=flat-square" alt="Groq gpt-oss-20b" height="28"> <img src="https://img.shields.io/badge/SHA--256-Custody%20Chain-emerald?style=flat-square" alt="SHA-256 Custody Chain" height="28"> <img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker Compose" height="28"> <img src="https://img.shields.io/badge/pytest-114%20tests-brightgreen?style=flat-square&logo=pytest&logoColor=white" alt="pytest 114 tests" height="28"><br>
+<img src="https://img.shields.io/badge/Demo%20Flows-3%2F3%20Verified-brightgreen?style=flat-square" alt="Demo Flows 3/3 Verified" height="28"> <img src="https://img.shields.io/badge/CDP%20Checks-5%2F5%20Passing-brightgreen?style=flat-square" alt="CDP Checks 5/5 Passing" height="28"> <img src="https://img.shields.io/badge/Secrets-0%20Detected-brightgreen?style=flat-square" alt="Secrets 0 Detected" height="28"> <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License" height="28">
+
+<p><a href="#the-experience">Experience</a> · <a href="#the-product-as-a-skeleton">Skeleton</a> · <a href="#the-pipeline">Pipeline</a> · <a href="#behind-the-product">Pitch</a> · <a href="#engineering-map">Engineering</a> · <a href="#local-development">Development</a></p>
 
 </div>
 
@@ -35,89 +22,68 @@
 
 ## The experience
 
-Indian e-commerce and quick-commerce checkouts routinely conceal fees—handling fees, packaging charges, platform convenience fees, surge charges, and small-cart penalties—until the consumer has already invested time navigating the funnel. 
+Checkout Radar puts consumers, consumer rights advocates, journalists, researchers, and compliance officers on one empirical auditing platform. A checkout URL becomes itemized fee extractions across three critical stages; fee inflation is proven by a mathematical matched-pair diff; statutory dark patterns are mapped directly to India's CCPA 2023 Gazette Notification; and every fee links to an immutable SHA-256 cryptographic screenshot hash.
 
-While the **Central Consumer Protection Authority (CCPA)** notified dark pattern guidelines under the *Consumer Protection Act, 2019* on **30 November 2023** prohibiting practices like *Drip Pricing* (Annex 1.8), *Basket Sneaking* (Annex 1.2), and *False Urgency* (Annex 1.1), consumers, grievance advocates, and regulatory researchers lack continuous, outside-in empirical auditing tooling.
+<img src="screenshots/ui-audit/02_clean_audit_viewport_1440x900.png" alt="Product film: active forensic audit of a live merchant with 3-stage visual viewports, scorecard KPIs, and verified clean outcome under tested conditions." width="100%">
 
-**Checkout Radar** solves this by dispatching autonomous **TinyFish** web agents that navigate genuine merchant checkouts, extract itemized charges across 3 critical stages, deterministically diff the journey against controlled condition pairs, and build an immutable chain of custody.
+<a href="http://localhost:8000/auditor">
+  <img src="screenshots/ui-audit/06_real_merchant_gallery_viewport_1440x900.png" alt="Checkout Radar visual evidence gallery: stage viewports with snapshot IDs, verification badges, and cryptographic SHA-256 digests" width="100%">
+</a>
 
-<div align="center">
-  <img src="screenshots/landing/01_landing_desktop_1440x900.png" alt="Checkout Radar Landing Page" width="100%">
-  <p><i>The Checkout Radar landing page: presenting regulatory context, the 5-stage workflow, and 1-click reproducible demonstration audits.</i></p>
-</div>
+*Live-site screenshot. Click to open the workspace. Pre-seeded demo fixtures illustrate the complete forensic workflow.*
 
 | Prove what is charged | Diff what changes | Enforce the CCPA standard |
 | :--- | :--- | :--- |
-| **Stage-by-stage visual custody:** autonomous browser agents photograph the **Product Page**, **Cart Drawer**, and **Checkout Summary** at 1280×720, redacting sensitive footer/form data and computing SHA-256 digests. | **Matched-pair differential engine:** holds all factors constant while varying exactly one dimension (Pincode, Session History, Cart Threshold, or Time) to isolate hidden fee triggers. | **Deterministic legal mapping:** candidate indicators map verbatim to CCPA 2023 Gazette definitions with non-judicial, statutory explanations and ready-to-file complaint drafts. |
-| **Integer minor-unit reconciliation:** subtotal, charges, taxes, and discounts are checked in integer paise. If math fails, the run is flagged as inconsistent. | **Recipe family invariance:** quantity threshold variations do not trigger false price variance alarms; legitimate small-cart rules are recognized as valid policies. | **Conservative fail-closed verdicts:** incomplete funnels, bot-blockers, or phone OTP walls result in `INCONCLUSIVE AUDIT`, never an unearned clean bill of health. |
+| Autonomous browser agents capture 1280×720 viewports of the **Product Page**, **Cart Drawer**, and **Checkout Summary**; every fee comes back with the exact stage that first revealed it. | Matched pairs hold all variables constant while isolating **Location** (pincodes), **Session History** (fresh vs returning), **Cart Threshold**, or **Time**. | Mandatory fees hidden upfront become **Drip Pricing** (Annex 1.8); pre-ticked add-ons become **Basket Sneaking** (Annex 1.2); resetting timers become **False Urgency** (Annex 1.1). |
+| Labels stay honest: *Live Viewport (1280×720)*, *Synthetic Fixture (Offline DOM)*, *Uninspected Flow*. | Recipe family logic prevents cart threshold discounts from being mistaken for price variance. | Conservative fail-closed assessment: missing stages or bot blocks report **Inconclusive**, never an unearned clean bill. |
 
-<div align="center">
-  <img src="screenshots/ui-audit/06_real_merchant_gallery_viewport_1440x900.png" alt="Forensic Evidence Gallery" width="100%">
-  <p><i>Forensic Auditor Workspace (/auditor): 3-stage visual viewports with independent stage verification, cryptographic SHA-256 digests, and click-to-copy metadata.</i></p>
-</div>
+### Four ways across the funnel
+
+**Every audit tests the exact same recipe family** and systematically perturbs one variable at a time:
+
+| Dimension | Tested variation | Controlled across | Isolated effect |
+| :--- | :--- | :--- | :--- |
+| **Location** | Tier-1 Metro (110001) vs Tier-2/3 (492001, 560001) | Session state, cart tier, recipe family | Pincode delivery surcharge & regional convenience fee |
+| **Session** | Fresh guest profile vs Returning user | Pincode, cart tier, recipe family | Personalized pricing & repeat-buyer fee surges |
+| **Cart threshold** | Above threshold (₹998) vs Below threshold (₹499) | Pincode, session state, item unit price | Legitimate small-cart rules vs hidden fee inflation |
+| **Temporal drift** | Initial observation ($t_0$) vs Scheduled re-run ($t_1$) | All conditions, identical recipe | Time-based dynamic surge pricing & fee creep |
+
+Nobody can disguise a fee: the engine isolates each variable in integer minor units while holding all other factors constant.
 
 ### Trust is part of the interface
 
-- **Math, not guesses:** every extraction is validated against $\text{Subtotal} + \text{Charges} + \text{Taxes} - \text{Discounts} = \text{Final Payable}$ in integer minor units (paise). If a single rupee is unaccounted for, the run outcome is quarantined as `extraction_inconsistent` and excluded from diffs.
-- **Quotes and hashes, not vibes:** dark pattern findings must cite the exact fee label, rupee discrepancy, and stage sequence where disclosure was absent. Every observation links to an immutable SHA-256 cryptographic image digest.
-- **Honest failure states:** if an audit encounters an SMS OTP wall, Cloudflare Turnstile challenge, or network timeout, the application explicitly reports `blocked_by_login` or `blocked_by_bot` and marks the assessment **`INCONCLUSIVE AUDIT`**. Missing evidence is **never** treated as proof that a site is clean.
-- **The Non-Destructive Invariant:** agents are bound by hard negative prompts: **`STOP IMMEDIATELY BEFORE PAYMENT AUTHORIZATION. NEVER CLICK PAY NOW, COMPLETE ORDER, OR SUBMIT PAYMENT.`** No merchant inventory is reserved, and zero financial transactions are initiated.
-- **Zero-Exfiltration Architecture:** API keys (`TINYFISH_API_KEY`, `LLM_API_KEY`) reside exclusively in the backend SQLite key-value store or environment variables. They are never rendered into HTML attributes, JavaScript variables, browser storage, or exported audit reports.
+- **Math, not guesses:** every extraction is validated against $\text{Subtotal} + \text{Charges} + \text{Taxes} - \text{Discounts} = \text{Final Payable}$ in integer minor units (paise). If a single rupee is unaccounted for, the run is quarantined as `extraction_inconsistent` and excluded from diffs.
+- **Hashes, not claims:** every fee cites the exact stage sequence where disclosure was absent, linked to an immutable SHA-256 cryptographic digest of the redacted viewport capture.
+- **Fail-closed, not clean by default:** if an audit encounters an SMS OTP wall or Cloudflare Turnstile challenge, the engine reports `blocked_by_login` or `blocked_by_bot` and renders an amber **`INCONCLUSIVE AUDIT`** verdict. Missing evidence is never treated as proof of innocence.
+- **The Non-Destructive Invariant:** agents are bound by hard negative prompts: **`STOP IMMEDIATELY BEFORE ANY FINAL PAYMENT OR ORDER CONFIRMATION STEP. NEVER CLICK PAY NOW, COMPLETE ORDER, OR SUBMIT PAYMENT.`** Zero inventory held, zero financial credentials entered.
+- **Zero exfiltration:** API keys (`TINYFISH_API_KEY`, `LLM_API_KEY`) reside exclusively in the backend SQLite key-value store or environment variables. They are never rendered into HTML attributes, JavaScript variables, browser storage, or exported audit reports.
+- **Rules in the engine, not the prompt:** candidate indicators are produced upstream by deterministic diff rules; the LLM strictly classifies and contextualizes under regex guardrails. If the model is unavailable or rate-limited, deterministic statutory templates take over seamlessly.
 
 ---
 
 ## The product, as a skeleton
 
-One end-to-end loop through an outside-in checkout audit:
+One loop through the forensic auditor workspace, stripped to its structure.
 
-```
-[ Target URL + Preset ]
-          │
-          ▼
-   1. INTAKE & DISCOVERY    ──► Query TinyFish Search & Fetch for merchant terms & pricing policies
-          │
-          ▼
-   2. MATRIX EXPANSION      ──► Generate condition pairs (Pincodes A/B/C, Fresh vs Returning, Above/Below Cart)
-          │
-          ▼
-   3. WEB AGENT DISPATCH    ──► Autonomous TinyFish browser agents capture PDP ➔ Cart ➔ Checkout Summary
-          │
-          ▼
-   4. EVIDENCE REDACTION    ──► Privacy mask applied to sticky footers & sensitive fields; SHA-256 digest computed
-          │
-          ▼
-   5. INTEGER RECONCILIATION──► Validate: Subtotal + Charges + Taxes - Discounts == Payable
-          │
-          ▼
-   6. MATCHED-PAIR DIFFING  ──► Compute LATE_DISCLOSURE, PRICE_VARIANCE, SMALL_CART_RULE, TEMPORAL_DRIFT
-          │
-          ▼
-   7. STATUTORY DETECTION   ──► Deterministic rules evaluate CCPA Annex 1.8 (Drip), 1.2 (Sneak), 1.1 (Urgency)
-          │
-          ▼
-   8. VERDICT & REPORTS     ──► Scorecard updated, interactive lightbox enabled, HTML dossier & CCPA draft exported
-```
+<img src="screenshots/landing/04_auditor_findings_dedup_1440.png" alt="Skeleton of Checkout Radar forensic audit loop: active audit, matched-pair diff matrix, deduplicated findings, and CCPA regulatory mapping." width="100%">
 
-| | Step | What the engine does | What the interface shows |
-| :---: | :--- | :--- | :--- |
-| **1** | **Target Intake** | Validates target URL, registers audit record in SQLite WAL, and extracts merchant metadata. | Collapsible launch drawer with 6 pre-configured preset chips and condition matrix selectors. |
-| **2** | **Discovery** | Calls TinyFish Search and Fetch APIs with TTL caching to retrieve terms, cancellation rules, and policy clauses. | Progress console logs discovery timestamps, HTTP response codes, and policy fetch records. |
-| **3** | **Agent Navigation** | Dispatches headless browser agents across matrix conditions with strict stop-before-payment guardrails. | Live Server-Sent Events (SSE) stream console tracking real-time agent steps and page transitions. |
-| **4** | **Custody Capture** | Redacts sensitive form/footer regions with Pillow, writes high-res JPEGs to `/data/evidence/`, and hashes bytes with SHA-256. | 3-stage visual viewport cards (Product, Cart, Checkout) with `.copy-pill` SHA-256 hash digests. |
-| **5** | **Arithmetic Check** | Reconciles integer minor units across tax-exclusive and tax-inclusive (GST) checkout models. | Green integrity badge if reconciled; amber quarantine alert if arithmetic fails. |
-| **6** | **Differential Audit**| Compares runs differing in exactly one requested dimension while holding recipe families invariant. | Matched-Pair Differential Matrix table showing isolated variances across location, session, and cart tiers. |
-| **7** | **CCPA Detection** | Matches candidate diffs against statutory rules (e.g., fee present at checkout but verified absent at product page). | Deduplicated findings cards displaying matrix reproduction rates (e.g. *Observed in 4 of 4 Runs*). |
-| **8** | **Forensic Dossier** | Compiles standalone HTML evidence report and generates formal consumer grievance drafts. | Export buttons for self-contained HTML dossiers and copyable National Consumer Helpline grievance text. |
+| | Step | What the interface does |
+| :---: | :--- | :--- |
+| **1** | **Target intake** | Enter a direct product URL or select a preset; choose a matrix preset (`Single`, `Quick` 4-run, or `Full` 12-run). |
+| **2** | **Live telemetry** | Watch the Server-Sent Events (SSE) console stream real-time agent steps (`search`, `fetch`, `agent_submit`, `agent_poll`). |
+| **3** | **Inspect viewports** | The 3-stage gallery loads high-res viewports for **Product**, **Cart**, and **Checkout Summary** with `.copy-pill` SHA-256 hashes. |
+| **4** | **Review diffs & findings** | Scorecard displays exact rupee variance; deduplicated findings cards show matrix reproduction rates (e.g. *Observed in 4 of 4 Runs*). |
+| **5** | **Export dossier & complaint** | Click **HTML Evidence Report** for a standalone offline dossier, or **CCPA Complaint Draft** for an editable NCH grievance. |
 
 ---
 
 ## The pipeline
 
-Reading checkout pages and detecting deceptive pricing are separate, rigorous paths connected by an immutable database schema.
+Capturing checkout journeys and classifying dark patterns are separate paths. The stored evidence connects them.
 
 ```mermaid
 flowchart TD
-    UI["Web Dashboard · Vanilla JS & CSS"] -->|REST + SSE| API["FastAPI Backend · Port 8000"]
+    WEB["Browser · Vanilla JS & CSS Workspace"] -->|REST + SSE| API["FastAPI Backend · Port 8000"]
     API -->|Claim Job / Monotonic Lease| DB[("SQLite WAL · 16 Relational Tables")]
     
     subgraph Execution ["Autonomous Execution Engine"]
@@ -159,8 +125,10 @@ flowchart TD
     DB --> LIGHTBOX
 ```
 
+**Open any stage** to see what happens inside it.
+
 <details>
-<summary><b>Stage 01 · Discovery</b> — merchant policy and terms extraction via TinyFish Search</summary>
+<summary><b>01 · Discovery</b> — merchant policy and terms extraction via TinyFish Search</summary>
 <br>
 
 - **What happens:** queries `https://api.search.tinyfish.ai/?query={merchant}+pricing+terms+cancellation` to discover declared terms of service, fee disclosures, and return policies before entering the checkout funnel.
@@ -169,7 +137,7 @@ flowchart TD
 </details>
 
 <details>
-<summary><b>Stage 02 · Policy Extraction</b> — cached markdown extraction via TinyFish Fetch</summary>
+<summary><b>02 · Extract</b> — cached markdown policy extraction via TinyFish Fetch</summary>
 <br>
 
 - **What happens:** invokes `https://api.fetch.tinyfish.ai` to crawl discovered terms pages. Applies TTL freshness rules (`ttl: 0` for live pricing, `ttl: 3600` for legal terms) to prevent unnecessary upstream requests while maintaining clean markdown extracts.
@@ -178,7 +146,7 @@ flowchart TD
 </details>
 
 <details>
-<summary><b>Stage 03 · Web Agent Dispatch</b> — autonomous navigation with stop-before-payment guardrail</summary>
+<summary><b>03 · Navigate</b> — autonomous web agent with stop-before-payment guardrail</summary>
 <br>
 
 - **What happens:** dispatches headless cloud web agents via `POST https://agent.tinyfish.ai/v1/automation/run-async` with structured goal instructions: navigate to product display page, record price and delivery promises, add item to cart, open cart drawer, record subtotal and add-ons, proceed to guest checkout, input target delivery pincode, and stop immediately upon loading order review.
@@ -187,7 +155,7 @@ flowchart TD
 </details>
 
 <details>
-<summary><b>Stage 04 · Evidence Custody & Privacy Redaction</b> — Pillow masking and SHA-256 digest</summary>
+<summary><b>04 · Redact & Hash</b> — Pillow privacy masking and SHA-256 digest</summary>
 <br>
 
 - **What happens:** downloads raw step viewport captures (1280×720). Passes image bytes to `redactor.py` which applies a solid fill mask over the bottom 5% of the viewport (protecting sticky session IDs and cookies) and supports targeted coordinate bounding boxes for form inputs. The final redacted JPEG is hashed with SHA-256 and saved as `run_{id}_{step}_{sha256[:12]}.jpg`.
@@ -196,7 +164,7 @@ flowchart TD
 </details>
 
 <details>
-<summary><b>Stage 05 · Integer Minor-Unit Reconciliation</b> — strict mathematical check</summary>
+<summary><b>05 · Reconcile</b> — integer minor-unit arithmetic verification</summary>
 <br>
 
 - **What happens:** converts all rupee strings into integer paise ($\text{₹}14.99 \rightarrow 1499$). Validates arithmetic against:
@@ -207,7 +175,7 @@ flowchart TD
 </details>
 
 <details>
-<summary><b>Stage 06 · Matched-Pair Differential Engine</b> — 5 deterministic diff types</summary>
+<summary><b>06 · Diff</b> — matched-pair differential engine across 5 diff types</summary>
 <br>
 
 - **What happens:** groups runs into matched pairs that differ in *exactly one requested parameter*:
@@ -221,381 +189,224 @@ flowchart TD
 </details>
 
 <details>
-<summary><b>Stage 07 · CCPA Statutory Detection & Semantic Guardrails</b> — legal mapping</summary>
+<summary><b>07 · Detect</b> — CCPA 2023 Gazette statutory rule mapping</summary>
 <br>
 
-- **What happens:** deterministic detectors match diffs against statutory rules from `data/ccpa_definitions.json`. For downstream explanation, an LLM classifier (`openai/gpt-oss-20b` via Groq) contextualizes findings under strict regex guards: prohibited legal words (`guilty`, `convicted`, `unlawful`) are blocked; evidence grounding ensures absence claims cite explicit `not_observed_verified` records; if rate-limited (`HTTP 429`), deterministic statutory templates take over seamlessly.
-- **Carries forward:** structured `findings` records with severity, confidence, and CCPA Annex citations.
-- **Where to look:** `backend/app/analysis/detectors.py`, `backend/app/analysis/classifier.py`
+- **What happens:** deterministic detectors match diffs against statutory rules from `data/ccpa_definitions.json`. Flags Drip Pricing (Annex 1.8), Basket Sneaking (Annex 1.2), and False Urgency (Annex 1.1) with confidence scores and reproduction metrics.
+- **Carries forward:** candidate `findings` records with severity, confidence, and CCPA Annex citations.
+- **Where to look:** `backend/app/analysis/detectors.py`
 </details>
 
 <details>
-<summary><b>Stage 08 · Forensic Dossier & Actionable Grievance</b> — offline HTML and NCH draft</summary>
+<summary><b>08 · Explain</b> — schema-validated LLM contextualizer with fallback</summary>
 <br>
 
-- **What happens:** generates a self-contained, offline-viewable HTML audit dossier embedding base64/relative evidence links, SHA-256 digests, and chronological provider execution logs. Also generates an editable CCPA grievance draft pre-filled with merchant details, statutory rule citations, and verified evidence hashes for filing with the National Consumer Helpline.
-- **Carries forward:** exportable `.html` reports and copyable text grievance drafts.
-- **Where to look:** `backend/app/reports/html_report.py`, `backend/app/reports/complaint_draft.py`
+- **What happens:** an LLM classifier (`openai/gpt-oss-20b` via Groq) contextualizes findings under strict regex guards: prohibited legal words (`guilty`, `convicted`, `unlawful`) are blocked; evidence grounding ensures absence claims cite explicit `not_observed_verified` records; if rate-limited (`HTTP 429`), deterministic statutory templates take over seamlessly.
+- **Carries forward:** human-readable non-judicial explanation and statutory notes.
+- **Where to look:** `backend/app/analysis/classifier.py`
 </details>
 
----
+<details>
+<summary><b>Full system diagram</b> — every service and store, in one view</summary>
+<br>
 
-## The Method and condition matrix
-
-Checkout Radar avoids naive, single-run web scraping. A single checkout snapshot cannot prove that a fee was concealed or discriminatory; only **matched-pair differential auditing** proves when, where, and how fees vary.
-
-```
-                  ┌──────────────────────────────────────────────┐
-                  │           AUDIT CONDITION MATRIX             │
-                  └──────────────────────┬───────────────────────┘
-                                         │
-         ┌───────────────────────────────┼───────────────────────────────┐
-         ▼                               ▼                               ▼
-   LOCATION EFFECT                 SESSION EFFECT                  CART THRESHOLD
-   Pincode A (Tier-1)              Fresh Guest Profile             Above Threshold (₹998)
-         vs                              vs                              vs
-   Pincode B (Tier-2/3)            Returning Profile               Below Threshold (₹499)
-   [Controls: Session, Cart]       [Controls: Pincode, Cart]       [Controls: Pincode, Session]
-         │                               │                               │
-         └───────────────────────────────┼───────────────────────────────┘
-                                         ▼
-                                  TEMPORAL DRIFT
-                             Time t0  vs  Time t1
-                             [Controls: All Factors Fixed]
+```text
+[ Browser Dashboard ] ─── REST + SSE ───► [ FastAPI Application ] ──► [ SQLite WAL Database ]
+                                                 │ enqueue                    ▲
+                                          [ Durable Jobs ] ───────────────────┘
+                                                 │ claim (monotonic lease)
+                  ┌──────────────────────────────┴──────────────────────────────┐
+                  ▼                                                             ▼
+         [ Matrix Orchestrator ]                                        [ Worker Daemon ]
+                  │                                                             │
+                  ├─► TinyFish Search (Policy Discovery)                        ├─► Pillow Privacy Redactor
+                  ├─► TinyFish Fetch (Cached TTL Policies)                      ├─► SHA-256 Custody Hasher
+                  └─► TinyFish Agent (Async Cloud Browser)                      ├─► Minor-Unit Reconciler
+                                                                                ├─► Matched-Pair Diff Engine
+                                                                                ├─► CCPA Rule Detectors
+                                                                                ├─► Guarded LLM Classifier
+                                                                                └─► HTML Dossier & NCH Draft
 ```
 
-### The Cart Invariant: Recipe Family vs. Cart Instance
-A naive auditor that sees a ₹40 delivery fee on a ₹200 cart but not on a ₹1,000 cart might falsely flag price discrimination or drip pricing. 
+</details>
 
-Checkout Radar enforces a strict separation:
-- **Recipe Family:** Identical product IDs, variant configurations, and pricing context.
-- **Cart Instance:** The unit quantity chosen to cross or fall below a known threshold.
-- **Rule Verification:** Changing quantities adjusts the total cart value without modifying individual item unit prices. A fee that triggers only below a declared minimum is recognized as a legitimate `SMALL_CART_RULE`, guaranteeing **0 false positives** on standard shipping policies.
-
-### Controlled Countdown Observation Procedure
-To audit **False Urgency** (CCPA Annex 1.1) without false accusations:
-1. The agent observes a promotional banner or countdown timer on the product page at timestamp $t_0$ (e.g., `09:59` remaining).
-2. The agent **holds session state and page state completely fixed without navigating** for a measured duration $\Delta t = 30\text{s}$.
-3. At timestamp $t_1$, the agent re-observes the timer.
-4. If the timer has restarted, reset (e.g., jumped back to `09:59`), or persisted past an advertised deadline, a `false_urgency` indicator is emitted. A single unverified timer observation is **never** flagged.
+The diff engine detects; the model only contextualizes. The integer arithmetic, deterministic rule detectors, and cryptographic hashes make results checkable and repeatable, but a single run can still be an anomaly: that is why *Matrix Reproduction Rates* are reported (e.g. *Observed in 4 of 4 Runs*), and findings remain technical indicators rather than judicial verdicts.
 
 ---
 
-## Five-variant demo merchant harness
+## Behind the product
 
-Included in `harness/app.py` is a reproducible 5-variant e-commerce server running on port 8001. It simulates exact dark pattern and negative control archetypes:
+Core mechanisms from the Checkout Radar pitch deck. They explain the architectural principles with verified demonstration data; the pipeline above describes the implementation.
 
-| Variant | Endpoint | Simulated Behavior | Regulatory Outcome |
-| :--- | :--- | :--- | :--- |
-| **1. Clean Merchant** | `/variant/clean` | All delivery and handling charges are disclosed upfront on the product page. Zero surprises at checkout. | **`VERIFIED CLEAN (UNDER TESTED FLOW)`**<br>*(Negative Control: 0 findings)* |
-| **2. Late Disclosure** | `/variant/late_disclosure` | A mandatory ₹5.00 Handling Fee is concealed on product and cart pages, appearing only on final checkout summary. | **`POTENTIAL INDICATORS DETECTED`**<br>*(Drip Pricing: CCPA Annex 1.8)* |
-| **3. Add-on + Countdown** | `/variant/addon_countdown` | A ₹15.00 Transit Protection Guarantee is pre-ticked in cart total; a 10-minute urgency timer resets every 30 seconds. | **`POTENTIAL INDICATORS DETECTED`**<br>*(Basket Sneaking Annex 1.2 & False Urgency Annex 1.1)* |
-| **4. Upfront Convenience**| `/variant/upfront_fee` | Mandatory ₹20.00 fee prominently disclosed upfront on product page and included consistently throughout. | **`VERIFIED CLEAN (UNDER TESTED FLOW)`**<br>*(Negative Control: Disclosed fees are not drip pricing)* |
-| **5. Legitimate Threshold** | `/variant/legitimate_threshold`| Free shipping above ₹500; flat ₹40 fee below ₹500. Correctly handled by recipe family logic. | **`VERIFIED CLEAN (UNDER TESTED FLOW)`**<br>*(Negative Control: Categorized as legitimate `SMALL_CART_RULE`)* |
+<table>
+<tr>
+<td width="33%"><img src="screenshots/ui-audit/03_indicators_detected_viewport_1440x900.png" alt="The differential engine: the agent browses, Python diffs. Late fees are isolated mathematically." width="100%"></td>
+<td width="33%"><img src="screenshots/ui-audit/07_lightbox_modal_open_1440x900.png" alt="Cryptographic chain of custody: full-resolution lightbox with SHA-256 digest and unscaled viewport capture." width="100%"></td>
+<td width="33%"><img src="screenshots/ui-audit/08_complaint_draft_modal_1440x900.png" alt="Actionable consumer grievance: structured CCPA complaint draft ready for the National Consumer Helpline." width="100%"></td>
+</tr>
+<tr><td align="center"><b>The agent browses, Python diffs</b></td><td align="center"><b>Hashes, not unverified claims</b></td><td align="center"><b>Rules live in the engine</b></td></tr>
+</table>
 
----
+<details>
+<summary><b>See the full deck outline</b> — ten slides · <a href="docs/SLIDES_AZINHACK.md">Slide Markdown</a></summary>
+<br>
 
-## Evaluation and benchmarks
+| Concept & Problem | | | |
+| :---: | :---: | :---: | :---: |
+| **01 · Cover**<br>Outside-In Differential Checkout Transparency | **02 · Problem**<br>Hidden handling, surge & platform fees | **03 · Solution**<br>Differential condition matrices | **04 · Users**<br>Consumers, journalists, compliance |
 
-Checkout Radar is evaluated across a rigorous three-tier methodology combining deterministic ground-truth scenarios, empirical provider telemetry, and real-site validation protocols.
+| Engine & Architecture | | | |
+| :---: | :---: | :---: | :---: |
+| **05 · Cart Invariant**<br>Recipe family vs. cart instance | **06 · TinyFish**<br>Search, Fetch, Agent, Profiles | **07 · Reliability**<br>Lease fencing & integer math | **08 · Evaluation**<br>3-Tier benchmark framework |
 
-### Tier 1: Synthetic Scenario Benchmark (45 Designed Bundles)
-45 curated scenario bundles in `evaluation/ground_truth.json` evaluate algorithm conformance:
-- **15 Clean Bundles:** Negative controls across upfront fee disclosures, cart thresholds, and standard itemization.
-- **12 Drip Pricing Bundles:** Mandatory charges disclosed late at checkout with verified absent upfront disclosures.
-- **10 Basket Sneaking Bundles:** Pre-selected add-ons (insurance, donation, priority packaging) added without affirmative consent.
-- **8 False Urgency Bundles:** Controlled countdown resets (holding session fixed) and expired offer persistence.
+| Harness & Future | |
+| :---: | :---: |
+| **09 · Harness**<br>5 reproducible merchant variants | **10 · Future**<br>Browser extension & global proxies |
 
-```
-Total Evaluated Bundles:    45 synthetic scenarios
-Detection Precision:        100.0% (30 / 30 True Positives, 0 False Positives)
-Detection Recall:           100.0% (30 / 30 True Positives, 0 False Negatives)
-F1-Score:                   1.000
-Classification Conformance: 100.0% (30 / 30 on designed fixtures)
-```
-*(Note: Reflects deterministic regression conformance on designed test cases; does not represent uncurated production performance).*
+</details>
 
-### Tier 2: Downstream LLM Verification & Provider Telemetry
-Evaluates semantic contextualization of upstream candidates ($N = 30$ candidates; 15 clean bundles emit zero candidates and zero outbound calls):
-- **Telemetry Artifact:** Durably recorded in `evaluation/last_run_telemetry.json` (`openai/gpt-oss-20b` via Groq). Replayable at any time via `python3 evaluation/run_evaluation.py --from-telemetry evaluation/last_run_telemetry.json`.
-- **First-Pass Quality ($N = 2$ completions received before upstream HTTP 429 throttling):**
-  - Schema Conformance: **100% (2 / 2)** conforms to `ClassifiedFinding`.
-  - Non-Judicial Wording: **100% (2 / 2)** strictly avoids adjudicative guilt phrasing.
-  - Category Concordance: **100% (2 / 2)** agrees with upstream candidate category.
-- **Pipeline Recovery & Acceptance ($N = 30$ submitted candidates):**
-  - **30 / 30 (100.0%) final accepted outputs** via safe deterministic statutory fallback templates.
-  - Zero ungrounded absence claims or invented values.
-- **Empirical Latency Breakdown:**
-  - Usable Model Response Latency (HTTP 200, $N=2$): Mean **1,508.1 ms** (p95: **1,977.7 ms**).
-  - Outbound HTTP Round-Trip (including HTTP 429, $N=30$): Mean **288.5 ms** (p95: **1,038.5 ms**).
-  - End-to-End Candidate Processing ($N=30$): Mean **2,395.2 ms** (includes 2.0s pacing).
+<details>
+<summary><b>See live audits and dark pattern detections in motion</b></summary>
+<br>
 
-### Tier 3: Real-Site Validation Protocol (Headphone Zone)
-Documented in `docs/REAL_SITE_VALIDATION_PROTOCOL.md`. A live, bounded audit executed against [Headphone Zone](https://www.headphonezone.in/products/tangzu-waner-s-g) captured authentic 1280×720 viewports, verified tax-inclusive pricing with ₹0.00 variance, and confirmed clean upfront pricing under tested conditions.
+<img src="screenshots/landing/04_auditor_findings_dedup_1440.png" alt="Live audit detection: mandatory ₹5.00 Handling Fee flagged as Drip Pricing across all 4 matrix runs with 100% reproduction rate." width="100%">
+
+<img src="screenshots/ui-audit/04_inconclusive_audit_viewport_1440x900.png" alt="Fail-closed default: obstructed checkout summary correctly denies clean badge and renders amber INCONCLUSIVE AUDIT." width="100%">
+
+</details>
+
+<details>
+<summary><b>See more of the live app</b></summary>
+
+![Full-resolution viewport modal with 64-character SHA-256 digest](screenshots/ui-audit/07_lightbox_modal_open_1440x900.png)
+
+![Pre-filled National Consumer Helpline complaint draft modal](screenshots/ui-audit/08_complaint_draft_modal_1440x900.png)
+
+![Clean store negative control with zero variances and verified clean badge](screenshots/ui-audit/02_clean_audit_viewport_1440x900.png)
+
+![Tablet responsive layout showing 2x2 scorecard grid](screenshots/landing/02_landing_tablet_768x1024.png)
+
+![Mobile responsive layout showing stacked action buttons and single-column cards](screenshots/landing/03_landing_mobile_375x812.png)
+
+</details>
 
 ---
 
 ## Engineering map
 
-| Layer | Implementation & Key Modules |
+| Layer | Implementation |
 | :--- | :--- |
 | **Interface** | `frontend/` — Vanilla HTML5, CSS3, ES2022 JavaScript. Responsive layouts (Desktop 1440×900, Tablet 768×1024, Mobile 375×812). Zero node_modules or frontend build steps. |
-| **API & Stream** | `backend/app/main.py` — FastAPI with Starlette. Server-Sent Events (SSE) progress feed with `last_event_id` reconnection. Path-traversal safe evidence serving. |
-| **Data & Storage** | `backend/app/db/` — SQLite 3 in WAL mode (`PRAGMA journal_mode = WAL;`). 16 relational tables with strict foreign keys and 30,000ms busy timeout. |
-| **Concurrency** | `backend/app/worker/job_runner.py` — Durable jobs with **monotonic lease fencing tokens** (`lease_generation`) inside `BEGIN IMMEDIATE` transactions to prevent split-brain execution. |
-| **Agent Engine** | `backend/app/tinyfish/` — Dual-mode TinyFish adapter: `MockTinyFishClient` (deterministic offline replay) and `RealTinyFishClient` (Search, Fetch, Agent run-async, Profiles, Screenshots). |
-| **Diff & Detection**| `backend/app/analysis/` — Deterministic matched-pair diff engine (5 diff types), CCPA rule detectors, integer minor-unit arithmetic reconciler, and guarded LLM classifier. |
-| **Evidence & Custody**| `backend/app/worker/redactor.py` — Pillow privacy masking (bottom-5% footer mask + targeted bounding boxes) and SHA-256 cryptographic image hashing. |
-| **Delivery** | `docker-compose.yml`, `Dockerfile` (python:3.12-alpine minimal image), native `./start.sh` and `start.cmd` launcher scripts with dynamic port resolution. |
-| **Verification** | 114 unit/integration tests (`pytest`), 3-flow demo verification script, 5-check CDP headless browser suite, and dedicated secret scanner. |
+| **API and access** | FastAPI with Pydantic models as the contract; Server-Sent Events (SSE) progress feed with `last_event_id` reconnection; 15 REST operations in [`docs/api-contract.md`](docs/api-contract.md), checked by tests. |
+| **Data and rules** | SQLite 3 in WAL mode (`PRAGMA journal_mode = WAL;`): 16 relational tables with foreign key enforcement and 30,000ms busy timeout. |
+| **Concurrency** | Durable job queue with **monotonic lease fencing tokens** (`lease_generation`) inside `BEGIN IMMEDIATE` transactions to prevent split-brain worker overwrites. |
+| **Agent engine** | Dual-mode TinyFish adapter: `MockTinyFishClient` (deterministic offline replay) and `RealTinyFishClient` (Search, Fetch, Agent run-async, Profiles, Screenshots). |
+| **Diff and detection** | Deterministic matched-pair diff engine (5 diff types), CCPA rule detectors (Annex 1.8, 1.2, 1.1), integer minor-unit arithmetic reconciler, and guarded LLM classifier. |
+| **Trust and custody** | Pillow privacy masking (bottom-5% footer mask + targeted bounding boxes) and SHA-256 cryptographic image hashing. |
+| **Delivery** | Minimal Alpine Docker images (`backend/Dockerfile`, `harness/Dockerfile`), native `./start.sh` and `start.cmd` launcher scripts with dynamic port resolution. |
+| **Verification** | 114 backend unit tests, 3 live journey demo verifications, 5 CDP browser interaction checks, and dedicated 11-pattern secret scanner. |
 
 <details>
-<summary><b>Repository Directory Tree</b></summary>
+<summary><b>Repository layout</b></summary>
 
 ```text
-checkout-radar/
-├── backend/
-│   ├── app/
-│   │   ├── main.py                     # FastAPI routes, CORS, SSE streaming, static mounting
-│   │   ├── analysis/                   # Diff engine, detectors, normalizer, reconciler, classifier
-│   │   ├── db/                         # Connection lifecycle, schema.sql, CRUD operations
-│   │   ├── matrix/                     # Condition matrix orchestrator (single, quick, full)
-│   │   ├── models/                     # Contracts and Pydantic schemas
-│   │   ├── reports/                    # HTML evidence report and CCPA complaint draft generators
-│   │   ├── services/                   # Provider settings service & secret masking
-│   │   ├── tinyfish/                   # Mock client, real client, goals, and adapter base
-│   │   └── worker/                     # Daemon loop, job runner, lease recovery, redactor
-│   └── tests/                          # 114 automated unit & integration tests
-├── frontend/
-│   ├── index.html                      # Product landing page & demo cards
-│   ├── auditor.html                    # Forensic auditor investigation workspace
-│   ├── app.js                          # State management, SSE console, modals, copy utils
-│   ├── styles.css                      # Unified forensic dark theme & responsive styles
-│   └── landing.css                     # Landing page specific styles & workflow layout
-├── harness/
-│   ├── app.py                          # 5-variant reproducible demo merchant server
-│   └── Dockerfile                      # python:3.12-alpine minimal image
-├── data/
-│   ├── ccpa_definitions.json           # CCPA 2023 Gazette dark pattern definitions
-│   ├── demo_seed.json                  # Pre-seeded demonstration audit fixtures
-│   ├── checkout_radar.db               # SQLite database in WAL mode
-│   └── evidence/                       # SHA-256 verified redacted JPEG captures
-├── evaluation/
-│   ├── ground_truth.json               # 45 curated synthetic scenario fixtures
-│   ├── last_run_telemetry.json         # Durably recorded provider run telemetry
-│   └── run_evaluation.py               # 3-tier benchmark execution script
-├── docs/                               # Real-site protocol, presentation slides, spike reports
-├── scripts/                            # Operational, testing, and screenshot capture CLI scripts
-├── docker-compose.yml                  # 3-service orchestration (harness, api, worker)
-├── start.sh / start.cmd                # One-command cross-platform launchers
-└── stop.sh / stop.cmd                  # Clean container teardown scripts
+backend/
+  app/main.py            App factory: routes, CORS, SSE progress stream, static mounting
+  app/analysis/          diff_engine (5 types), detectors (CCPA rules), normalizer, reconciler, classifier
+  app/db/                connection (WAL mode), crud (atomic observations), schema.sql (16 tables)
+  app/matrix/            orchestrator (single, quick [4 runs], full [12 runs] condition expansions)
+  app/models/            contracts (TinyFish JSON contract), schemas (Pydantic models = API contract)
+  app/reports/           html_report (exportable dossier), complaint_draft (NCH / CCPA grievance draft)
+  app/services/          settings_service (backend credentials store, zero-exfiltration masking)
+  app/tinyfish/          mock_client (offline replay), real_client (Search, Fetch, Agent), goals (guardrails)
+  app/worker/            daemon (loop), job_runner (lease recovery), redactor (Pillow mask & SHA-256)
+  tests/                 114 unit, integration, concurrency, and security tests
+frontend/
+  index.html             Product landing page: overview, 5-stage workflow, CCPA mapping, demo cards
+  auditor.html           Forensic auditor workspace: hero scorecard, 3-stage gallery, lightbox, diffs
+  app.js                 State management, SSE live console, findings deduplication, copy utils
+  styles.css             Forensic dark theme tokens, responsive breakpoints, copy pills
+  landing.css            Landing page specific layouts, hero metric strip, cards
+harness/
+  app.py                 5-variant reproducible merchant server (Clean, Late Fee, Add-on, Upfront, Threshold)
+data/
+  ccpa_definitions.json  All 13 CCPA 2023 Gazette dark pattern definitions & official Annex citations
+  demo_seed.json         Pre-seeded demonstration audit fixtures (instant demo without API keys)
+  checkout_radar.db      SQLite database in WAL mode (append-only evidence store)
+  evidence/              Redacted viewport captures (SHA-256 hashed JPEGs)
+evaluation/
+  ground_truth.json      45 curated synthetic scenario bundles (15 clean, 12 drip, 10 sneak, 8 urgency)
+  last_run_telemetry.json Durably recorded provider run telemetry (N=30 candidates, gpt-oss-20b via Groq)
+  run_evaluation.py      Three-tier benchmark runner with confusion matrices & latency breakdown
+scripts/                 launcher, verify_demo_flows, verify_ui_interaction, scan_secrets, stress_test
+docker-compose.yml       3-tier container orchestration (harness: 8001, api: 8000, worker)
+start.sh / start.cmd     One-command cross-platform startup scripts
+stop.sh / stop.cmd       Clean container teardown scripts
 ```
 
 </details>
 
-### Concurrency and boundaries that matter
+### Boundaries that matter
 
-1. **Monotonic Lease Fencing:** When workers claim a job, SQLite increments a monotonic `lease_generation` counter inside an atomic `BEGIN IMMEDIATE` write transaction. Before committing results, the worker verifies that its generation token matches. If a stalled worker wakes up after its lease expired, its write is rejected with `StaleLeaseError`, eliminating split-brain corruption.
-2. **Idempotent Observation Commits:** On worker retry or crash recovery, existing observations for that `run_id` are purged and re-inserted inside a single transaction, preventing duplicate charges or inflated finding counts.
-3. **Lease Heartbeat:** During long-running browser navigations, the worker issues heartbeat updates every polling cycle, extending the active lease by 300 seconds.
+The backend worker coordinates jobs with **monotonic lease fencing tokens**, so stale workers that wake up after a lease timeout are rejected with `StaleLeaseError`, guaranteeing that multiple workers never corrupt the same audit run. Resets and retries execute inside atomic `BEGIN IMMEDIATE` transactions with observation idempotency.
+
+The live build uses sample data and a deterministic offline mock by default. Real TinyFish agent executions navigate genuine live stores, but adhere to the strict **Stop-Before-Payment** boundary: no merchant inventory is held and zero financial transactions are submitted. All API credentials reside exclusively on the backend with automated regex scrubbing across all logs and responses.
 
 ---
 
-## Local development and quickstart
+## Local development
 
-Checkout Radar features a **one-command, cross-platform launcher** for Linux, macOS, and Windows. A fresh clone runs the full audit pipeline in **deterministic offline mock mode by default**—requiring zero external API keys, zero LLM provider credits, and zero live merchant access.
-
-### Prerequisites
-- **Docker Engine & Docker Compose** (v2.20+ or Docker Desktop)
-- Git
+You need Python 3.12+ and Docker Engine with Docker Compose (v2.20+ or Docker Desktop).
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/patchyevolve/CheckOutRadar.git
 cd checkout-radar
 
-# 2. Launch with a single command
-# On Linux & macOS:
-./start.sh
+# 2. Launch with a single command (auto-detects Docker, generates .env, starts containers)
+./start.sh              # On Linux & macOS
+start.cmd               # On Windows (CMD / PowerShell)
 
-# On Windows (CMD / PowerShell):
-start.cmd
+# Or launch directly with Docker Compose:
+docker compose up --build -d
 ```
 
-#### What the Launcher Does Automatically
-1. **Pre-Flight Diagnostics:** Checks Docker daemon health and Compose availability.
-2. **Zero-Configuration Environment:** Initializes `.env` from `.env.example` with `MOCK_TINYFISH=true` if absent.
-3. **Container Build & Orchestration:** Builds minimal Alpine images and starts `harness` (8001), `api` (8000), and `worker`.
-4. **Healthcheck Synchronization:** Polls `/health` until all services report healthy.
-5. **Dynamic Port Discovery:** Detects custom or mapped host ports automatically.
-6. **Automatic Browser Launch:** Opens the Auditor Dashboard in your default browser.
+Without `TINYFISH_API_KEY` or `LLM_API_KEY`, Checkout Radar runs in **100% deterministic offline mock mode**: all 5 merchant harness variants, pre-seeded demonstration audits, and the full test suite work out of the box with zero external credits. Configure real keys at any time via the workspace **`⚙️ Provider Settings`** modal.
 
-### Service Endpoints
-
-| Component | URL | Description |
-| :--- | :--- | :--- |
-| **Product Landing Page** | [http://localhost:8000](http://localhost:8000) | Overview, CCPA regulatory background, and 1-click demo launch cards. |
-| **Auditor Workspace** | [http://localhost:8000/auditor](http://localhost:8000/auditor) | Full forensic dashboard: scorecards, 3-stage gallery, diffs, findings, and technical trail. |
-| **Demo Merchant Harness** | [http://localhost:8001](http://localhost:8001) | Controlled store exhibiting all 5 behavioral variants. |
-| **Interactive API Docs** | [http://localhost:8000/docs](http://localhost:8000/docs) | Swagger/OpenAPI documentation for all 15 REST endpoints. |
-| **Health Check** | [http://localhost:8000/health](http://localhost:8000/health) | Service status, mock mode indicator, and key detection. |
-
-*(To stop containers cleanly: `./stop.sh` or `stop.cmd` or `docker compose down`).*
-
----
-
-## Verification and test suites
-
-Checkout Radar includes a 100% reproducible test suite requiring **zero external network calls**:
+<details>
+<summary><b>Checks</b> — backend tests, demo flows, and security scan</summary>
 
 ```bash
-# 1. Run full Pytest test suite (114 tests across 15 modules)
+# Backend — 114 unit, integration, and concurrency tests (zero network calls)
 PYTHONPATH=backend pytest backend/tests/ -v
 
-# 2. Run Three-Flow Demonstration Verification
+# Demo flows — automated verification of all 3 core demonstration scenarios
 python3 scripts/verify_demo_flows.py
 
-# 3. Run Headless Browser CDP & Lightbox Verification
+# Browser CDP — automated headless browser & lightbox verification
 python3 scripts/verify_ui_interaction.py
 
-# 4. Run Dedicated Security & Secrets Audit Scanner (147 files + full git history)
+# Security — dedicated secrets audit scanner across 147 files and full git log
 python3 scripts/scan_secrets.py
 
-# 5. Run Multiprocessing Concurrency & Lease Stress Test
+# Concurrency — multi-process SQLite WAL contention & lease stress test
 python3 scripts/stress_test_multiprocess.py
 ```
 
-<details>
-<summary><b>Test Suite Breakdown (114 Tests)</b></summary>
-
-- `test_classifier_guard.py` (13 tests): Non-judicial wording guards, fee absence grounding, category preservation.
-- `test_detectors.py` (9 tests): Drip pricing, basket sneaking, and false urgency detectors; outcome assessment logic.
-- `test_diff_engine.py` (5 tests): Matched pairs, cart quantity threshold invariance, location price variance.
-- `test_end_to_end.py` (7 tests): Full pipeline audits across all 5 demo harness variants and blocker outcomes.
-- `test_evaluation.py` (8 tests): 45 synthetic bundles, precision/recall calculations, telemetry serialization.
-- `test_evidence_dashboard.py` (11 tests): Evidence serving, path traversal rejection, workspace rendering.
-- `test_evidence_pipeline.py` (8 tests): Idempotency, stage linkage, lease fencing token validation.
-- `test_lease_recovery.py` (3 tests): Worker claiming, lease expiration recovery, duplicate submission prevention.
-- `test_matrix.py` (3 tests): Matrix orchestrator expansion across single, quick, and full presets.
-- `test_normalizer.py` (3 tests): Fee label canonicalization and minor-unit paise conversions.
-- `test_provider_settings.py` (14 tests): Secret masking, credential persistence, isolated connection probes.
-- `test_reconciler.py` (4 tests): Subtotal + Charges + Taxes - Discounts == Payable arithmetic check.
-- `test_redactor.py` (5 tests): Privacy redaction threat model, targeted bounding boxes, SHA-256 integrity.
-- `test_startup_portability.py` (6 tests): Fresh clone mock-by-default behavior, launcher scripts, seed data.
-- `test_tinyfish_live_adapter.py` (15 tests): Live HTTP client, DNS resilience, secret scrubbing, blocker routing.
-
 </details>
 
----
-
-## Live merchant auditing guide
-
-Checkout Radar can audit any public e-commerce store from the outside in using a live **TinyFish Web Agent** API key.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as Auditor / User
-    participant UI as Workspace (/auditor)
-    participant API as FastAPI Backend (/settings)
-    participant DB as SQLite WAL Store
-    participant Worker as Durable Job Worker
-    participant TF as TinyFish Web Agent API
-    participant Store as Live Merchant (e.g. Shopify)
-
-    User->>UI: 1. Click ⚙️ Provider Settings
-    User->>UI: 2. Enter TinyFish Key & Click "🐟 Test TinyFish"
-    UI->>API: POST /settings/test-tinyfish
-    API->>TF: GET api.search.tinyfish.ai/?query=test
-    TF-->>API: 200 OK (Latency ~1.9s)
-    API-->>UI: Connected! Status 200 OK
-    User->>UI: 3. Select Mode: "Live TinyFish Execution" & Save
-    UI->>API: POST /settings {mock_tinyfish: false}
-    API->>DB: Persist backend setting
-
-    User->>UI: 4. Enter Target PDP URL & Start Audit
-    UI->>API: POST /audits
-    API->>DB: Enqueue Matrix Jobs
-    Worker->>DB: Claim Job with Monotonic Lease
-    Worker->>TF: Search Policy & Fetch Clean Markdown
-    Worker->>TF: Run Async Agent (Stop Before Payment)
-    TF->>Store: Navigate PDP ➔ Cart ➔ Checkout Summary
-    Store-->>TF: Viewport screenshots & extracted bill
-    Worker->>TF: Poll status & download screenshots
-    Worker->>Worker: Redact screenshots & Reconcile integer paise
-    Worker->>DB: Persist observations atomically (BEGIN IMMEDIATE)
-    Worker->>DB: Run Diff Engine & Statutory Detector Rules
-    UI->>User: 5. Display 3-Stage Visual Evidence Gallery & Scorecard
-    User->>UI: 6. Inspect Findings, SHA-256 Lightbox & Export Reports
-```
-
-### 1. Configure Credentials via the UI
-1. In the Auditor Workspace at [http://localhost:8000/auditor](http://localhost:8000/auditor), click **`⚙️ Provider Settings`**.
-2. Enter your **TinyFish API Key** (`sk-tinyfish-...`).
-3. Click **`🐟 Test TinyFish`** to run an isolated, timed connection probe. The status will confirm connectivity:
-   $$\text{CONNECTED (200 OK) } \cdot \text{ Latency: } \sim 1,900\text{ ms}$$
-4. In the **Agent Execution Mode** dropdown, select `Live TinyFish Execution`.
-5. Click **`Save Configuration`**. Check [http://localhost:8000/health](http://localhost:8000/health) to confirm `"mock_mode": false`.
-
-### 2. Optional: Configure an LLM Provider
-> [!NOTE]
-> **LLM classification is 100% optional.** Dark pattern detection is performed upstream by Checkout Radar's deterministic diff engine and CCPA rule detectors. When no LLM is configured, Checkout Radar automatically uses pre-validated **deterministic statutory explanation templates**.
-
-To enable dynamic semantic contextualization:
-- Select a preset: `⚡ Groq` (`llama-3.3-70b`), `🤖 OpenAI` (`gpt-4o-mini`), `✨ Gemini` (`1.5-flash`), or `💻 Ollama / Local` (`localhost:11434`).
-- Enter your key and click **`🔌 Test LLM`**.
-
-### 3. Target URL Compatibility Criteria
-- **Supported:** Direct Product Display Pages (PDP) with an active "Add to Cart" or "Buy Now" button (e.g. Shopify, WooCommerce, Magento stores).
-- **Authorized Reference Live Store:** Click the `🌐 Live: Headphone Zone` preset chip to audit `https://www.headphonezone.in/products/tangzu-waner-s-g`.
-- **Restricted / Incompatible:** Mandatory SMS OTP login walls (e.g. Blinkit, Zepto, Swiggy) or aggressive Cloudflare Turnstile interstitial challenges immediately halt the agent and are classified honestly as **`INCONCLUSIVE AUDIT`**.
-
----
-
-## Troubleshooting
-
-| Symptom | Cause | Resolution |
-| :--- | :--- | :--- |
-| **Port 8000 or 8001 in use** | Another local service is bound to port 8000 or 8001. | Launch with port overrides: `API_PORT=8080 HARNESS_PORT=8081 ./start.sh`. |
-| **Docker daemon unavailable** | Docker Desktop is not started or systemd service is inactive. | Start Docker Desktop or run `sudo systemctl start docker`. |
-| **Test TinyFish returns HTTP 401** | The configured API key is invalid or expired. | Verify your key in `⚙️ Provider Settings` and re-test. |
-| **Audit outcome is `INCONCLUSIVE`** | Merchant enforced an SMS OTP or CAPTCHA challenge. | Expected fail-closed behavior. Review the *Inconclusive Factors* list in the assessment banner. |
-| **LLM returns HTTP 429** | Upstream provider rate limits exceeded. | Increase Outbound Request Pacing to `3.0`s or `4.0`s in `⚙️ Provider Settings`, or rely on deterministic fallback templates. |
-| **Switch back to Offline Mock** | Conserve TinyFish credits during testing. | In `⚙️ Provider Settings`, set *Agent Execution Mode* to `Deterministic Offline Mock` and save. |
-
----
-
-## Declared code reuse & dependencies
-
-Checkout Radar was designed and developed originally for **AZINHACK 2026**. Standard open-source libraries used:
-- `FastAPI`, `Starlette`, `Uvicorn` — Web framework and ASGI server
-- `Pydantic` — Data validation and schema contracts
-- `Pillow` — Image redaction and privacy masking
-- `SQLite3` (Python Standard Library) — Append-only durable database with WAL mode
-- `pytest`, `httpx` — Automated unit, diff, and evaluation testing
-
----
-
-## Legal & ethical disclaimer
-
-Findings generated by Checkout Radar represent empirical, algorithmic candidate indicators of potential deceptive practices mapped to the **CCPA Guidelines for Prevention and Regulation of Dark Patterns, 2023**. They do not constitute formal judicial rulings, statutory determinations, or legal liability.
-
-Under no circumstances does Checkout Radar submit payment details, complete orders, or transfer funds. Audits terminate strictly prior to payment authorization.
+For deeper context: [presentation slides](docs/SLIDES_AZINHACK.md), [real-site validation protocol](docs/REAL_SITE_VALIDATION_PROTOCOL.md), and [TinyFish Day-0 spike report](docs/SPIKE_REPORT.md).
 
 ---
 
 <div align="center">
 
-**Built for AZINHACK 2026**
+<p><strong>Built for AZINHACK 2026</strong></p>
 
-Auditing checkout transparency from the outside in.
+Checkout transparency built on evidence, not claims.
 
-<p>
-  <a href="http://localhost:8000"><b>Product Landing Page</b></a> · 
-  <a href="http://localhost:8000/auditor"><b>Auditor Workspace</b></a> · 
-  <a href="http://localhost:8000/docs"><b>Interactive API Docs</b></a>
-</p>
+<a href="http://localhost:8000/auditor"><img src="https://img.shields.io/badge/Launch%20Auditor%20Workspace%20%E2%86%92-0b0f19?style=for-the-badge&logo=radar&logoColor=white&labelColor=1e40af" alt="Launch Auditor Workspace → http://localhost:8000/auditor" height="42"></a>
 
-<sub>© 2026 Checkout Radar. Developed with integrity, empirical verification, and zero hidden claims.</sub>
+<sub>© 2026 Checkout Radar. Screenshots and animations show the live hackathon build with sample data.</sub>
 
 </div>
